@@ -23,15 +23,37 @@ const categoriaStyle: Record<string, string> = {
 
 export default function ServicosPage() {
   const [modalAberto, setModalAberto] = useState(false)
+  const [servicoEditando, setServicoEditando] = useState<typeof servicosMock[0] | null>(null)
   const [nome, setNome] = useState("")
   const [categoria, setCategoria] = useState("Corte")
   const [preco, setPreco] = useState("")
   const [duracao, setDuracao] = useState("")
   const [domicilio, setDomicilio] = useState(false)
 
+  function handleEditar(servico: typeof servicosMock[0]) {
+    setServicoEditando(servico)
+    setNome(servico.nome)
+    setCategoria(servico.categoria)
+    setPreco(String(servico.preco))
+    setDuracao(String(servico.duracao))
+    setDomicilio(servico.domicilio)
+    setModalAberto(true)
+  }
+
+  function handleNovo() {
+    setServicoEditando(null)
+    setNome("")
+    setCategoria("Corte")
+    setPreco("")
+    setDuracao("")
+    setDomicilio(false)
+    setModalAberto(true)
+  }
+
   function handleSalvar(e: React.FormEvent) {
     e.preventDefault()
     setModalAberto(false)
+    setServicoEditando(null)
     setNome("")
     setCategoria("Corte")
     setPreco("")
@@ -42,25 +64,22 @@ export default function ServicosPage() {
   return (
     <DashboardLayout>
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Serviços</h1>
           <p className="text-zinc-500 text-sm">{servicosMock.length} serviços cadastrados</p>
         </div>
         <button
-          onClick={() => setModalAberto(true)}
+          onClick={handleNovo}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
         >
           + Novo serviço
         </button>
       </div>
 
-      {/* Grid de serviços */}
       <div className="grid grid-cols-3 gap-3">
         {servicosMock.map((servico) => (
           <div key={servico.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
-
             <div className="flex items-start justify-between mb-3">
               <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.categoria] ?? "bg-zinc-700 text-zinc-400"}`}>
                 {servico.categoria}
@@ -77,25 +96,26 @@ export default function ServicosPage() {
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
               <div className="text-amber-400 font-bold">R$ {servico.preco}</div>
               <div className="text-zinc-500 text-xs">{servico.duracao} min</div>
-              <button
-                onClick={() => setModalAberto(true)}
-                className="text-xs text-zinc-500 hover:text-zinc-300 mt-2 transition-colors"
-              >
-                ✏️ Editar
-              </button>
             </div>
 
+            <button
+              onClick={() => handleEditar(servico)}
+              className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
+            >
+              ✏️ Editar
+            </button>
           </div>
         ))}
       </div>
 
-      {/* Modal novo serviço */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
 
             <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Novo Serviço</h2>
+              <h2 className="text-white font-bold">
+                {servicoEditando ? "Editar Serviço" : "Novo Serviço"}
+              </h2>
               <button onClick={() => setModalAberto(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
             </div>
 
@@ -159,7 +179,6 @@ export default function ServicosPage() {
                 </div>
               </div>
 
-              {/* Disponível para domicílio */}
               <div
                 onClick={() => setDomicilio(!domicilio)}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
@@ -193,7 +212,7 @@ export default function ServicosPage() {
                   type="submit"
                   className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
                 >
-                  Cadastrar
+                  {servicoEditando ? "Salvar" : "Cadastrar"}
                 </button>
               </div>
 

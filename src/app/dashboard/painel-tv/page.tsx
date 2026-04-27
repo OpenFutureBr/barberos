@@ -53,9 +53,9 @@ export default function PainelTVPage() {
     <div className="min-h-screen bg-zinc-950 flex flex-col p-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <a href="/dashboard" className="absolute top-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors z-10">
-          ← Voltar ao sistema
+      <div className="flex items-center justify-between mb-6" style={{position:"relative"}}>
+       <a href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors">
+          ← Voltar
         </a>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
