@@ -29,6 +29,7 @@ export default function ClientesPage() {
   const [email, setEmail] = useState("")
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState("")
+  const [nascimento, setNascimento] = useState("")
 
   useEffect(() => {
     buscarClientes()
@@ -56,6 +57,7 @@ export default function ClientesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: nome, phone: telefone, email }),
+        body: JSON.stringify({ name: nome, phone: telefone, email, birthDate: nascimento || null }),
       })
       if (!res.ok) throw new Error("Erro ao salvar")
       await buscarClientes()
@@ -193,6 +195,15 @@ export default function ClientesPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="email@exemplo.com"
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Data de nascimento</label>
+                <input
+                  type="date"
+                  value={nascimento}
+                  onChange={(e) => setNascimento(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
               {erro && (

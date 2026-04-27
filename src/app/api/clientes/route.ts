@@ -33,6 +33,7 @@ export async function POST(request: Request) {
         phone: body.phone,
         email: body.email || null,
         establishmentId: "estab001",
+        birthDate: body.birthDate ? new Date(body.birthDate) : null,
       },
     })
     
