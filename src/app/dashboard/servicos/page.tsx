@@ -77,6 +77,12 @@ export default function ServicosPage() {
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
               <div className="text-amber-400 font-bold">R$ {servico.preco}</div>
               <div className="text-zinc-500 text-xs">{servico.duracao} min</div>
+              <button
+                onClick={() => setModalAberto(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 mt-2 transition-colors"
+              >
+                ✏️ Editar
+              </button>
             </div>
 
           </div>
