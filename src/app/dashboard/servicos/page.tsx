@@ -1,16 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
-
-const servicosMock = [
-  { id: "1", nome: "Corte de Cabelo", categoria: "Corte", preco: 65, duracao: 40, domicilio: true, ativo: true },
-  { id: "2", nome: "Corte + Barba", categoria: "Combo", preco: 95, duracao: 60, domicilio: true, ativo: true },
-  { id: "3", nome: "Barba Completa", categoria: "Barba", preco: 45, duracao: 30, domicilio: true, ativo: true },
-  { id: "4", nome: "Progressiva", categoria: "Química", preco: 180, duracao: 120, domicilio: false, ativo: true },
-  { id: "5", nome: "Hidratação", categoria: "Tratamento", preco: 60, duracao: 45, domicilio: false, ativo: true },
-  { id: "6", nome: "Fade + Hidratação", categoria: "Premium", preco: 110, duracao: 70, domicilio: false, ativo: true },
-]
 
 const categoriaStyle: Record<string, string> = {
   Corte: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
@@ -22,22 +13,33 @@ const categoriaStyle: Record<string, string> = {
 }
 
 export default function ServicosPage() {
+  const [servicos, setServicos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
-  const [servicoEditando, setServicoEditando] = useState<typeof servicosMock[0] | null>(null)
+  const [servicoEditando, setServicoEditando] = useState<any | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState("")
   const [nome, setNome] = useState("")
   const [categoria, setCategoria] = useState("Corte")
   const [preco, setPreco] = useState("")
   const [duracao, setDuracao] = useState("")
   const [domicilio, setDomicilio] = useState(false)
 
-  function handleEditar(servico: typeof servicosMock[0]) {
-    setServicoEditando(servico)
-    setNome(servico.nome)
-    setCategoria(servico.categoria)
-    setPreco(String(servico.preco))
-    setDuracao(String(servico.duracao))
-    setDomicilio(servico.domicilio)
-    setModalAberto(true)
+  useEffect(() => {
+    buscarServicos()
+  }, [])
+
+  async function buscarServicos() {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/servicos")
+      const data = await res.json()
+      setServicos(Array.isArray(data) ? data : [])
+    } catch {
+      setErro("Erro ao carregar serviços")
+    } finally {
+      setLoading(false)
+    }
   }
 
   function handleNovo() {
@@ -47,18 +49,48 @@ export default function ServicosPage() {
     setPreco("")
     setDuracao("")
     setDomicilio(false)
+    setErro("")
     setModalAberto(true)
   }
 
-  function handleSalvar(e: React.FormEvent) {
+  function handleEditar(servico: any) {
+    setServicoEditando(servico)
+    setNome(servico.name)
+    setCategoria(servico.category || "Corte")
+    setPreco(String(servico.price))
+    setDuracao(String(servico.durationMin))
+    setDomicilio(servico.availableHome)
+    setErro("")
+    setModalAberto(true)
+  }
+
+  async function handleSalvar(e: React.FormEvent) {
     e.preventDefault()
-    setModalAberto(false)
-    setServicoEditando(null)
-    setNome("")
-    setCategoria("Corte")
-    setPreco("")
-    setDuracao("")
-    setDomicilio(false)
+    setSalvando(true)
+    setErro("")
+    try {
+      const url = "/api/servicos"
+      const method = servicoEditando ? "PUT" : "POST"
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: servicoEditando?.id,
+          name: nome,
+          category: categoria,
+          price: preco,
+          durationMin: duracao,
+          availableHome: domicilio,
+        }),
+      })
+      if (!res.ok) throw new Error("Erro ao salvar")
+      await buscarServicos()
+      setModalAberto(false)
+    } catch {
+      setErro("Erro ao salvar serviço. Tente novamente.")
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
@@ -67,7 +99,7 @@ export default function ServicosPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Serviços</h1>
-          <p className="text-zinc-500 text-sm">{servicosMock.length} serviços cadastrados</p>
+          <p className="text-zinc-500 text-sm">{servicos.length} serviços cadastrados</p>
         </div>
         <button
           onClick={handleNovo}
@@ -77,50 +109,57 @@ export default function ServicosPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        {servicosMock.map((servico) => (
-          <div key={servico.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.categoria] ?? "bg-zinc-700 text-zinc-400"}`}>
-                {servico.categoria}
-              </span>
-              {servico.domicilio && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                  🚗 Domicílio
+      {loading ? (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">
+          Carregando serviços...
+        </div>
+      ) : servicos.length === 0 ? (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+          <div className="text-zinc-600 text-sm mb-2">Nenhum serviço cadastrado ainda</div>
+          <button onClick={handleNovo} className="text-amber-400 text-sm hover:text-amber-300 transition-colors">
+            Cadastrar primeiro serviço →
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {servicos.map((servico) => (
+            <div key={servico.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+              <div className="flex items-start justify-between mb-3">
+                <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.category] ?? "bg-zinc-700 text-zinc-400"}`}>
+                  {servico.category || "Geral"}
                 </span>
-              )}
+                {servico.availableHome && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                    🚗 Domicílio
+                  </span>
+                )}
+              </div>
+              <div className="text-white font-semibold mb-1">{servico.name}</div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+                <div className="text-amber-400 font-bold">R$ {servico.price}</div>
+                <div className="text-zinc-500 text-xs">{servico.durationMin} min</div>
+              </div>
+              <button
+                onClick={() => handleEditar(servico)}
+                className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
+              >
+                ✏️ Editar
+              </button>
             </div>
-
-            <div className="text-white font-semibold mb-1">{servico.nome}</div>
-
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
-              <div className="text-amber-400 font-bold">R$ {servico.preco}</div>
-              <div className="text-zinc-500 text-xs">{servico.duracao} min</div>
-            </div>
-
-            <button
-              onClick={() => handleEditar(servico)}
-              className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
-            >
-              ✏️ Editar
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-
             <div className="flex items-center justify-between p-5 border-b border-zinc-800">
               <h2 className="text-white font-bold">
                 {servicoEditando ? "Editar Serviço" : "Novo Serviço"}
               </h2>
               <button onClick={() => setModalAberto(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
             </div>
-
             <form onSubmit={handleSalvar} className="p-5 space-y-3">
-
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome do serviço *</label>
                 <input
@@ -131,7 +170,6 @@ export default function ServicosPage() {
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
                 />
               </div>
-
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Categoria *</label>
                 <div className="flex flex-wrap gap-2">
@@ -151,7 +189,6 @@ export default function ServicosPage() {
                   ))}
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Preço (R$) *</label>
@@ -178,13 +215,10 @@ export default function ServicosPage() {
                   />
                 </div>
               </div>
-
               <div
                 onClick={() => setDomicilio(!domicilio)}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                  domicilio
-                    ? "bg-teal-500/10 border-teal-500/30"
-                    : "bg-zinc-800 border-zinc-700 hover:border-zinc-600"
+                  domicilio ? "bg-teal-500/10 border-teal-500/30" : "bg-zinc-800 border-zinc-700 hover:border-zinc-600"
                 }`}
               >
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
@@ -199,7 +233,11 @@ export default function ServicosPage() {
                   <div className="text-zinc-600 text-xs">Autônomos poderão oferecer este serviço</div>
                 </div>
               </div>
-
+              {erro && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">
+                  {erro}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -210,12 +248,12 @@ export default function ServicosPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
+                  disabled={salvando}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
                 >
-                  {servicoEditando ? "Salvar" : "Cadastrar"}
+                  {salvando ? "Salvando..." : servicoEditando ? "Salvar" : "Cadastrar"}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
