@@ -56,13 +56,7 @@ export default function AgendaPage() {
     }
   }
 
-  function getAgendamento(hora: string, profId: string) {
-    return agendamentos.find((a) => {
-      const date = new Date(a.scheduledAt)
-      const h = String(date.getUTCHours()).padStart(2, "0") + ":" + String(date.getUTCMinutes()).padStart(2, "0")
-      return h === hora && a.professionalId === profId
-    })
-  }
+ 
 function getAgendamento(hora: string, profId: string) {
     return agendamentos.find((a) => {
       const date = new Date(a.scheduledAt)
