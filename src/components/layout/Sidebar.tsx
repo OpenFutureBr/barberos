@@ -21,9 +21,9 @@ const menuGroups = [
       { href: "/dashboard/galeria", label: "Galeria de Cortes", icon: "✂" },
       { href: "/dashboard/equipe", label: "Equipe", icon: "◉" },
       { href: "/dashboard/estoque", label: "Estoque", icon: "◈" },
+      { href: "/dashboard/estoque-ia", label: "IA Estoque", icon: "⬡" },
       { href: "/dashboard/domicilio", label: "Domicílio", icon: "🚗" },
       { href: "/dashboard/ia-biotipo", label: "IA Biotipo", icon: "🤖" },
-      
     ],
   },
   {
@@ -32,6 +32,8 @@ const menuGroups = [
       { href: "/dashboard/pix", label: "PIX & Cobranças", icon: "💸" },
       { href: "/dashboard/caixa", label: "Caixa", icon: "💰" },
       { href: "/dashboard/financeiro", label: "Financeiro", icon: "◷" },
+      { href: "/dashboard/fiscal", label: "Fiscal & NF-e", icon: "📄" },
+      { href: "/dashboard/precificacao", label: "Precificação", icon: "🏷" },
     ],
   },
   {
@@ -43,11 +45,24 @@ const menuGroups = [
     ],
   },
   {
+    label: "Comunicação",
+    items: [
+      { href: "/dashboard/whatsapp", label: "WhatsApp", icon: "💬" },
+    ],
+  },
+  {
+    label: "Escala",
+    items: [
+      { href: "/dashboard/unidades", label: "Multi-unidades", icon: "🏢" },
+      { href: "/dashboard/white-label", label: "White-label", icon: "🎨" },
+      { href: "/dashboard/media", label: "BarberOS Media", icon: "📡" },
+    ],
+  },
+  {
     label: "Sistema",
     items: [
       { href: "/dashboard/configuracoes", label: "Configurações", icon: "⚙" },
       { href: "/dashboard/api-docs", label: "API Docs", icon: "📡" },
-      { href: "/dashboard/white-label", label: "White-label", icon: "🎨" },
     ],
   },
 ]
