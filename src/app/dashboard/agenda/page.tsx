@@ -60,7 +60,7 @@ export default function AgendaPage() {
 function getAgendamento(hora: string, profId: string) {
     return agendamentos.find((a) => {
       const date = new Date(a.scheduledAt)
-      const h = String(date.getUTCHours()).padStart(2, "0") + ":" + String(date.getUTCMinutes()).padStart(2, "0")
+      const h = String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0")
       console.log("Comparando:", h, "===", hora, "prof:", a.professionalId, "===", profId)
       return h === hora && a.professionalId === profId
     })
