@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const corAppt: Record<string, string> = {
@@ -10,37 +10,134 @@ const corAppt: Record<string, string> = {
 
 const horas = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]
 
+const DESCANSO_MIN = 10
+
+function adicionarMinutos(data: Date, minutos: number) {
+  return new Date(data.getTime() + minutos * 60 * 1000)
+}
+
+function getDataSaoPaulo(data: Date) {
+  return data.toLocaleDateString("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+  })
+}
+
+function getDataHoraInicial() {
+  const agoraMais5 = adicionarMinutos(new Date(), 5)
+  const hoje = getDataSaoPaulo(agoraMais5)
+
+  const primeiraHoraDisponivelHoje = horas.find((h) => {
+    const slot = new Date(`${hoje}T${h}:00-03:00`)
+    return slot > agoraMais5
+  })
+
+  if (primeiraHoraDisponivelHoje) {
+    return {
+      data: hoje,
+      hora: primeiraHoraDisponivelHoje,
+    }
+  }
+
+  const amanha = getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60))
+
+  return {
+    data: amanha,
+    hora: horas[0],
+  }
+}
+
 export default function AgendaPage() {
   const [agendamentos, setAgendamentos] = useState<any[]>([])
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [dataHoje] = useState(new Date().toISOString().split("T")[0])
+  const agendaInicial = getDataHoraInicial()
+  const hojeISO = getDataSaoPaulo(new Date())
+  const maxDataISO = getDataSaoPaulo(
+    adicionarMinutos(new Date(), 5 * 24 * 60)
+  )
+  const [dataSelecionada, setDataSelecionada] = useState(agendaInicial.data)
+  const [hora, setHora] = useState(agendaInicial.hora)
   const [modalAberto, setModalAberto] = useState(false)
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
-  const [slotSelecionado, setSlotSelecionado] = useState<{hora: string, profId: string} | null>(null)
+  const [slotSelecionado, setSlotSelecionado] = useState<{ hora: string, profId: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [clienteId, setClienteId] = useState("")
   const [servicoId, setServicoId] = useState("")
   const [profId, setProfId] = useState("")
-  const [hora, setHora] = useState("09:00")
   const [tipoAtendimento, setTipoAtendimento] = useState("presencial")
 
- useEffect(() => {
+  const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  })
+  const servicoSelecionado = servicos.find((s) => s.id === servicoId)
+  const duracaoTotalNovoServico =
+    (servicoSelecionado?.durationMin || 30) + DESCANSO_MIN
+  const horariosDisponiveis = horas.filter((h) => {
+  const inicioNovo = new Date(`${dataSelecionada}T${h}:00-03:00`)
+  const fimNovo = adicionarMinutos(inicioNovo, duracaoTotalNovoServico)
+  const agoraMais5 = adicionarMinutos(new Date(), 5)
+  // Não mostra horários passados nem menores que agora + 5 minutos
+  if (inicioNovo <= agoraMais5) {
+    return false
+  }
+
+  // Se ainda não escolheu profissional ou serviço,
+  // não dá para calcular conflito real.
+  if (!profId || !servicoId) {
+    return true
+  }
+
+  const temConflito = agendamentos.some((a) => {
+    if (a.professionalId !== profId) return false
+    if (a.status === "CANCELLED" || a.status === "NO_SHOW") return false
+
+    const inicioExistente = new Date(a.scheduledAt)
+    const duracaoExistente =
+      (a.service?.durationMin || 30) + DESCANSO_MIN
+
+    const fimExistente = adicionarMinutos(
+      inicioExistente,
+      duracaoExistente
+    )
+
+    // Regra clássica de sobreposição:
+    // novo começa antes do fim existente
+    // e novo termina depois do início existente
+    return inicioNovo < fimExistente && fimNovo > inicioExistente
+  })
+
+  return !temConflito
+  })
+
+  useEffect(() => { 
     buscarDados()
-  }, [])
+  }, [dataSelecionada])
 
   useEffect(() => {
     console.log("Agendamentos carregados:", agendamentos.length, agendamentos)
   }, [agendamentos])
 
+  useEffect(() => {
+    setServicoId("")
+  }, [tipoAtendimento])
+
+  useEffect(() => {
+    if (horariosDisponiveis.length > 0 && !horariosDisponiveis.includes(hora)) {
+      setHora(horariosDisponiveis[0])
+    }
+  }, [dataSelecionada, horariosDisponiveis, hora])
+
   async function buscarDados() {
     setLoading(true)
     try {
       const [appts, profs, cls, svcs] = await Promise.all([
-        fetch(`/api/agendamentos`).then(r => r.json()),
+        fetch(`/api/agendamentos?data=${dataSelecionada}`).then(r => r.json()),
         fetch("/api/equipe").then(r => r.json()),
         fetch("/api/clientes").then(r => r.json()),
         fetch("/api/servicos").then(r => r.json()),
@@ -81,25 +178,45 @@ function getAgendamento(hora: string, profId: string) {
   async function handleSalvar(e: React.FormEvent) {
     e.preventDefault()
     setSalvando(true)
+
     try {
-      const scheduledAt = new Date(`${dataHoje}T${hora}:00-03:00`)
-      await fetch("/api/agendamentos", {
+      const scheduledAt = new Date(`${dataSelecionada}T${hora}:00-03:00`)
+
+      const serviceType =
+        tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL"
+
+      const payload = {
+        clientId: clienteId,
+        professionalId: profId,
+        serviceId: servicoId,
+        scheduledAt: scheduledAt.toISOString(),
+        serviceType,
+      }
+
+      console.log("Payload agendamento:", payload)
+
+      const response = await fetch("/api/agendamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: clienteId,
-          professionalId: profId,
-          serviceId: servicoId,
-          scheduledAt: scheduledAt.toISOString(),
-          serviceType: tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL",
-        }),
+        body: JSON.stringify(payload),
       })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        alert(result.error || "Erro ao criar agendamento")
+        return
+      }
+
       await buscarDados()
+
       setModalAberto(false)
       setClienteId("")
       setServicoId("")
+      setTipoAtendimento("presencial")
     } catch (e) {
       console.error(e)
+      alert("Erro inesperado ao criar agendamento")
     } finally {
       setSalvando(false)
     }
@@ -116,8 +233,12 @@ function getAgendamento(hora: string, profId: string) {
     setModalDetalhe(false)
   }
 
-  const dataFormatada = new Date(dataHoje + "T12:00:00").toLocaleDateString("pt-BR", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric"
+  const servicosFiltrados = servicos.filter((servico) => {
+  if (tipoAtendimento === "domicilio") {
+    return servico.availableHome === true
+  }
+
+  return true
   })
 
   return (
@@ -217,6 +338,36 @@ function getAgendamento(hora: string, profId: string) {
               )}
 
               <div>
+                <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div
+                    onClick={() => setTipoAtendimento("presencial")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                      tipoAtendimento === "presencial"
+                        ? "border-amber-500/30 bg-amber-500/10"
+                        : "border-zinc-700 bg-zinc-800"
+                    }`}
+                  >
+                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>
+                      🏪 Presencial
+                    </span>
+                  </div>
+                  <div
+                    onClick={() => setTipoAtendimento("domicilio")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                      tipoAtendimento === "domicilio"
+                        ? "border-teal-500/30 bg-teal-500/10"
+                        : "border-zinc-700 bg-zinc-800"
+                    }`}
+                  >
+                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>
+                      🚗 Domicílio
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Cliente *</label>
                 <select
                   value={clienteId}
@@ -255,53 +406,48 @@ function getAgendamento(hora: string, profId: string) {
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
                 >
                   <option value="">Selecionar serviço...</option>
-                  {servicos.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} — R$ {s.price} · {s.durationMin}min</option>
+
+                  {servicosFiltrados.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — R$ {s.price} · {s.durationMin}min
+                    </option>
                   ))}
+
                 </select>
+              </div>
+              
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Data *</label>
+                <input
+                  type="date"
+                  value={dataSelecionada}
+                  min={hojeISO}
+                  max={maxDataISO}
+                  onChange={(e) => setDataSelecionada(e.target.value)}
+                  required
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
+                />
               </div>
 
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Horário *</label>
+
+                {horariosDisponiveis.length === 0 && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm mb-2">
+                    Não há horários disponíveis para esta data, profissional e serviço.
+                  </div>
+                )}
+
                 <select
                   value={hora}
                   onChange={(e) => setHora(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
+                  disabled={horariosDisponiveis.length === 0}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
                 >
-                  {horas.map((h) => (
+                  {horariosDisponiveis.map((h) => (
                     <option key={h} value={h}>{h}</option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div
-                    onClick={() => setTipoAtendimento("presencial")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                      tipoAtendimento === "presencial"
-                        ? "border-amber-500/30 bg-amber-500/10"
-                        : "border-zinc-700 bg-zinc-800"
-                    }`}
-                  >
-                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>
-                      🏪 Presencial
-                    </span>
-                  </div>
-                  <div
-                    onClick={() => setTipoAtendimento("domicilio")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                      tipoAtendimento === "domicilio"
-                        ? "border-teal-500/30 bg-teal-500/10"
-                        : "border-zinc-700 bg-zinc-800"
-                    }`}
-                  >
-                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>
-                      🚗 Domicílio
-                    </span>
-                  </div>
-                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -314,7 +460,7 @@ function getAgendamento(hora: string, profId: string) {
                 </button>
                 <button
                   type="submit"
-                  disabled={salvando}
+                  disabled={salvando || horariosDisponiveis.length === 0}
                   className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
                 >
                   {salvando ? "Salvando..." : "Confirmar"}
