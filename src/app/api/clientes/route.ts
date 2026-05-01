@@ -13,11 +13,15 @@ const prisma = new PrismaClient({ adapter })
 export async function GET() {
   try {
     const clientes = await prisma.client.findMany({
-      where: { establishmentId: "estab001" },
+      where: { 
+        establishmentId: "estab001",
+        isActive: true,  // ← adicione esta linha
+      },
       orderBy: { createdAt: "desc" },
     })
     return NextResponse.json(clientes)
   } catch (error) {
+    console.error("Erro ao buscar clientes:", error)
     return NextResponse.json({ error: "Erro ao buscar clientes" }, { status: 500 })
   }
 }
@@ -26,7 +30,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     console.log("Criando cliente:", body)
-    
+
     const cliente = await prisma.client.create({
       data: {
         name: body.name,
@@ -34,9 +38,14 @@ export async function POST(request: Request) {
         email: body.email || null,
         establishmentId: "estab001",
         birthDate: body.birthDate ? new Date(body.birthDate) : null,
+        homeZipCode: body.homeZipCode || null,
+        homeAddress: body.homeAddress || null,
+        homeNumber: body.homeNumber || null,
+        homeNeighborhood: body.homeNeighborhood || null,
+        homeCity: body.homeCity || null,
       },
     })
-    
+
     console.log("Cliente criado:", cliente)
     return NextResponse.json(cliente)
   } catch (error) {

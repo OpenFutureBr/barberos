@@ -1,313 +1,537 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
-const clienteMock = {
-  id: "1",
-  nome: "Felipe Gomes",
-  telefone: "(11) 99874-3312",
-  email: "felipe@email.com",
-  nascimento: "15/03/1994",
-  idade: 32,
-  cidade: "Pinheiros · São Paulo",
-  faceShape: "oval",
-  aiConfianca: 94,
-  segmento: "VIP",
-  cashback: 47,
-  totalGasto: 1890,
-  visitas: 18,
-  ticketMedio: 95,
-  intervaloMedio: 21,
-  diasSemVisita: 5,
-  ultimaVisita: "22/03/2026",
-  proximaVisitaPrevista: "12/04/2026",
-  barbeiroPref: "Lucas Carvalho",
-  produtoPref: "Pomada Matte American Crew",
-  alergias: "Amônia",
-  obs: "Barba curta · degradê alto",
-  assinatura: "Plano Full · R$ 190/mês",
+const paises = [
+  { codigo: "+55", sigla: "BR", mascara: "(XX) XXXXX-XXXX", digitos: 11 },
+  { codigo: "+1",  sigla: "US", mascara: "(XXX) XXX-XXXX",  digitos: 10 },
+  { codigo: "+351",sigla: "PT", mascara: "XXX XXX XXX",     digitos: 9  },
+  { codigo: "+54", sigla: "AR", mascara: "(XX) XXXX-XXXX",  digitos: 10 },
+  { codigo: "+598",sigla: "UY", mascara: "XXXX XXXX",       digitos: 8  },
+]
+
+function formatarTelefone(valor: string, digitos: number): string {
+  const nums = valor.replace(/\D/g, "").slice(0, digitos)
+  if (digitos === 11) {
+    if (nums.length <= 2) return nums.length ? `(${nums}` : ""
+    if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
+    return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
+  }
+  if (digitos === 10) {
+    if (nums.length <= 3) return nums.length ? `(${nums}` : ""
+    if (nums.length <= 6) return `(${nums.slice(0,3)}) ${nums.slice(3)}`
+    return `(${nums.slice(0,3)}) ${nums.slice(3,6)}-${nums.slice(6)}`
+  }
+  return nums
 }
 
-const historicoMock = [
-  { data: "22/03/2026", servico: "Fade Alto + Barba", barbeiro: "Lucas", valor: 95, duracao: 55 },
-  { data: "01/03/2026", servico: "Fade Alto", barbeiro: "Lucas", valor: 65, duracao: 40 },
-  { data: "08/02/2026", servico: "Fade + Barba + Hidratação", barbeiro: "Lucas", valor: 130, duracao: 75 },
-  { data: "18/01/2026", servico: "Fade Alto + Barba", barbeiro: "Lucas", valor: 95, duracao: 55 },
-  { data: "28/12/2025", servico: "Fade Alto", barbeiro: "Lucas", valor: 65, duracao: 40 },
-  { data: "07/12/2025", servico: "Fade + Barba", barbeiro: "Lucas", valor: 95, duracao: 55 },
-]
-
-const cortesIA = [
-  { nome: "Fade Alto", pct: 97 },
-  { nome: "Degradê Médio", pct: 91 },
-  { nome: "Undercut", pct: 88 },
-  { nome: "Pompadour", pct: 81 },
-]
+function calcularIdade(birthDate: string | null) {
+  if (!birthDate) return null
+  const hoje = new Date()
+  const nasc = new Date(birthDate)
+  let idade = hoje.getFullYear() - nasc.getFullYear()
+  const m = hoje.getMonth() - nasc.getMonth()
+  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--
+  return idade
+}
 
 export default function ClientePerfilPage() {
-  const [aba, setAba] = useState<"perfil" | "historico" | "ia" | "financeiro">("perfil")
+  const { id } = useParams()
+  const router = useRouter()
+  const [aba, setAba] = useState<"perfil" | "historico" | "financeiro">("perfil")
+  const [cliente, setCliente] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState("")
+
+  // Modal editar
+  const [modalEditar, setModalEditar] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erroEditar, setErroEditar] = useState("")
+  const [nome, setNome] = useState("")
+  const [telefone, setTelefone] = useState("")
+  const [paisIdx, setPaisIdx] = useState(0)
+  const [email, setEmail] = useState("")
+  const [nascimento, setNascimento] = useState("")
+  const [cep, setCep] = useState("")
+  const [rua, setRua] = useState("")
+  const [numero, setNumero] = useState("")
+  const [bairro, setBairro] = useState("")
+  const [cidade, setCidade] = useState("")
+  const [buscandoCep, setBuscandoCep] = useState(false)
+
+  // Modal excluir
+  const [modalExcluir, setModalExcluir] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+
+  const pais = paises[paisIdx]
+
+  useEffect(() => { buscarCliente() }, [id])
+
+  async function buscarCliente() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/clientes/${id}`)
+      if (!res.ok) { setErro("Cliente não encontrado"); return }
+      const data = await res.json()
+      setCliente(data)
+    } catch {
+      setErro("Erro ao carregar cliente")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function abrirEditar() {
+    if (!cliente) return
+    setNome(cliente.name || "")
+    setEmail(cliente.email || "")
+    setNascimento(cliente.birthDate ? cliente.birthDate.split("T")[0] : "")
+    setCep(cliente.homeZipCode || "")
+    setRua(cliente.homeAddress || "")
+    setNumero(cliente.homeNumber || "")
+    setBairro(cliente.homeNeighborhood || "")
+    setCidade(cliente.homeCity || "")
+    // detecta país pelo telefone
+    const phone = cliente.phone || ""
+    if (phone.startsWith("+55")) { setPaisIdx(0); setTelefone(formatarTelefone(phone.slice(3), 11)) }
+    else if (phone.startsWith("+1")) { setPaisIdx(1); setTelefone(formatarTelefone(phone.slice(2), 10)) }
+    else if (phone.startsWith("+351")) { setPaisIdx(2); setTelefone(formatarTelefone(phone.slice(4), 9)) }
+    else if (phone.startsWith("+54")) { setPaisIdx(3); setTelefone(formatarTelefone(phone.slice(3), 10)) }
+    else if (phone.startsWith("+598")) { setPaisIdx(4); setTelefone(formatarTelefone(phone.slice(4), 8)) }
+    else setTelefone(phone)
+    setErroEditar("")
+    setModalEditar(true)
+  }
+
+  async function buscarCep(valor: string) {
+    const nums = valor.replace(/\D/g, "")
+    if (nums.length !== 8) return
+    setBuscandoCep(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${nums}/json/`)
+      const data = await res.json()
+      if (!data.erro) {
+        setRua(data.logradouro || "")
+        setBairro(data.bairro || "")
+        setCidade(data.localidade || "")
+      }
+    } catch {} finally { setBuscandoCep(false) }
+  }
+
+  function handleCep(valor: string) {
+    const nums = valor.replace(/\D/g, "").slice(0, 8)
+    const fmt = nums.length > 5 ? `${nums.slice(0,5)}-${nums.slice(5)}` : nums
+    setCep(fmt)
+    if (nums.length === 8) buscarCep(nums)
+  }
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    const nums = telefone.replace(/\D/g, "")
+    if (nums.length !== pais.digitos) { setErroEditar(`Telefone deve ter ${pais.digitos} dígitos.`); return }
+    setSalvando(true)
+    setErroEditar("")
+    try {
+      const res = await fetch(`/api/clientes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nome,
+          phone: pais.codigo + nums,
+          email: email || null,
+          birthDate: nascimento || null,
+          homeZipCode: cep.replace(/\D/g, "") || null,
+          homeAddress: rua || null,
+          homeNumber: numero || null,
+          homeNeighborhood: bairro || null,
+          homeCity: cidade || null,
+        }),
+      })
+      if (!res.ok) { setErroEditar("Erro ao salvar. Tente novamente."); return }
+      await buscarCliente()
+      setModalEditar(false)
+    } catch { setErroEditar("Erro inesperado.") }
+    finally { setSalvando(false) }
+  }
+
+  async function handleExcluir() {
+    setExcluindo(true)
+    try {
+      await fetch(`/api/clientes/${id}`, { method: "DELETE" })
+      router.push("/dashboard/clientes")
+    } catch { setExcluindo(false) }
+  }
+
+  if (loading) return (
+    <DashboardLayout>
+      <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+    </DashboardLayout>
+  )
+
+  if (erro || !cliente) return (
+    <DashboardLayout>
+      <div className="p-8 text-center">
+        <div className="text-zinc-500 text-sm mb-3">{erro || "Cliente não encontrado"}</div>
+        <button
+          onClick={() => router.push("/dashboard/clientes")}
+          className="text-amber-400 text-sm hover:text-amber-300 transition-colors"
+        >
+          ← Voltar para clientes
+        </button>
+      </div>
+    </DashboardLayout>
+  )
+
+  const idade = calcularIdade(cliente.birthDate)
+  const agendamentos = cliente.appointments || []
+  const totalGasto = agendamentos.reduce((s: number, a: any) => s + (a.service?.price || 0), 0)
+  const ticketMedio = agendamentos.length > 0 ? Math.round(totalGasto / agendamentos.length) : 0
+  const ultimaVisita = agendamentos[0]?.scheduledAt
+    ? new Date(agendamentos[0].scheduledAt).toLocaleDateString("pt-BR")
+    : "—"
 
   return (
     <DashboardLayout>
 
+      {/* Header do cliente */}
       <div className="flex items-start gap-5 mb-6 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-        <div className="relative flex-shrink-0">
-          <div className="w-20 h-20 rounded-2xl bg-zinc-700 border-2 border-zinc-600 flex items-center justify-center text-3xl">
-            👨‍🦱
-          </div>
-          <div className="absolute -bottom-2 -right-2 bg-purple-500 rounded-lg px-2 py-0.5 text-xs font-bold text-white font-mono">
-            IA
-          </div>
+        <div className="w-16 h-16 rounded-2xl bg-zinc-700 flex items-center justify-center text-2xl font-bold text-white flex-shrink-0">
+          {cliente.name?.charAt(0)}
         </div>
-
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-white text-2xl font-bold">{clienteMock.nome}</h1>
-            <span className="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">★ VIP</span>
-            <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">{clienteMock.visitas} visitas</span>
-            <span className="text-xs px-2 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Cashback R$ {clienteMock.cashback}</span>
+            <h1 className="text-white text-2xl font-bold">{cliente.name}</h1>
+            <span className={`text-xs px-2 py-1 rounded-full border ${
+              cliente.segment === "VIP" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+              cliente.segment === "REGULAR" ? "bg-green-500/10 text-green-400 border-green-500/20" :
+              "bg-zinc-700 text-zinc-400 border-zinc-600"
+            }`}>
+              {cliente.segment === "VIP" ? "★ VIP" : cliente.segment === "REGULAR" ? "Regular" : "Novo"}
+            </span>
+            <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
+              {agendamentos.length} visitas
+            </span>
+            {cliente.cashbackBalance > 0 && (
+              <span className="text-xs px-2 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                Cashback R$ {cliente.cashbackBalance}
+              </span>
+            )}
           </div>
-          <div className="flex gap-4 text-zinc-400 text-sm mb-3">
-            <span>📱 {clienteMock.telefone}</span>
-            <span>✉️ {clienteMock.email}</span>
-            <span>🎂 {clienteMock.idade} anos</span>
-            <span>📍 {clienteMock.cidade}</span>
+<div className="flex flex-wrap gap-4 text-zinc-400 text-sm mb-3">
+            {cliente.phone && <span>📱 {cliente.phone}</span>}
+            {cliente.email && <span>✉️ {cliente.email}</span>}
+            {idade && <span>🎂 {idade} anos</span>}
+            {cliente.homeCity && <span>📍 {cliente.homeCity}</span>}
           </div>
           <div className="flex gap-2">
-            <a href="/dashboard/agenda" className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-1.5 rounded-lg text-sm transition-colors">
-              + Agendar
-            </a>
-            <a href="https://wa.me/5511998743312" target="_blank" className="bg-green-500/20 hover:bg-green-500/30 text-green-400 px-4 py-1.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-              💬 WhatsApp
-            </a>
             <button
-              onClick={() => alert("Edição em desenvolvimento — Fase 4")}
+              onClick={() => window.dispatchEvent(new CustomEvent("abrirModalAgenda", { detail: {} }))}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-1.5 rounded-lg text-sm transition-colors"
+            >
+              + Agendar
+            </button>
+            {cliente.phone && (
+              <a
+                href={`https://wa.me/${cliente.phone.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 px-4 py-1.5 rounded-lg text-sm border border-green-500/20 transition-colors"
+              >
+                💬 WhatsApp
+              </a>
+            )}
+            <button
+              onClick={abrirEditar}
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-1.5 rounded-lg text-sm border border-zinc-700 transition-colors"
             >
               ✏️ Editar
             </button>
+            <button
+              onClick={() => setModalExcluir(true)}
+              className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-1.5 rounded-lg text-sm border border-red-500/20 transition-colors"
+            >
+              🗑 Excluir
+            </button>
           </div>
         </div>
-
         <div className="text-right flex-shrink-0">
           <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
-          <div className="text-amber-400 text-2xl font-bold">R$ {clienteMock.totalGasto}</div>
-          <div className="text-zinc-600 text-xs mt-1">Ticket médio: R$ {clienteMock.ticketMedio}</div>
-          <div className="text-zinc-600 text-xs">{clienteMock.assinatura}</div>
+          <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
+          <div className="text-zinc-600 text-xs mt-1">Ticket médio: R$ {ticketMedio}</div>
+          <div className="text-zinc-600 text-xs">Última visita: {ultimaVisita}</div>
         </div>
       </div>
 
+      {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
         {[
           { id: "perfil", label: "👤 Perfil" },
           { id: "historico", label: "📋 Histórico" },
-          { id: "ia", label: "🤖 IA Biotipo" },
           { id: "financeiro", label: "💰 Financeiro" },
         ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setAba(tab.id as any)}
+          <button key={tab.id} onClick={() => setAba(tab.id as any)}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
               aba === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
+            }`}>
             {tab.label}
           </button>
         ))}
       </div>
 
+      {/* Aba Perfil */}
       {aba === "perfil" && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Preferências</div>
-              <div className="space-y-0">
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Barbeiro preferido</span>
-                  <span className="text-white text-sm font-medium">{clienteMock.barbeiroPref}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Produto preferido</span>
-                  <span className="text-white text-sm font-medium">{clienteMock.produtoPref}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Observações</span>
-                  <span className="text-white text-sm font-medium">{clienteMock.obs}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-red-400 text-sm">⚠ Alergias</span>
-                  <span className="text-red-400 text-sm font-medium">{clienteMock.alergias}</span>
-                </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Dados pessoais</div>
+            <div className="space-y-0">
+              <div className="flex justify-between py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm">Nome</span>
+                <span className="text-white text-sm font-medium">{cliente.name}</span>
               </div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Assinatura</div>
-              <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
-                <div className="text-green-400 text-sm font-medium">{clienteMock.assinatura}</div>
-                <div className="text-zinc-500 text-xs mt-1">Renovação automática via PIX</div>
+              <div className="flex justify-between py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm">Telefone</span>
+                <span className="text-white text-sm">{cliente.phone || "—"}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm">Email</span>
+                <span className="text-white text-sm">{cliente.email || "—"}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm">Nascimento</span>
+                <span className="text-white text-sm">
+                  {cliente.birthDate ? new Date(cliente.birthDate).toLocaleDateString("pt-BR") : "—"}
+                  {idade ? ` (${idade} anos)` : ""}
+                </span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-zinc-500 text-sm">Cadastrado em</span>
+                <span className="text-zinc-400 text-sm">{new Date(cliente.createdAt).toLocaleDateString("pt-BR")}</span>
               </div>
             </div>
           </div>
-          <div className="space-y-3">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Frequência</div>
+
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Endereço para domicílio</div>
+            {cliente.homeAddress || cliente.homeCity ? (
               <div className="space-y-0">
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Última visita</span>
-                  <span className="text-white text-sm">{clienteMock.ultimaVisita}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Intervalo médio</span>
-                  <span className="text-white text-sm">{clienteMock.intervaloMedio} dias</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-zinc-800">
-                  <span className="text-zinc-500 text-sm">Próxima visita prevista</span>
-                  <span className="text-amber-400 text-sm font-medium">{clienteMock.proximaVisitaPrevista}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-zinc-500 text-sm">Dias sem visita</span>
-                  <span className="text-green-400 text-sm font-medium">{clienteMock.diasSemVisita} dias</span>
-                </div>
+                {cliente.homeAddress && (
+                  <div className="flex justify-between py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm">Rua</span>
+                    <span className="text-white text-sm">{cliente.homeAddress}{cliente.homeNumber ? `, ${cliente.homeNumber}` : ""}</span>
+                  </div>
+                )}
+                {cliente.homeNeighborhood && (
+                  <div className="flex justify-between py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm">Bairro</span>
+                    <span className="text-white text-sm">{cliente.homeNeighborhood}</span>
+                  </div>
+                )}
+                {cliente.homeCity && (
+                  <div className="flex justify-between py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm">Cidade</span>
+                    <span className="text-white text-sm">{cliente.homeCity}</span>
+                  </div>
+                )}
+                {cliente.homeZipCode && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-zinc-500 text-sm">CEP</span>
+                    <span className="text-white text-sm">{cliente.homeZipCode}</span>
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Score IA</div>
-              <div className="space-y-2">
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-500">Risco de churn</span>
-                    <span className="text-green-400">5%</span>
-                  </div>
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: "5%" }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-500">Fidelidade</span>
-                    <span className="text-amber-400">98%</span>
-                  </div>
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: "98%" }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-500">Valor para o negócio</span>
-                    <span className="text-purple-400">95%</span>
-                  </div>
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 rounded-full" style={{ width: "95%" }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            ) : (
+              <div className="text-zinc-600 text-sm py-4 text-center">Endereço não cadastrado</div>
+            )}
           </div>
         </div>
       )}
 
+      {/* Aba Histórico */}
       {aba === "historico" && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800 flex justify-between">
-            <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Histórico de visitas</span>
-            <span className="text-zinc-600 text-xs">Intervalo médio: {clienteMock.intervaloMedio} dias</span>
-          </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Serviço</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Barbeiro</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Duração</th>
-                <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historicoMock.map((h, i) => (
-                <tr key={i} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === historicoMock.length - 1 ? "border-0" : ""}`}>
-                  <td className="px-4 py-3 text-zinc-400 text-sm font-mono">{h.data}</td>
-                  <td className="px-4 py-3 text-white text-sm font-medium">{h.servico}</td>
-                  <td className="px-4 py-3 text-zinc-400 text-sm">{h.barbeiro}</td>
-                  <td className="px-4 py-3 text-zinc-500 text-sm">{h.duracao} min</td>
-                  <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {h.valor}</td>
+          {agendamentos.length === 0 ? (
+            <div className="p-8 text-center text-zinc-600 text-sm">Nenhum agendamento encontrado</div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-800">
+                  <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>
+                  <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Serviço</th>
+                  <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Profissional</th>
+                  <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Duração</th>
+                  <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {agendamentos.map((a: any, i: number) => (
+                  <tr key={a.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === agendamentos.length - 1 ? "border-0" : ""}`}>
+                    <td className="px-4 py-3 text-zinc-400 text-sm font-mono">
+                      {new Date(a.scheduledAt).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="px-4 py-3 text-white text-sm font-medium">{a.service?.name || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-400 text-sm">{a.professional?.name?.split(" ")[0] || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-500 text-sm">{a.service?.durationMin || "—"} min</td>
+                    <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">
+                      R$ {a.service?.price || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
-      {aba === "ia" && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-4">Análise de biotipo</div>
-            <div className="flex items-center gap-4 mb-4">
-              <div className="text-5xl">🥚</div>
-              <div>
-                <div className="text-white text-xl font-bold">Rosto Oval</div>
-                <div className="text-purple-400 text-sm">{clienteMock.aiConfianca}% de confiança · GPT-4o Vision</div>
-                <div className="text-zinc-500 text-xs mt-1">Analisado em 22/03/2026</div>
-              </div>
-            </div>
-            <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
-              <div className="text-zinc-400 text-sm">Rosto equilibrado, testa ligeiramente mais larga que o queixo. Compatível com a maioria dos cortes modernos.</div>
-            </div>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-4">Cortes recomendados</div>
-            <div className="space-y-3">
-              {cortesIA.map((corte, i) => (
-                <div key={i} className={`p-3 rounded-lg ${i === 0 ? "bg-amber-500/10 border border-amber-500/20" : "bg-zinc-800"}`}>
-                  <div className="flex justify-between mb-1">
-                    <span className={`text-sm font-medium ${i === 0 ? "text-amber-400" : "text-white"}`}>
-                      {i === 0 && "⭐ "}{corte.nome}
-                    </span>
-                    <span className={`text-xs font-mono font-bold ${i === 0 ? "text-amber-400" : "text-zinc-400"}`}>{corte.pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-zinc-500"}`} style={{ width: `${corte.pct}%` }}></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Aba Financeiro */}
       {aba === "financeiro" && (
         <div>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-amber-500">
               <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
-              <div className="text-amber-400 text-2xl font-bold">R$ {clienteMock.totalGasto}</div>
-              <div className="text-zinc-600 text-xs mt-1">{clienteMock.visitas} visitas</div>
+              <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
+              <div className="text-zinc-600 text-xs mt-1">{agendamentos.length} visitas</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-green-500">
               <div className="text-zinc-500 text-xs mb-1">Cashback acumulado</div>
-              <div className="text-green-400 text-2xl font-bold">R$ {clienteMock.cashback}</div>
+              <div className="text-green-400 text-2xl font-bold">R$ {cliente.cashbackBalance || 0}</div>
               <div className="text-zinc-600 text-xs mt-1">disponível para resgate</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-blue-500">
               <div className="text-zinc-500 text-xs mb-1">Ticket médio</div>
-              <div className="text-blue-400 text-2xl font-bold">R$ {clienteMock.ticketMedio}</div>
+              <div className="text-blue-400 text-2xl font-bold">R$ {ticketMedio}</div>
               <div className="text-zinc-600 text-xs mt-1">por visita</div>
             </div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Últimos pagamentos</div>
-            {historicoMock.slice(0, 4).map((h, i) => (
-              <div key={i} className="flex justify-between py-2 border-b border-zinc-800 last:border-0">
+            {agendamentos.slice(0, 5).map((a: any, i: number) => (
+              <div key={a.id} className="flex justify-between py-2 border-b border-zinc-800 last:border-0">
                 <div>
-                  <div className="text-white text-sm">{h.servico}</div>
-                  <div className="text-zinc-500 text-xs">{h.data}</div>
+                  <div className="text-white text-sm">{a.service?.name || "—"}</div>
+                  <div className="text-zinc-500 text-xs">{new Date(a.scheduledAt).toLocaleDateString("pt-BR")}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-amber-400 font-bold font-mono">R$ {h.valor}</div>
-                  <div className="text-green-400 text-xs">+R$ {(h.valor * 0.07).toFixed(2)} cashback</div>
+                  <div className="text-amber-400 font-bold font-mono">R$ {a.service?.price || "—"}</div>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar */}
+      {modalEditar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+              <h2 className="text-white font-bold">Editar Cliente</h2>
+              <button onClick={() => setModalEditar(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
+            </div>
+            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
+                <input value={nome} onChange={(e) => {
+                  const f = e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase())
+                  setNome(f)
+                }} required
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Telefone *</label>
+                <div className="flex gap-2">
+                  <select value={paisIdx} onChange={(e) => { setPaisIdx(Number(e.target.value)); setTelefone("") }}
+                    className="bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+                    {paises.map((p, i) => <option key={i} value={i}>{p.sigla} {p.codigo}</option>)}
+                  </select>
+                  <input value={telefone}
+                    onChange={(e) => setTelefone(formatarTelefone(e.target.value, pais.digitos))}
+                    required placeholder={pais.mascara.replace(/X/g, "9")}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Email</label>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Data de nascimento</label>
+                <input type="date" value={nascimento} onChange={(e) => setNascimento(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+              </div>
+              <div className="pt-1">
+                <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest border-t border-zinc-800 pt-3">Endereço para domicílio</p>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">
+                  CEP {buscandoCep && <span className="text-zinc-500 normal-case">— buscando...</span>}
+                </label>
+                <input value={cep} onChange={(e) => handleCep(e.target.value)} placeholder="00000-000"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="text-zinc-400 text-xs mb-1 block">Rua</label>
+                  <input value={rua} onChange={(e) => setRua(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Número</label>
+                  <input value={numero} onChange={(e) => setNumero(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Bairro</label>
+                  <input value={bairro} onChange={(e) => setBairro(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
+                  <input value={cidade} onChange={(e) => setCidade(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                </div>
+              </div>
+              {erroEditar && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroEditar}</div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setModalEditar(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={salvando}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  {salvando ? "Salvando..." : "Salvar alterações"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Excluir */}
+      {modalExcluir && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6">
+            <h2 className="text-white font-bold text-lg mb-2">Excluir cliente?</h2>
+            <p className="text-zinc-400 text-sm mb-1">
+              O cliente <span className="text-white font-medium">{cliente.name}</span> será desativado.
+            </p>
+            <p className="text-zinc-600 text-xs mb-6">O histórico de agendamentos será preservado.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalExcluir(false)}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleExcluir} disabled={excluindo}
+                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+                {excluindo ? "Excluindo..." : "Confirmar exclusão"}
+              </button>
+            </div>
           </div>
         </div>
       )}
