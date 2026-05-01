@@ -17,7 +17,7 @@ const titles: Record<string, { title: string; subtitle: string }> = {
   "/dashboard/ia": { title: "Central IA", subtitle: "5 alertas ativos" },
 }
 
-export default function Topbar() {
+export default function Topbar({ onAbrirModal }: { onAbrirModal: () => void }) {
   const pathname = usePathname()
   const current = titles[pathname] ?? { title: "BarberOS", subtitle: "" }
 
@@ -36,7 +36,10 @@ export default function Topbar() {
         <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
           Plano Pro
         </span>
-        <button className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold px-3 py-1.5 rounded-md transition-colors">
+        <button
+          onClick={onAbrirModal}
+          className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
+        >
           + Agendar
         </button>
       </div>

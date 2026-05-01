@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const corAppt: Record<string, string> = {
@@ -10,218 +10,77 @@ const corAppt: Record<string, string> = {
 
 const horas = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]
 
-const DESCANSO_MIN = 10
-
-function adicionarMinutos(data: Date, minutos: number) {
-  return new Date(data.getTime() + minutos * 60 * 1000)
-}
-
 function getDataSaoPaulo(data: Date) {
-  return data.toLocaleDateString("sv-SE", {
-    timeZone: "America/Sao_Paulo",
-  })
+  return data.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
 }
 
-function getDataHoraInicial() {
-  const agoraMais5 = adicionarMinutos(new Date(), 5)
-  const hoje = getDataSaoPaulo(agoraMais5)
-
-  const primeiraHoraDisponivelHoje = horas.find((h) => {
-    const slot = new Date(`${hoje}T${h}:00-03:00`)
-    return slot > agoraMais5
-  })
-
-  if (primeiraHoraDisponivelHoje) {
-    return {
-      data: hoje,
-      hora: primeiraHoraDisponivelHoje,
-    }
-  }
-
-  const amanha = getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60))
-
-  return {
-    data: amanha,
-    hora: horas[0],
-  }
+function adicionarDias(dataISO: string, dias: number) {
+  const d = new Date(dataISO + "T12:00:00")
+  d.setDate(d.getDate() + dias)
+  return getDataSaoPaulo(d)
 }
 
 export default function AgendaPage() {
+  const hojeISO = getDataSaoPaulo(new Date())
+
   const [agendamentos, setAgendamentos] = useState<any[]>([])
   const [profissionais, setProfissionais] = useState<any[]>([])
-  const [clientes, setClientes] = useState<any[]>([])
-  const [servicos, setServicos] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const agendaInicial = getDataHoraInicial()
-  const hojeISO = getDataSaoPaulo(new Date())
-  const maxDataISO = getDataSaoPaulo(
-    adicionarMinutos(new Date(), 5 * 24 * 60)
-  )
-  const [dataSelecionada, setDataSelecionada] = useState(agendaInicial.data)
-  const [hora, setHora] = useState(agendaInicial.hora)
-  const [modalAberto, setModalAberto] = useState(false)
+  const [loadingProfs, setLoadingProfs] = useState(true)
+  const [loadingAppts, setLoadingAppts] = useState(true)
+  const cacheAppts = useRef<Record<string, any[]>>({})
+
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
-  const [slotSelecionado, setSlotSelecionado] = useState<{ hora: string, profId: string } | null>(null)
-  const [salvando, setSalvando] = useState(false)
-  const [clienteId, setClienteId] = useState("")
-  const [servicoId, setServicoId] = useState("")
-  const [profId, setProfId] = useState("")
-  const [tipoAtendimento, setTipoAtendimento] = useState("presencial")
+  const [dataSelecionada, setDataSelecionada] = useState(hojeISO)
 
   const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
+    weekday: "long", day: "2-digit", month: "long", year: "numeric",
   })
-  const servicoSelecionado = servicos.find((s) => s.id === servicoId)
-  const duracaoTotalNovoServico =
-    (servicoSelecionado?.durationMin || 30) + DESCANSO_MIN
-  const horariosDisponiveis = horas.filter((h) => {
-  const inicioNovo = new Date(`${dataSelecionada}T${h}:00-03:00`)
-  const fimNovo = adicionarMinutos(inicioNovo, duracaoTotalNovoServico)
-  const agoraMais5 = adicionarMinutos(new Date(), 5)
-  // Não mostra horários passados nem menores que agora + 5 minutos
-  if (inicioNovo <= agoraMais5) {
-    return false
-  }
+  const isHoje = dataSelecionada === hojeISO
 
-  // Se ainda não escolheu profissional ou serviço,
-  // não dá para calcular conflito real.
-  if (!profId || !servicoId) {
-    return true
-  }
+  // Profissionais: busca uma vez só
+  useEffect(() => {
+    fetch("/api/equipe").then(r => r.json()).then(profs => {
+      setProfissionais(Array.isArray(profs) ? profs : [])
+      setLoadingProfs(false)
+    }).catch(console.error)
+  }, [])
 
-  const temConflito = agendamentos.some((a) => {
-    if (a.professionalId !== profId) return false
-    if (a.status === "CANCELLED" || a.status === "NO_SHOW") return false
-
-    const inicioExistente = new Date(a.scheduledAt)
-    const duracaoExistente =
-      (a.service?.durationMin || 30) + DESCANSO_MIN
-
-    const fimExistente = adicionarMinutos(
-      inicioExistente,
-      duracaoExistente
-    )
-
-    // Regra clássica de sobreposição:
-    // novo começa antes do fim existente
-    // e novo termina depois do início existente
-    return inicioNovo < fimExistente && fimNovo > inicioExistente
-  })
-
-  return !temConflito
-  })
-
-  useEffect(() => { 
-    buscarDados()
+  // Agendamentos: busca ao trocar data
+  useEffect(() => {
+    buscarAgendamentos(dataSelecionada)
   }, [dataSelecionada])
 
+  // Após salvar: invalida cache e rebusca
   useEffect(() => {
-    console.log("Agendamentos carregados:", agendamentos.length, agendamentos)
-  }, [agendamentos])
-
-  useEffect(() => {
-    setServicoId("")
-  }, [tipoAtendimento])
-
-  useEffect(() => {
-    if (horariosDisponiveis.length > 0 && !horariosDisponiveis.includes(hora)) {
-      setHora(horariosDisponiveis[0])
+    function handleSalvo() {
+      delete cacheAppts.current[dataSelecionada]
+      buscarAgendamentos(dataSelecionada)
     }
-  }, [dataSelecionada, horariosDisponiveis, hora])
+    window.addEventListener("agendamentoSalvo", handleSalvo)
+    return () => window.removeEventListener("agendamentoSalvo", handleSalvo)
+  }, [dataSelecionada])
 
-  async function buscarDados() {
-    setLoading(true)
+  async function buscarAgendamentos(data: string) {
+    if (cacheAppts.current[data]) {
+      setAgendamentos(cacheAppts.current[data])
+      setLoadingAppts(false)
+      return
+    }
+    setLoadingAppts(true)
     try {
-      const [appts, profs, cls, svcs] = await Promise.all([
-        fetch(`/api/agendamentos?data=${dataSelecionada}`).then(r => r.json()),
-        fetch("/api/equipe").then(r => r.json()),
-        fetch("/api/clientes").then(r => r.json()),
-        fetch("/api/servicos").then(r => r.json()),
-      ])
-      setAgendamentos(Array.isArray(appts) ? appts : [])
-      setProfissionais(Array.isArray(profs) ? profs : [])
-      setClientes(Array.isArray(cls) ? cls : [])
-      setServicos(Array.isArray(svcs) ? svcs : [])
+      const appts = await fetch(`/api/agendamentos?data=${data}`).then(r => r.json())
+      const lista = Array.isArray(appts) ? appts : []
+      cacheAppts.current[data] = lista
+      setAgendamentos(lista)
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      setLoadingAppts(false)
     }
   }
 
- 
-function getAgendamento(hora: string, profId: string) {
-    return agendamentos.find((a) => {
-      const date = new Date(a.scheduledAt)
-      const h = String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0")
-      console.log("Comparando:", h, "===", hora, "prof:", a.professionalId, "===", profId)
-      return h === hora && a.professionalId === profId
-    })
-  }
-  function handleSlotClick(h: string, pId: string) {
-    const appt = getAgendamento(h, pId)
-    if (appt) {
-      setApptSelecionado(appt)
-      setModalDetalhe(true)
-    } else {
-      setSlotSelecionado({ hora: h, profId: pId })
-      setProfId(pId)
-      setHora(h)
-      setModalAberto(true)
-    }
-  }
-
-  async function handleSalvar(e: React.FormEvent) {
-    e.preventDefault()
-    setSalvando(true)
-
-    try {
-      const scheduledAt = new Date(`${dataSelecionada}T${hora}:00-03:00`)
-
-      const serviceType =
-        tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL"
-
-      const payload = {
-        clientId: clienteId,
-        professionalId: profId,
-        serviceId: servicoId,
-        scheduledAt: scheduledAt.toISOString(),
-        serviceType,
-      }
-
-      console.log("Payload agendamento:", payload)
-
-      const response = await fetch("/api/agendamentos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        alert(result.error || "Erro ao criar agendamento")
-        return
-      }
-
-      await buscarDados()
-
-      setModalAberto(false)
-      setClienteId("")
-      setServicoId("")
-      setTipoAtendimento("presencial")
-    } catch (e) {
-      console.error(e)
-      alert("Erro inesperado ao criar agendamento")
-    } finally {
-      setSalvando(false)
-    }
-  }
-
+  // Cancelamento: invalida cache também
   async function handleCancelar() {
     if (!apptSelecionado) return
     await fetch("/api/agendamentos", {
@@ -229,21 +88,35 @@ function getAgendamento(hora: string, profId: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: apptSelecionado.id, status: "CANCELLED" }),
     })
-    await buscarDados()
+    delete cacheAppts.current[dataSelecionada]
+    await buscarAgendamentos(dataSelecionada)
     setModalDetalhe(false)
   }
 
-  const servicosFiltrados = servicos.filter((servico) => {
-  if (tipoAtendimento === "domicilio") {
-    return servico.availableHome === true
+  function getAgendamento(hora: string, profId: string) {
+    return agendamentos.find((a) => {
+      const date = new Date(a.scheduledAt)
+      const h = String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0")
+      return h === hora && a.professionalId === profId
+    })
   }
 
-  return true
-  })
+  function handleSlotClick(h: string, pId: string) {
+    const appt = getAgendamento(h, pId)
+    if (appt) {
+      setApptSelecionado(appt)
+      setModalDetalhe(true)
+    } else {
+      window.dispatchEvent(new CustomEvent("abrirModalAgenda", {
+        detail: { hora: h, profId: pId, data: dataSelecionada }
+      }))
+    }
+  }
 
   return (
     <DashboardLayout>
 
+      {/* Navegação de data */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Agenda</h1>
@@ -251,15 +124,31 @@ function getAgendamento(hora: string, profId: string) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setModalAberto(true)}
-            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+            onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, -1))}
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors"
           >
-            + Agendar
+            ←
+          </button>
+          <button
+            onClick={() => setDataSelecionada(hojeISO)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              isHoje
+                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+            }`}
+          >
+            Hoje
+          </button>
+          <button
+            onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, 1))}
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors"
+          >
+            →
           </button>
         </div>
       </div>
 
-      {loading ? (
+      {loadingProfs ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">
           Carregando agenda...
         </div>
@@ -286,192 +175,64 @@ function getAgendamento(hora: string, profId: string) {
             ))}
           </div>
 
+          {/* Indicador sutil de atualização */}
+          {loadingAppts && (
+            <div className="text-center py-1.5 text-zinc-600 text-xs border-b border-zinc-800">
+              Atualizando...
+            </div>
+          )}
+
           {/* Slots */}
           {horas.map((hora) => (
-            <div
-              key={hora}
-              className="grid border-b border-zinc-800 last:border-0"
-              style={{ gridTemplateColumns: `56px repeat(${profissionais.length}, 1fr)` }}
-            >
+            <div key={hora} className="grid border-b border-zinc-800 last:border-0"
+              style={{ gridTemplateColumns: `56px repeat(${profissionais.length}, 1fr)`, height: 64 }}>
               <div className="p-2 text-xs font-mono border-r border-zinc-800 flex items-start justify-center pt-2 text-zinc-600">
                 {hora}
               </div>
               {profissionais.map((prof) => {
-                const appt = getAgendamento(hora, prof.id)
-                const tipo = appt?.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"
+                const [horaNum] = hora.split(":").map(Number)
+                const apptsDaHora = agendamentos.filter((a) => {
+                  const date = new Date(a.scheduledAt)
+                  return date.getHours() === horaNum && a.professionalId === prof.id
+                    && a.status !== "CANCELLED" && a.status !== "NO_SHOW"
+                })
                 return (
-                  <div
-                    key={prof.id}
-                    className="border-r border-zinc-800 last:border-0 p-1 min-h-[52px] cursor-pointer"
-                    onClick={() => handleSlotClick(hora, prof.id)}
-                  >
-                    {appt ? (
-                      <div className={`rounded p-1.5 h-full ${corAppt[tipo]}`}>
-                        <div className="text-xs font-semibold leading-tight">{appt.client?.name}</div>
-                        <div className="text-xs opacity-60 mt-0.5">{appt.service?.name}</div>
-                      </div>
-                    ) : (
-                      <div className="h-full rounded hover:bg-zinc-800/50 transition-colors"></div>
+                  <div key={prof.id}
+                    className="border-r border-zinc-800 last:border-0 relative"
+                    style={{ height: 64 }}
+                    onClick={() => handleSlotClick(hora, prof.id)}>
+                    {apptsDaHora.length === 0 && (
+                      <div className="absolute inset-1 rounded hover:bg-zinc-800/50 transition-colors" />
                     )}
+                    {apptsDaHora.map((appt) => {
+                      const date = new Date(appt.scheduledAt)
+                      const minutos = date.getMinutes()
+                      const duracaoMin = appt.service?.durationMin || 30
+                      const topPct = (minutos / 60) * 100
+                      const heightPct = Math.min((duracaoMin / 60) * 100, 100 - topPct)
+                      const tipo = appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"
+                      return (
+                        <div
+                          key={appt.id}
+                          className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${corAppt[tipo]}`}
+                          style={{ top: `${topPct}%`, height: `${heightPct}%`, minHeight: 18, zIndex: 1 }}
+                          onClick={(e) => { e.stopPropagation(); setApptSelecionado(appt); setModalDetalhe(true) }}
+                        >
+                          <div className="text-xs font-semibold leading-tight truncate">{appt.client?.name}</div>
+                          {heightPct > 30 && <div className="text-xs opacity-60 truncate">{appt.service?.name}</div>}
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}
             </div>
           ))}
+
         </div>
       )}
 
-      {/* Modal novo agendamento */}
-      {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Novo Agendamento</h2>
-              <button onClick={() => setModalAberto(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
-
-              {slotSelecionado && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-amber-400 text-sm">
-                  ◈ {slotSelecionado.hora} · {profissionais.find(p => p.id === slotSelecionado.profId)?.name}
-                </div>
-              )}
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div
-                    onClick={() => setTipoAtendimento("presencial")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                      tipoAtendimento === "presencial"
-                        ? "border-amber-500/30 bg-amber-500/10"
-                        : "border-zinc-700 bg-zinc-800"
-                    }`}
-                  >
-                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>
-                      🏪 Presencial
-                    </span>
-                  </div>
-                  <div
-                    onClick={() => setTipoAtendimento("domicilio")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                      tipoAtendimento === "domicilio"
-                        ? "border-teal-500/30 bg-teal-500/10"
-                        : "border-zinc-700 bg-zinc-800"
-                    }`}
-                  >
-                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>
-                      🚗 Domicílio
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Cliente *</label>
-                <select
-                  value={clienteId}
-                  onChange={(e) => setClienteId(e.target.value)}
-                  required
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
-                >
-                  <option value="">Selecionar cliente...</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Profissional *</label>
-                <select
-                  value={profId}
-                  onChange={(e) => setProfId(e.target.value)}
-                  required
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
-                >
-                  <option value="">Selecionar profissional...</option>
-                  {profissionais.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Serviço *</label>
-                <select
-                  value={servicoId}
-                  onChange={(e) => setServicoId(e.target.value)}
-                  required
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
-                >
-                  <option value="">Selecionar serviço...</option>
-
-                  {servicosFiltrados.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} — R$ {s.price} · {s.durationMin}min
-                    </option>
-                  ))}
-
-                </select>
-              </div>
-              
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Data *</label>
-                <input
-                  type="date"
-                  value={dataSelecionada}
-                  min={hojeISO}
-                  max={maxDataISO}
-                  onChange={(e) => setDataSelecionada(e.target.value)}
-                  required
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Horário *</label>
-
-                {horariosDisponiveis.length === 0 && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm mb-2">
-                    Não há horários disponíveis para esta data, profissional e serviço.
-                  </div>
-                )}
-
-                <select
-                  value={hora}
-                  onChange={(e) => setHora(e.target.value)}
-                  disabled={horariosDisponiveis.length === 0}
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
-                >
-                  {horariosDisponiveis.map((h) => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalAberto(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvando || horariosDisponiveis.length === 0}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  {salvando ? "Salvando..." : "Confirmar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal detalhe agendamento */}
+      {/* Modal detalhe */}
       {modalDetalhe && apptSelecionado && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
@@ -498,10 +259,12 @@ function getAgendamento(hora: string, profId: string) {
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => setModalDetalhe(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                <button onClick={() => setModalDetalhe(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
                   Fechar
                 </button>
-                <button onClick={handleCancelar} className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+                <button onClick={handleCancelar}
+                  className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
                   ✕ Cancelar
                 </button>
               </div>
