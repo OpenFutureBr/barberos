@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 
-function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 30) {
+function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
   const slots: string[] = []
   const [hI, mI] = inicio.split(":").map(Number)
   const [hF, mF] = fim.split(":").map(Number)
@@ -17,9 +17,6 @@ function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 30) {
   return slots
 }
 
-const horas = gerarSlots("08:00", "18:00", 10)
-const DESCANSO_MIN = 10
-
 function adicionarMinutos(data: Date, minutos: number) {
   return new Date(data.getTime() + minutos * 60 * 1000)
 }
@@ -28,12 +25,24 @@ function getDataSaoPaulo(data: Date) {
   return data.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
 }
 
+function getDiaSemana(dataISO: string): number {
+  return new Date(dataISO + "T12:00:00").getDay()
+}
+
 function getDataHoraInicial() {
   const agoraMais5 = adicionarMinutos(new Date(), 5)
   const hoje = getDataSaoPaulo(agoraMais5)
-  const primeiraHora = horas.find((h) => new Date(`${hoje}T${h}:00-03:00`) > agoraMais5)
+  const slots = gerarSlots()
+  const primeiraHora = slots.find((h) => new Date(`${hoje}T${h}:00-03:00`) > agoraMais5)
   if (primeiraHora) return { data: hoje, hora: primeiraHora }
-  return { data: getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60)), hora: horas[0] }
+  return { data: getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60)), hora: slots[0] }
+}
+
+function formatarTelefone(valor: string): string {
+  const nums = valor.replace(/\D/g, "").slice(0, 11)
+  if (nums.length <= 2) return nums.length ? `(${nums}` : ""
+  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
+  return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
 }
 
 type Props = {
@@ -70,7 +79,6 @@ function WheelPicker({ items, value, onChange }: {
     }
   }, [currentIdx])
 
-  // Fix: adiciona wheel listener manualmente com passive: false
   useEffect(() => {
     const el = outerRef.current
     if (!el) return
@@ -83,8 +91,7 @@ function WheelPicker({ items, value, onChange }: {
   }, [currentIdx, items])
 
   return (
-    <div
-      ref={outerRef}
+    <div ref={outerRef}
       style={{ width: 80, height: 160, overflow: "hidden", position: "relative", borderRadius: 12, border: "1px solid #3f3f46", background: "#18181b", cursor: "grab", userSelect: "none" }}
       onMouseDown={e => { dragging.current = true; startRef.current = { y: e.clientY, idx: currentIdx } }}
       onMouseMove={e => { if (!dragging.current) return; const d = Math.round((startRef.current.y - e.clientY) / ITEM_H); scrollTo(startRef.current.idx + d) }}
@@ -109,6 +116,75 @@ function WheelPicker({ items, value, onChange }: {
   )
 }
 
+// Modal de cadastro rápido de cliente
+function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
+  telefone: string
+  onSalvo: (cliente: any) => void
+  onCancelar: () => void
+}) {
+  const [nome, setNome] = useState("")
+  const [email, setEmail] = useState("")
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState("")
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true)
+    setErro("")
+    try {
+      const nums = telefone.replace(/\D/g, "")
+      const res = await fetch("/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nome, phone: "+55" + nums, email: email || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErro(data.error || "Erro ao salvar."); return }
+      onSalvo(data)
+    } catch { setErro("Erro inesperado.") }
+    finally { setSalvando(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h2 className="text-white font-bold">Novo Cliente</h2>
+            <p className="text-zinc-500 text-xs mt-0.5">Telefone: {telefone}</p>
+          </div>
+          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
+        </div>
+        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+          <div>
+            <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
+            <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
+              required placeholder="Ex: João Silva" autoFocus
+              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-xs mb-1 block">Email</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+              placeholder="email@exemplo.com"
+              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          </div>
+          {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onCancelar}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvando}
+              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+              {salvando ? "Salvando..." : "Cadastrar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Props) {
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
@@ -128,10 +204,48 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [profId, setProfId] = useState("")
   const [tipoAtendimento, setTipoAtendimento] = useState("presencial")
 
-  const servicoSelecionado = servicos.find((s) => s.id === servicoId)
-  const duracaoTotal = (servicoSelecionado?.durationMin || 30) + DESCANSO_MIN
+  // Telefone para busca de cliente
+  const [telefone, setTelefone] = useState("")
+  const [buscandoCliente, setBuscandoCliente] = useState(false)
+  const [clienteNome, setClienteNome] = useState("")
+  const [mostrarCadastro, setMostrarCadastro] = useState(false)
 
-  const horariosDisponiveis = horas.filter((h) => {
+  // Profissional selecionado completo (com schedules e userServices)
+  const profSelecionado = profissionais.find(p => p.id === profId)
+  const descansoMin = profSelecionado?.breakBetweenAppts ?? 10
+
+  // Filtra profissionais por tipo de atendimento
+  const profissionaisFiltrados = profissionais.filter(p =>
+    tipoAtendimento === "domicilio" ? p.attendsHome === true : true
+  )
+
+  // Verifica se o profissional atende no dia selecionado
+  const diaSemana = getDiaSemana(dataSelecionada)
+  const schedulesDoDia = profSelecionado?.schedules?.find((s: any) => s.dayOfWeek === diaSemana)
+  const profAtendeDia = !profId || !profSelecionado?.schedules?.length || (schedulesDoDia?.isActive === true)
+
+  // Horários do profissional no dia
+  const inicioProf = schedulesDoDia?.startTime || "08:00"
+  const fimProf = schedulesDoDia?.endTime || "18:00"
+
+  // Gera slots baseados no horário do profissional
+  const horasBase = profId && profSelecionado?.schedules?.length && schedulesDoDia?.isActive
+    ? gerarSlots(inicioProf, fimProf, 10)
+    : gerarSlots("08:00", "18:00", 10)
+
+  // Serviços filtrados pelo profissional selecionado
+  const servicosFiltrados = (() => {
+    if (!profId || !profSelecionado) return []
+    const idsDoProf = profSelecionado.userServices?.map((us: any) => us.serviceId) || []
+    if (!idsDoProf.length) return servicos
+    return servicos.filter(s => idsDoProf.includes(s.id))
+  })()
+
+  const servicoSelecionado = servicos.find((s) => s.id === servicoId)
+  const duracaoTotal = (servicoSelecionado?.durationMin || 30) + descansoMin
+
+  const horariosDisponiveis = horasBase.filter((h) => {
+    if (!profAtendeDia) return false
     const inicioNovo = new Date(`${dataSelecionada}T${h}:00-03:00`)
     const fimNovo = adicionarMinutos(inicioNovo, duracaoTotal)
     const agoraMais5 = adicionarMinutos(new Date(), 5)
@@ -141,22 +255,20 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       if (a.professionalId !== profId) return false
       if (a.status === "CANCELLED" || a.status === "NO_SHOW") return false
       const inicioExistente = new Date(a.scheduledAt)
-      const fimExistente = adicionarMinutos(inicioExistente, (a.service?.durationMin || 30) + DESCANSO_MIN)
+      const fimExistente = adicionarMinutos(inicioExistente, (a.service?.durationMin || 30) + descansoMin)
       return inicioNovo < fimExistente && fimNovo > inicioExistente
     })
     return !temConflito
   })
 
-    useEffect(() => {
+  useEffect(() => {
     if (!aberto) return
     if (dadosPreCarregados) {
-      // Usa dados já carregados — sem delay
       setProfissionais(dadosPreCarregados.profissionais)
       setClientes(dadosPreCarregados.clientes)
       setServicos(dadosPreCarregados.servicos)
       setCarregando(false)
     } else {
-      // Fallback: busca se ainda não carregou
       setCarregando(true)
       Promise.all([
         fetch("/api/equipe").then(r => r.json()),
@@ -173,7 +285,15 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     }
   }, [aberto])
 
-  // Escuta clique em slot vazio vindo da grade da agenda
+  // Busca agendamentos quando data muda
+  useEffect(() => {
+    if (!aberto) return
+    fetch(`/api/agendamentos?data=${dataSelecionada}`)
+      .then(r => r.json())
+      .then(appts => setAgendamentos(Array.isArray(appts) ? appts : []))
+      .catch(console.error)
+  }, [dataSelecionada, aberto])
+
   useEffect(() => {
     function handleSlotEvento(e: Event) {
       const { hora, profId, data } = (e as CustomEvent).detail
@@ -187,19 +307,57 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     setServicoId("")
+    setProfId("")
   }, [tipoAtendimento])
+
+  useEffect(() => {
+    setServicoId("")
+  }, [profId])
 
   useEffect(() => {
     if (horariosDisponiveis.length > 0 && !horariosDisponiveis.includes(hora)) {
       setHora(horariosDisponiveis[0])
     }
-  }, [dataSelecionada, horariosDisponiveis, hora])
+  }, [dataSelecionada, profId, servicoId, horariosDisponiveis, hora])
+
+  // Busca cliente por telefone
+  async function handleTelefone(valor: string) {
+    const fmt = formatarTelefone(valor)
+    setTelefone(fmt)
+    setClienteId("")
+    setClienteNome("")
+    const nums = fmt.replace(/\D/g, "")
+    if (nums.length === 11) {
+      setBuscandoCliente(true)
+      // Busca no cache local primeiro
+      const encontrado = clientes.find(c =>
+        c.phone?.replace(/\D/g, "") === nums ||
+        c.phone?.replace(/\D/g, "") === "55" + nums
+      )
+      if (encontrado) {
+        setClienteId(encontrado.id)
+        setClienteNome(encontrado.name)
+      } else {
+        setMostrarCadastro(true)
+      }
+      setBuscandoCliente(false)
+    }
+  }
+
+  function handleClienteCadastrado(novoCliente: any) {
+    setClientes(prev => [novoCliente, ...prev])
+    setClienteId(novoCliente.id)
+    setClienteNome(novoCliente.name)
+    setMostrarCadastro(false)
+  }
 
   function resetar() {
     const i = getDataHoraInicial()
     setDataSelecionada(i.data)
     setHora(i.hora)
     setClienteId("")
+    setClienteNome("")
+    setTelefone("")
     setServicoId("")
     setProfId("")
     setTipoAtendimento("presencial")
@@ -238,134 +396,162 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     }
   }
 
-  const servicosFiltrados = servicos.filter((s) =>
-    tipoAtendimento === "domicilio" ? s.availableHome === true : true
-  )
-
   if (!aberto) return null
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-          <h2 className="text-white font-bold">Novo Agendamento</h2>
-          <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-        </div>
+    <>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+            <h2 className="text-white font-bold">Novo Agendamento</h2>
+            <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
+          </div>
 
-        {carregando ? (
-          <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
-        ) : (
-          <form onSubmit={handleSalvar} className="p-5 space-y-3">
-            {profId && hora && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-amber-400 text-sm">
-                ◈ {hora} · {profissionais.find(p => p.id === profId)?.name}
-              </div>
-            )}
-            <div>
-              <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
-              <div className="grid grid-cols-2 gap-2">
-                <div
-                  onClick={() => setTipoAtendimento("presencial")}
-                  className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                    tipoAtendimento === "presencial" ? "border-amber-500/30 bg-amber-500/10" : "border-zinc-700 bg-zinc-800"
-                  }`}
-                >
-                  <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>
-                    🏪 Presencial
-                  </span>
-                </div>
-                <div
-                  onClick={() => setTipoAtendimento("domicilio")}
-                  className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                    tipoAtendimento === "domicilio" ? "border-teal-500/30 bg-teal-500/10" : "border-zinc-700 bg-zinc-800"
-                  }`}
-                >
-                  <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>
-                    🚗 Domicílio
-                  </span>
-                </div>
-              </div>
-            </div>
+          {carregando ? (
+            <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+          ) : (
+            <form onSubmit={handleSalvar} className="p-5 space-y-3">
 
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Cliente *</label>
-              <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
-                <option value="">Selecionar cliente...</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Profissional *</label>
-              <select value={profId} onChange={(e) => setProfId(e.target.value)} required
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
-                <option value="">Selecionar profissional...</option>
-                {profissionais.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Serviço *</label>
-              <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} required
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
-                <option value="">Selecionar serviço...</option>
-                {servicosFiltrados.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} — R$ {s.price} · {s.durationMin}min</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Data *</label>
-              <input type="date" value={dataSelecionada} min={hojeISO} max={maxDataISO}
-                onChange={(e) => setDataSelecionada(e.target.value)} required
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
-            </div>
-            
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Horário *</label>
-              {horariosDisponiveis.length === 0 ? (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
-                  Não há horários disponíveis para esta data, profissional e serviço.
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-3">
-                    <WheelPicker
-                      items={[...new Set(horariosDisponiveis.map(h => h.split(":")[0]))]}
-                      value={hora.split(":")[0]}
-                      onChange={(h) => {
-                        const mins = horariosDisponiveis.filter(s => s.startsWith(h + ":")).map(s => s.split(":")[1])
-                        const newMin = mins.includes(hora.split(":")[1]) ? hora.split(":")[1] : mins[0]
-                        setHora(`${h}:${newMin ?? "00"}`)
-                      }}
-                    />
-                    <span className="text-white text-2xl font-bold">:</span>
-                    <WheelPicker
-                      items={horariosDisponiveis.filter(s => s.startsWith(hora.split(":")[0] + ":")).map(s => s.split(":")[1])}
-                      value={hora.split(":")[1]}
-                      onChange={(m) => setHora(`${hora.split(":")[0]}:${m}`)}
-                    />
-                  </div>
-                  <span className="text-amber-400 text-sm font-medium">{hora}</span>
+              {profId && hora && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-amber-400 text-sm">
+                  ◈ {hora} · {profissionais.find(p => p.id === profId)?.name}
                 </div>
               )}
-            </div>
 
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onFechar}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                Cancelar
-              </button>
-              <button type="submit" disabled={salvando || horariosDisponiveis.length === 0}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                {salvando ? "Salvando..." : "Confirmar"}
-              </button>
-            </div>
-          </form>
-        )}
+              {/* Tipo de atendimento */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div onClick={() => setTipoAtendimento("presencial")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "presencial" ? "border-amber-500/30 bg-amber-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>🏪 Presencial</span>
+                  </div>
+                  <div onClick={() => setTipoAtendimento("domicilio")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "domicilio" ? "border-teal-500/30 bg-teal-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>🚗 Domicílio</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Telefone — busca cliente */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Telefone do cliente *</label>
+                <div className="relative">
+                  <input value={telefone} onChange={(e) => handleTelefone(e.target.value)}
+                    placeholder="(11) 99999-9999" required
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+                  {buscandoCliente && <span className="absolute right-3 top-2.5 text-zinc-500 text-xs">buscando...</span>}
+                </div>
+                {clienteNome && (
+                  <div className="mt-1.5 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 flex items-center justify-between">
+                    <span className="text-green-400 text-sm font-medium">{clienteNome}</span>
+                    <button type="button" onClick={() => { setClienteId(""); setClienteNome(""); setTelefone("") }}
+                      className="text-zinc-500 hover:text-zinc-300 text-xs">trocar</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Profissional */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Profissional *</label>
+                <select value={profId} onChange={(e) => setProfId(e.target.value)} required
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+                  <option value="">Selecionar profissional...</option>
+                  {profissionaisFiltrados.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                {tipoAtendimento === "domicilio" && profissionaisFiltrados.length === 0 && (
+                  <p className="text-amber-400 text-xs mt-1">Nenhum profissional cadastrado para atendimento a domicílio.</p>
+                )}
+              </div>
+
+              {/* Serviço — dependente do profissional */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Serviço *</label>
+                <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} required
+                  disabled={!profId}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors disabled:opacity-50">
+                  <option value="">{profId ? "Selecionar serviço..." : "Selecione um profissional primeiro"}</option>
+                  {servicosFiltrados.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} — R$ {s.price} · {s.durationMin}min</option>
+                  ))}
+                </select>
+                {profId && servicosFiltrados.length === 0 && (
+                  <p className="text-zinc-500 text-xs mt-1">Nenhum serviço vinculado a este profissional.</p>
+                )}
+              </div>
+
+              {/* Data */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Data *</label>
+                <input type="date" value={dataSelecionada} min={hojeISO} max={maxDataISO}
+                  onChange={(e) => setDataSelecionada(e.target.value)} required
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                {profId && !profAtendeDia && (
+                  <p className="text-red-400 text-xs mt-1">
+                    {profSelecionado?.name?.split(" ")[0]} não atende neste dia da semana.
+                  </p>
+                )}
+              </div>
+
+              {/* Horário */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Horário *</label>
+                {!profAtendeDia ? (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
+                    Profissional não atende neste dia. Escolha outra data.
+                  </div>
+                ) : horariosDisponiveis.length === 0 ? (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
+                    Não há horários disponíveis para esta data, profissional e serviço.
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <WheelPicker
+                        items={[...new Set(horariosDisponiveis.map(h => h.split(":")[0]))]}
+                        value={hora.split(":")[0]}
+                        onChange={(h) => {
+                          const mins = horariosDisponiveis.filter(s => s.startsWith(h + ":")).map(s => s.split(":")[1])
+                          const newMin = mins.includes(hora.split(":")[1]) ? hora.split(":")[1] : mins[0]
+                          setHora(`${h}:${newMin ?? "00"}`)
+                        }}
+                      />
+                      <span className="text-white text-2xl font-bold">:</span>
+                      <WheelPicker
+                        items={horariosDisponiveis.filter(s => s.startsWith(hora.split(":")[0] + ":")).map(s => s.split(":")[1])}
+                        value={hora.split(":")[1]}
+                        onChange={(m) => setHora(`${hora.split(":")[0]}:${m}`)}
+                      />
+                    </div>
+                    <span className="text-amber-400 text-sm font-medium">{hora}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={onFechar}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit"
+                  disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  {salvando ? "Salvando..." : "Confirmar"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Modal de cadastro rápido */}
+      {mostrarCadastro && (
+        <ModalCadastroCliente
+          telefone={telefone}
+          onSalvo={handleClienteCadastrado}
+          onCancelar={() => { setMostrarCadastro(false); setTelefone("") }}
+        />
+      )}
+    </>
   )
 }

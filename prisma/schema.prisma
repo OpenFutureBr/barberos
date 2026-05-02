@@ -55,6 +55,17 @@ model User {
   updatedAt        DateTime       @updatedAt
   accounts         Account[]
   appointments     Appointment[]
+  birthDate        DateTime?
+  homeNumber       String?
+  homeNeighborhood String?
+  homeCity         String?
+  homeZipCode      String?
+  pixKey           String?
+  breakBetweenAppts Int?     @default(10)
+  admissionDate DateTime? @default(now())
+  schedules         UserSchedule[]
+  userServices      UserService[]
+  attendsHome      Boolean   @default(false)
   kitItems         KitItem[]
   sessions         Session[]
   establishment    Establishment? @relation(fields: [establishmentId], references: [id])
@@ -150,6 +161,7 @@ model Service {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   appointments    Appointment[]
+  userServices UserService[]
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   @@map("services")
@@ -394,6 +406,29 @@ model GiftCard {
   createdAt  DateTime  @default(now())
 
   @@map("gift_cards")
+}
+
+model UserSchedule {
+  id         String  @id @default(cuid())
+  userId     String
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  isActive   Boolean @default(true)
+  user       User    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, dayOfWeek])
+  @@map("user_schedules")
+}
+
+model UserService {
+  userId    String
+  serviceId String
+  user      User    @relation(fields: [userId], references: [id])
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  @@id([userId, serviceId])
+  @@map("user_services")
 }
 
 enum Role {
