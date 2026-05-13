@@ -31,9 +31,9 @@ export async function POST(request: Request) {
         category: body.category || null,
         price: parseFloat(body.price),
         durationMin: parseInt(body.durationMin),
-        availableHome: body.availableHome || false,
+        availableHome: body.availableHome ?? false,
         establishmentId: "estab001",
-        isActive: true,
+        isActive: body.isActive ?? true,
       },
     })
     return NextResponse.json(servico)
@@ -52,7 +52,8 @@ export async function PUT(request: Request) {
         category: body.category || null,
         price: parseFloat(body.price),
         durationMin: parseInt(body.durationMin),
-        availableHome: body.availableHome || false,
+        availableHome: body.availableHome ?? false,
+        isActive: body.isActive ?? true,
       },
     })
     return NextResponse.json(servico)

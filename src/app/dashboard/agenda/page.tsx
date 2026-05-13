@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const corAppt: Record<string, string> = {
@@ -202,6 +202,16 @@ export default function AgendaPage() {
 
   const profSelecionado = profissionais.find(p => p.id === profFiltro)
 
+  // Cabeçalho da visão geral: ativos + quem tem agendamento no dia, respeitando data de admissão
+  const profissionaisExibidos = profissionais.filter(p => {
+    if (p.admissionDate) {
+      const admissao = p.admissionDate.slice(0, 10)
+      if (dataSelecionada < admissao) return false
+    }
+    return p.isActive !== false ||
+      agendamentos.some(a => a.professionalId === p.id && a.status !== "CANCELLED" && a.status !== "NO_SHOW")
+  })
+
   return (
     <DashboardLayout>
 
@@ -288,6 +298,15 @@ export default function AgendaPage() {
 
           {/* Slots semanais */}
           <div className="relative">
+            {linhaVermelha !== null && janela6Dias.includes(hojeISO) && (
+              <div className="absolute left-0 right-0 z-10 pointer-events-none flex items-center"
+                style={{ top: linhaVermelha }}>
+                <div className="w-14 flex-shrink-0 flex justify-end pr-1">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                </div>
+                <div className="flex-1 h-px bg-red-500 opacity-70" />
+              </div>
+            )}
             {horas.map((hora) => (
               <div key={hora} className="grid border-b border-zinc-800 last:border-0"
                 style={{ gridTemplateColumns: `56px repeat(6, 1fr)`, height: SLOT_HEIGHT }}>
@@ -312,9 +331,9 @@ export default function AgendaPage() {
         /* ── VISÃO GERAL POR PROFISSIONAL ── */
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           {/* Cabeçalho profissionais */}
-          <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionais.length}, 1fr)` }}>
+          <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
-            {profissionais.map((prof) => (
+            {profissionaisExibidos.map((prof) => (
               <div key={prof.id} className="p-2 flex flex-col items-center gap-1 border-r border-zinc-800 last:border-0">
                 <div className="w-6 h-6 rounded-full bg-amber-600 flex items-center justify-center text-xs font-bold text-white">
                   {prof.name?.charAt(0)}
@@ -343,11 +362,11 @@ export default function AgendaPage() {
 
             {horas.map((hora) => (
               <div key={hora} className="grid border-b border-zinc-800 last:border-0"
-                style={{ gridTemplateColumns: `56px repeat(${profissionais.length}, 1fr)`, height: SLOT_HEIGHT }}>
+                style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, 1fr)`, height: SLOT_HEIGHT }}>
                 <div className="p-2 text-xs font-mono border-r border-zinc-800 flex items-start justify-center pt-2 text-zinc-600">
                   {hora}
                 </div>
-                {profissionais.map((prof) => renderSlots(hora, prof.id, agendamentos))}
+                {profissionaisExibidos.map((prof) => <React.Fragment key={prof.id}>{renderSlots(hora, prof.id, agendamentos)}</React.Fragment>)}
               </div>
             ))}
           </div>

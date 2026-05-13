@@ -116,6 +116,69 @@ function WheelPicker({ items, value, onChange }: {
   )
 }
 
+const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
+
+async function buscarCep(nums: string, setRua: (v: string) => void, setBairro: (v: string) => void, setCidade: (v: string) => void) {
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${nums}/json/`)
+    const data = await res.json()
+    if (!data.erro) {
+      setRua(data.logradouro || "")
+      setBairro(data.bairro || "")
+      setCidade(data.localidade || "")
+    }
+  } catch {}
+}
+
+function CamposEndereco({ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }: {
+  cep: string; setCep: (v: string) => void
+  rua: string; setRua: (v: string) => void
+  numero: string; setNumero: (v: string) => void
+  bairro: string; setBairro: (v: string) => void
+  cidade: string; setCidade: (v: string) => void
+  buscandoCep: boolean; setBuscandoCep: (v: boolean) => void
+}) {
+  async function handleCep(valor: string) {
+    const nums = valor.replace(/\D/g, "").slice(0, 8)
+    setCep(nums.length > 5 ? `${nums.slice(0, 5)}-${nums.slice(5)}` : nums)
+    if (nums.length === 8) {
+      setBuscandoCep(true)
+      await buscarCep(nums, setRua, setBairro, setCidade)
+      setBuscandoCep(false)
+    }
+  }
+  return (
+    <>
+      <div>
+        <label className="text-zinc-400 text-xs mb-1 block">CEP *</label>
+        <div className="relative">
+          <input value={cep} onChange={(e) => handleCep(e.target.value)}
+            required placeholder="00000-000" maxLength={9} className={inputCls} />
+          {buscandoCep && <span className="absolute right-3 top-2.5 text-zinc-500 text-xs">buscando...</span>}
+        </div>
+      </div>
+      <div>
+        <label className="text-zinc-400 text-xs mb-1 block">Rua / Logradouro *</label>
+        <input value={rua} onChange={(e) => setRua(e.target.value)} required placeholder="Ex: Rua das Flores" className={inputCls} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-zinc-400 text-xs mb-1 block">Número *</label>
+          <input value={numero} onChange={(e) => setNumero(e.target.value)} required placeholder="123" className={inputCls} />
+        </div>
+        <div>
+          <label className="text-zinc-400 text-xs mb-1 block">Bairro *</label>
+          <input value={bairro} onChange={(e) => setBairro(e.target.value)} required placeholder="Ex: Centro" className={inputCls} />
+        </div>
+      </div>
+      <div>
+        <label className="text-zinc-400 text-xs mb-1 block">Cidade *</label>
+        <input value={cidade} onChange={(e) => setCidade(e.target.value)} required placeholder="Ex: São Paulo" className={inputCls} />
+      </div>
+    </>
+  )
+}
+
 // Modal de cadastro rápido de cliente
 function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
   telefone: string
@@ -124,10 +187,16 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
 }) {
   const [nome, setNome] = useState("")
   const [email, setEmail] = useState("")
+  const [cep, setCep] = useState("")
+  const [rua, setRua] = useState("")
+  const [numero, setNumero] = useState("")
+  const [bairro, setBairro] = useState("")
+  const [cidade, setCidade] = useState("")
+  const [buscandoCep, setBuscandoCep] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState("")
 
-  async function handleSalvar(e: React.FormEvent) {
+  async function handleSalvar(e: { preventDefault: () => void }) {
     e.preventDefault()
     setSalvando(true)
     setErro("")
@@ -136,7 +205,12 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
       const res = await fetch("/api/clientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nome, phone: "+55" + nums, email: email || null }),
+        body: JSON.stringify({
+          name: nome, phone: "+55" + nums, email: email || null,
+          homeZipCode: cep.replace(/\D/g, "") || null,
+          homeAddress: rua || null, homeNumber: numero || null,
+          homeNeighborhood: bairro || null, homeCity: cidade || null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setErro(data.error || "Erro ao salvar."); return }
@@ -147,8 +221,8 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
           <div>
             <h2 className="text-white font-bold">Novo Cliente</h2>
             <p className="text-zinc-500 text-xs mt-0.5">Telefone: {telefone}</p>
@@ -159,15 +233,15 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
           <div>
             <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
             <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
-              required placeholder="Ex: João Silva" autoFocus
-              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              required placeholder="Ex: João Silva" autoFocus className={inputCls} />
           </div>
           <div>
             <label className="text-zinc-400 text-xs mb-1 block">Email</label>
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
-              placeholder="email@exemplo.com"
-              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              placeholder="email@exemplo.com" className={inputCls} />
           </div>
+          <p className="text-zinc-500 text-xs uppercase tracking-wider pt-1">Endereço</p>
+          <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
           {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onCancelar}
@@ -177,6 +251,75 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
             <button type="submit" disabled={salvando}
               className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
               {salvando ? "Salvando..." : "Cadastrar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Modal para cadastrar endereço de cliente existente (exigido para domicílio)
+function ModalCadastroEndereco({ clienteId, clienteNome, onSalvo, onCancelar }: {
+  clienteId: string
+  clienteNome: string
+  onSalvo: (cliente: any) => void
+  onCancelar: () => void
+}) {
+  const [cep, setCep] = useState("")
+  const [rua, setRua] = useState("")
+  const [numero, setNumero] = useState("")
+  const [bairro, setBairro] = useState("")
+  const [cidade, setCidade] = useState("")
+  const [buscandoCep, setBuscandoCep] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState("")
+
+  async function handleSalvar(e: { preventDefault: () => void }) {
+    e.preventDefault()
+    setSalvando(true)
+    setErro("")
+    try {
+      const res = await fetch(`/api/clientes/${clienteId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          homeZipCode: cep.replace(/\D/g, "") || null,
+          homeAddress: rua || null, homeNumber: numero || null,
+          homeNeighborhood: bairro || null, homeCity: cidade || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErro(data.error || "Erro ao salvar."); return }
+      onSalvo(data)
+    } catch { setErro("Erro inesperado.") }
+    finally { setSalvando(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+          <div>
+            <h2 className="text-white font-bold">Endereço para Domicílio</h2>
+            <p className="text-zinc-500 text-xs mt-0.5">{clienteNome}</p>
+          </div>
+          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
+        </div>
+        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+          <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg px-3 py-2 text-teal-400 text-xs">
+            Para agendamentos a domicílio, o cliente precisa ter endereço cadastrado.
+          </div>
+          <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
+          {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onCancelar}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvando}
+              className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+              {salvando ? "Salvando..." : "Salvar endereço"}
             </button>
           </div>
         </form>
@@ -208,15 +351,18 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [telefone, setTelefone] = useState("")
   const [buscandoCliente, setBuscandoCliente] = useState(false)
   const [clienteNome, setClienteNome] = useState("")
+  const [clienteObj, setClienteObj] = useState<any | null>(null)
   const [mostrarCadastro, setMostrarCadastro] = useState(false)
+  const [mostrarCadastroEndereco, setMostrarCadastroEndereco] = useState(false)
 
   // Profissional selecionado completo (com schedules e userServices)
   const profSelecionado = profissionais.find(p => p.id === profId)
   const descansoMin = profSelecionado?.breakBetweenAppts ?? 10
 
-  // Filtra profissionais por tipo de atendimento
+  // Filtra profissionais por tipo de atendimento (apenas ativos)
   const profissionaisFiltrados = profissionais.filter(p =>
-    tipoAtendimento === "domicilio" ? p.attendsHome === true : true
+    p.isActive !== false &&
+    (tipoAtendimento === "domicilio" ? p.attendsHome === true : true)
   )
 
   // Verifica se o profissional atende no dia selecionado
@@ -237,8 +383,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const servicosFiltrados = (() => {
     if (!profId || !profSelecionado) return []
     const idsDoProf = profSelecionado.userServices?.map((us: any) => us.serviceId) || []
-    if (!idsDoProf.length) return servicos
-    return servicos.filter(s => idsDoProf.includes(s.id))
+    const doProf = idsDoProf.length > 0 ? servicos.filter(s => idsDoProf.includes(s.id)) : servicos
+    const ativos = doProf.filter(s => s.isActive !== false)
+    if (tipoAtendimento === "domicilio") return ativos.filter(s => s.availableHome === true)
+    return ativos
   })()
 
   const servicoSelecionado = servicos.find((s) => s.id === servicoId)
@@ -296,10 +444,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     function handleSlotEvento(e: Event) {
-      const { hora, profId, data } = (e as CustomEvent).detail
-      setHora(hora)
-      setProfId(profId)
-      setDataSelecionada(data)
+      const { hora: h, profId: pid, data: d } = (e as CustomEvent).detail || {}
+      if (h) setHora(h)
+      if (pid) setProfId(pid)
+      if (d) setDataSelecionada(d)
     }
     window.addEventListener("abrirModalAgenda", handleSlotEvento)
     return () => window.removeEventListener("abrirModalAgenda", handleSlotEvento)
@@ -337,6 +485,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       if (encontrado) {
         setClienteId(encontrado.id)
         setClienteNome(encontrado.name)
+        setClienteObj(encontrado)
       } else {
         setMostrarCadastro(true)
       }
@@ -348,7 +497,14 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     setClientes(prev => [novoCliente, ...prev])
     setClienteId(novoCliente.id)
     setClienteNome(novoCliente.name)
+    setClienteObj(novoCliente)
     setMostrarCadastro(false)
+  }
+
+  function handleEnderecoSalvo(clienteAtualizado: any) {
+    setClientes(prev => prev.map(c => c.id === clienteAtualizado.id ? clienteAtualizado : c))
+    setClienteObj(clienteAtualizado)
+    setMostrarCadastroEndereco(false)
   }
 
   function resetar() {
@@ -357,13 +513,16 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     setHora(i.hora)
     setClienteId("")
     setClienteNome("")
+    setClienteObj(null)
     setTelefone("")
     setServicoId("")
     setProfId("")
     setTipoAtendimento("presencial")
   }
 
-  async function handleSalvar(e: React.FormEvent) {
+  const clienteTemEndereco = !clienteObj || !!clienteObj.homeAddress
+
+  async function handleSalvar(e: { preventDefault: () => void }) {
     e.preventDefault()
     setSalvando(true)
     try {
@@ -528,13 +687,23 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 )}
               </div>
 
+              {tipoAtendimento === "domicilio" && clienteId && !clienteTemEndereco && (
+                <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+                  <span className="text-teal-400 text-xs">Cliente sem endereço cadastrado</span>
+                  <button type="button" onClick={() => setMostrarCadastroEndereco(true)}
+                    className="text-xs text-teal-300 font-medium underline whitespace-nowrap">
+                    Cadastrar endereço
+                  </button>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onFechar}
                   className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
                   Cancelar
                 </button>
                 <button type="submit"
-                  disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId}
+                  disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId || (tipoAtendimento === "domicilio" && !clienteTemEndereco)}
                   className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
                   {salvando ? "Salvando..." : "Confirmar"}
                 </button>
@@ -550,6 +719,16 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
           telefone={telefone}
           onSalvo={handleClienteCadastrado}
           onCancelar={() => { setMostrarCadastro(false); setTelefone("") }}
+        />
+      )}
+
+      {/* Modal de endereço para domicílio */}
+      {mostrarCadastroEndereco && clienteId && (
+        <ModalCadastroEndereco
+          clienteId={clienteId}
+          clienteNome={clienteNome}
+          onSalvo={handleEnderecoSalvo}
+          onCancelar={() => setMostrarCadastroEndereco(false)}
         />
       )}
     </>

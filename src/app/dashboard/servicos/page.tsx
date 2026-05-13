@@ -24,6 +24,7 @@ export default function ServicosPage() {
   const [preco, setPreco] = useState("")
   const [duracao, setDuracao] = useState("")
   const [domicilio, setDomicilio] = useState(false)
+  const [isAtivo, setIsAtivo] = useState(true)
 
   useEffect(() => {
     buscarServicos()
@@ -49,6 +50,7 @@ export default function ServicosPage() {
     setPreco("")
     setDuracao("")
     setDomicilio(false)
+    setIsAtivo(true)
     setErro("")
     setModalAberto(true)
   }
@@ -60,18 +62,18 @@ export default function ServicosPage() {
     setPreco(String(servico.price))
     setDuracao(String(servico.durationMin))
     setDomicilio(servico.availableHome)
+    setIsAtivo(servico.isActive)
     setErro("")
     setModalAberto(true)
   }
 
-  async function handleSalvar(e: React.FormEvent) {
+  async function handleSalvar(e: { preventDefault: () => void }) {
     e.preventDefault()
     setSalvando(true)
     setErro("")
     try {
-      const url = "/api/servicos"
       const method = servicoEditando ? "PUT" : "POST"
-      const res = await fetch(url, {
+      const res = await fetch("/api/servicos", {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,6 +83,7 @@ export default function ServicosPage() {
           price: preco,
           durationMin: duracao,
           availableHome: domicilio,
+          isActive: isAtivo,
         }),
       })
       if (!res.ok) throw new Error("Erro ao salvar")
@@ -93,13 +96,16 @@ export default function ServicosPage() {
     }
   }
 
+  const ativos = servicos.filter((s) => s.isActive)
+  const inativos = servicos.filter((s) => !s.isActive)
+
   return (
     <DashboardLayout>
 
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Serviços</h1>
-          <p className="text-zinc-500 text-sm">{servicos.length} serviços cadastrados</p>
+          <p className="text-zinc-500 text-sm">{ativos.length} ativos{inativos.length > 0 ? `, ${inativos.length} desabilitados` : ""}</p>
         </div>
         <button
           onClick={handleNovo}
@@ -121,32 +127,57 @@ export default function ServicosPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
-          {servicos.map((servico) => (
-            <div key={servico.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
-              <div className="flex items-start justify-between mb-3">
-                <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.category] ?? "bg-zinc-700 text-zinc-400"}`}>
-                  {servico.category || "Geral"}
-                </span>
-                {servico.availableHome && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                    🚗 Domicílio
+        <div className="space-y-6">
+          <div className="grid grid-cols-3 gap-3">
+            {ativos.map((servico) => (
+              <div key={servico.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.category] ?? "bg-zinc-700 text-zinc-400"}`}>
+                    {servico.category || "Geral"}
                   </span>
-                )}
+                </div>
+                <div className="text-white font-semibold mb-1">{servico.name}</div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+                  <div className="text-amber-400 font-bold">R$ {servico.price}</div>
+                  <div className="text-zinc-500 text-xs">{servico.durationMin} min</div>
+                </div>
+                <button
+                  onClick={() => handleEditar(servico)}
+                  className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
+                >
+                  ✏️ Editar
+                </button>
               </div>
-              <div className="text-white font-semibold mb-1">{servico.name}</div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
-                <div className="text-amber-400 font-bold">R$ {servico.price}</div>
-                <div className="text-zinc-500 text-xs">{servico.durationMin} min</div>
+            ))}
+          </div>
+
+          {inativos.length > 0 && (
+            <div>
+              <p className="text-zinc-600 text-xs uppercase tracking-wider mb-3">Desabilitados</p>
+              <div className="grid grid-cols-3 gap-3">
+                {inativos.map((servico) => (
+                  <div key={servico.id} className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4 opacity-50">
+                    <div className="flex items-start justify-between mb-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.category] ?? "bg-zinc-700 text-zinc-400"}`}>
+                        {servico.category || "Geral"}
+                      </span>
+                    </div>
+                    <div className="text-zinc-400 font-semibold mb-1">{servico.name}</div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+                      <div className="text-zinc-500 font-bold">R$ {servico.price}</div>
+                      <div className="text-zinc-600 text-xs">{servico.durationMin} min</div>
+                    </div>
+                    <button
+                      onClick={() => handleEditar(servico)}
+                      className="w-full mt-3 text-xs text-zinc-600 hover:text-zinc-400 py-1.5 rounded-lg border border-zinc-800/50 hover:border-zinc-700 transition-colors"
+                    >
+                      ✏️ Editar
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => handleEditar(servico)}
-                className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
-              >
-                ✏️ Editar
-              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -215,24 +246,47 @@ export default function ServicosPage() {
                   />
                 </div>
               </div>
+
               <div
                 onClick={() => setDomicilio(!domicilio)}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                   domicilio ? "bg-teal-500/10 border-teal-500/30" : "bg-zinc-800 border-zinc-700 hover:border-zinc-600"
                 }`}
               >
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                  domicilio ? "bg-teal-500 border-teal-500" : "border-zinc-600"
+                <div className={`w-9 h-5 rounded-full flex items-center transition-all px-0.5 flex-shrink-0 ${
+                  domicilio ? "bg-teal-500 justify-end" : "bg-zinc-700 justify-start"
                 }`}>
-                  {domicilio && <span className="text-white text-xs">✓</span>}
+                  <div className="w-4 h-4 bg-white rounded-full shadow" />
                 </div>
                 <div>
                   <div className={`text-sm font-medium ${domicilio ? "text-teal-400" : "text-zinc-400"}`}>
-                    🚗 Disponível para atendimento a domicílio
+                    Disponível a domicílio
                   </div>
-                  <div className="text-zinc-600 text-xs">Autônomos poderão oferecer este serviço</div>
+                  <div className="text-zinc-600 text-xs">Aparece nos agendamentos domiciliares</div>
                 </div>
               </div>
+
+              <div
+                onClick={() => setIsAtivo(!isAtivo)}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                  isAtivo ? "bg-zinc-800 border-zinc-700 hover:border-zinc-600" : "bg-red-500/5 border-red-500/20"
+                }`}
+              >
+                <div className={`w-9 h-5 rounded-full flex items-center transition-all px-0.5 flex-shrink-0 ${
+                  isAtivo ? "bg-amber-500 justify-end" : "bg-zinc-700 justify-start"
+                }`}>
+                  <div className="w-4 h-4 bg-white rounded-full shadow" />
+                </div>
+                <div>
+                  <div className={`text-sm font-medium ${isAtivo ? "text-zinc-200" : "text-zinc-500"}`}>
+                    {isAtivo ? "Serviço ativo" : "Serviço desabilitado"}
+                  </div>
+                  <div className="text-zinc-600 text-xs">
+                    {isAtivo ? "Disponível para agendamentos" : "Não aparece nos agendamentos"}
+                  </div>
+                </div>
+              </div>
+
               {erro && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">
                   {erro}
