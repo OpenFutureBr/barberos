@@ -3,9 +3,26 @@
 import React, { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
+const statusLabel: Record<string, string> = {
+  SCHEDULED: "Pendente",
+  CONFIRMED: "Confirmado",
+  COMPLETED: "Concluído",
+  CANCELLED: "Cancelado",
+  NO_SHOW: "Não compareceu",
+}
+
+const statusCor: Record<string, string> = {
+  SCHEDULED: "text-amber-400",
+  CONFIRMED: "text-green-400",
+  COMPLETED: "text-blue-400",
+  CANCELLED: "text-red-400",
+  NO_SHOW: "text-zinc-500",
+}
+
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
   domicilio: "bg-teal-500/15 border-l-2 border-teal-500 text-teal-200",
+  cancelado: "bg-red-500/20 border-l-2 border-red-500 text-red-300 opacity-60",
 }
 
 const HORA_INICIO = 8
@@ -49,6 +66,7 @@ export default function AgendaPage() {
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO)
   const [profFiltro, setProfFiltro] = useState<string>("") // "" = visão geral
   const [iniciJanela, setInicioJanela] = useState(hojeISO)
+  const [filtroStatus, setFiltroStatus] = useState<"ativos" | "todos" | "cancelados">("ativos")
 
   const isHoje = dataSelecionada === hojeISO
   const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", {
@@ -144,12 +162,19 @@ export default function AgendaPage() {
     setModalDetalhe(false)
   }
 
+  function isCancelado(a: any) {
+    return a.status === "CANCELLED" || a.status === "NO_SHOW"
+  }
+
   function getApptsDaHora(hora: string, profId: string, appts: any[]) {
     const [horaNum] = hora.split(":").map(Number)
     return appts.filter((a) => {
       const date = new Date(a.scheduledAt)
-      return date.getHours() === horaNum && a.professionalId === profId
-        && a.status !== "CANCELLED" && a.status !== "NO_SHOW"
+      if (date.getHours() !== horaNum || a.professionalId !== profId) return false
+      const cancelado = isCancelado(a)
+      if (filtroStatus === "ativos") return !cancelado
+      if (filtroStatus === "cancelados") return cancelado
+      return true
     })
   }
 
@@ -158,7 +183,11 @@ export default function AgendaPage() {
     const appt = appts.find((a) => {
       const date = new Date(a.scheduledAt)
       const hh = String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0")
-      return hh === h && a.professionalId === pId
+      if (hh !== h || a.professionalId !== pId) return false
+      const cancelado = isCancelado(a)
+      if (filtroStatus === "ativos") return !cancelado
+      if (filtroStatus === "cancelados") return cancelado
+      return true
     })
     if (appt) {
       setApptSelecionado(appt)
@@ -185,13 +214,14 @@ export default function AgendaPage() {
           const duracaoMin = appt.service?.durationMin || 30
           const topPct = (minutos / 60) * 100
           const heightPct = Math.min((duracaoMin / 60) * 100, 100 - topPct)
-          const tipo = appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"
+          const cancelado = isCancelado(appt)
+          const cor = cancelado ? corAppt.cancelado : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
           return (
             <div key={appt.id}
-              className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${corAppt[tipo]}`}
+              className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${cor}`}
               style={{ top: `${topPct}%`, height: `${heightPct}%`, minHeight: 18, zIndex: 1 }}
               onClick={(e) => { e.stopPropagation(); setApptSelecionado(appt); setModalDetalhe(true) }}>
-              <div className="text-xs font-semibold leading-tight truncate">{appt.client?.name}</div>
+              <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through" : ""}`}>{appt.client?.name}</div>
               {heightPct > 30 && <div className="text-xs opacity-60 truncate">{appt.service?.name}</div>}
             </div>
           )
@@ -224,6 +254,20 @@ export default function AgendaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Filtro de status */}
+          <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
+            {(["ativos", "todos", "cancelados"] as const).map((f) => (
+              <button key={f} onClick={() => setFiltroStatus(f)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  filtroStatus === f
+                    ? f === "cancelados" ? "bg-red-500/20 text-red-400" : "bg-zinc-700 text-white"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}>
+                {f === "ativos" ? "Ativos" : f === "todos" ? "Todos" : "Cancelados"}
+              </button>
+            ))}
+          </div>
+
           {/* Seletor de profissional */}
           <select
             value={profFiltro}
@@ -396,7 +440,9 @@ export default function AgendaPage() {
                 </div>
                 <div className="bg-zinc-800 rounded-lg p-3">
                   <div className="text-zinc-500 text-xs mb-1">Status</div>
-                  <div className="text-green-400 font-medium text-sm">{apptSelecionado.status}</div>
+                  <div className={`font-medium text-sm ${statusCor[apptSelecionado.status] ?? "text-zinc-400"}`}>
+                    {statusLabel[apptSelecionado.status] ?? apptSelecionado.status}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
@@ -404,10 +450,12 @@ export default function AgendaPage() {
                   className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
                   Fechar
                 </button>
-                <button onClick={handleCancelar}
-                  className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                  ✕ Cancelar
-                </button>
+                {!isCancelado(apptSelecionado) && (
+                  <button onClick={handleCancelar}
+                    className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+                    ✕ Cancelar
+                  </button>
+                )}
               </div>
             </div>
           </div>

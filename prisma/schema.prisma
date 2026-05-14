@@ -279,6 +279,10 @@ model Product {
   minStock        Int             @default(5)
   unit            String          @default("un")
   supplier        String?
+  category        String?
+  subCategory     String?
+  hasAlcohol      Boolean         @default(false)
+  photoUrl        String?
   isActive        Boolean         @default(true)
   establishmentId String
   createdAt       DateTime        @default(now())
@@ -295,6 +299,7 @@ model StockMovement {
   type      String
   quantity  Int
   reason    String?
+  unitPrice Float?
   createdAt DateTime @default(now())
   productId String
   product   Product  @relation(fields: [productId], references: [id])
