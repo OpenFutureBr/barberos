@@ -299,10 +299,11 @@ model StockMovement {
   type      String
   quantity  Int
   reason    String?
-  unitPrice Float?
-  createdAt DateTime @default(now())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
+  unitPrice     Float?
+  appointmentId String?
+  createdAt     DateTime @default(now())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
 
   @@map("stock_movements")
 }

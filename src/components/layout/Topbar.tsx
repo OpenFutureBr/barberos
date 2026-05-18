@@ -17,7 +17,15 @@ const titles: Record<string, { title: string; subtitle: string }> = {
   "/dashboard/ia": { title: "Central IA", subtitle: "5 alertas ativos" },
 }
 
-export default function Topbar({ onAbrirModal }: { onAbrirModal: () => void }) {
+export default function Topbar({
+  onAbrirModal,
+  onAbrirVenda,
+  cartCount = 0,
+}: {
+  onAbrirModal: () => void
+  onAbrirVenda: () => void
+  cartCount?: number
+}) {
   const pathname = usePathname()
   const current = titles[pathname] ?? { title: "BarberOS", subtitle: "" }
 
@@ -36,6 +44,21 @@ export default function Topbar({ onAbrirModal }: { onAbrirModal: () => void }) {
         <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
           Plano Pro
         </span>
+
+        {/* Carrinho de vendas */}
+        <button
+          onClick={onAbrirVenda}
+          title={cartCount > 0 ? `${cartCount} ${cartCount === 1 ? "item" : "itens"} no carrinho` : "Registrar venda"}
+          className="relative bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm px-2.5 py-1.5 rounded-md transition-colors"
+        >
+          🛒
+          {cartCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+              {cartCount > 9 ? "9+" : cartCount}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={onAbrirModal}
           className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"

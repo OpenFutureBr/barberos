@@ -1,22 +1,12 @@
+import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import {
-  PrismaClient,
-  ServiceType,
-  AppointmentStatus,
-} from "@prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
-import { Pool } from "pg"
+import { ServiceType, AppointmentStatus } from "@prisma/client"
+
+
 import { addMinutes, addDays, isBefore, isAfter } from "date-fns"
 
 const ESTABLISHMENT_ID = "estab001"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
 
 function adicionarMinutos(data: Date, minutos: number) {
   return new Date(data.getTime() + minutos * 60 * 1000)

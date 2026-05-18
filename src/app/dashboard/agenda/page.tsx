@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const statusLabel: Record<string, string> = {
@@ -52,6 +53,7 @@ function formatarDataCurta(dataISO: string) {
 }
 
 export default function AgendaPage() {
+  const router = useRouter()
   const hojeISO = getDataSaoPaulo(new Date())
 
   const [agendamentos, setAgendamentos] = useState<any[]>([])
@@ -63,6 +65,29 @@ export default function AgendaPage() {
 
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
+
+  // Comanda do agendamento — persiste em sessionStorage
+  const [produtosEstoque, setProdutosEstoque] = useState<any[]>([])
+  const [comandas, setComandas] = useState<Record<string, { produto: any; qty: number }[]>>({})
+  const [buscaProduto, setBuscaProduto] = useState("")
+  const [dropdownProduto, setDropdownProduto] = useState(false)
+  const [finalizando, setFinalizando] = useState(false)
+  const [statusOverride, setStatusOverride] = useState<Record<string, string>>({})
+
+  // Carrega comandas do sessionStorage ao montar
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("barberos_comandas")
+      if (saved) setComandas(JSON.parse(saved))
+    } catch {}
+  }, [])
+
+  // Salva comandas no sessionStorage sempre que mudar
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("barberos_comandas", JSON.stringify(comandas))
+    } catch {}
+  }, [comandas])
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO)
   const [profFiltro, setProfFiltro] = useState<string>("") // "" = visão geral
   const [iniciJanela, setInicioJanela] = useState(hojeISO)
@@ -150,15 +175,36 @@ export default function AgendaPage() {
     }
   }
 
+  function abrirDetalhe(appt: any) {
+    setApptSelecionado(appt)
+    setBuscaProduto("")
+    setModalDetalhe(true)
+    if (produtosEstoque.length === 0) {
+      fetch("/api/estoque").then(r => r.json()).then(d => setProdutosEstoque(Array.isArray(d) ? d.filter((p: any) => p.isActive && p.stock > 0) : [])).catch(() => {})
+    }
+  }
+
+  function handleFinalizarComanda() {
+    if (!apptSelecionado) return
+    setModalDetalhe(false)
+    router.push(`/dashboard/agenda/comanda/${apptSelecionado.id}`)
+  }
+
   async function handleCancelar() {
     if (!apptSelecionado) return
-    await fetch("/api/agendamentos", {
+    const res = await fetch("/api/agendamentos", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: apptSelecionado.id, status: "CANCELLED" }),
     })
-    delete cacheAppts.current[dataSelecionada]
-    await buscarAgendamentos(dataSelecionada)
+    if (!res.ok) { alert("Erro ao cancelar agendamento"); return }
+    // Limpa todo o cache e recarrega
+    cacheAppts.current = {}
+    if (profFiltro) {
+      janela6Dias.forEach(d => buscarAgendamentos(d))
+    } else {
+      await buscarAgendamentos(dataSelecionada)
+    }
     setModalDetalhe(false)
   }
 
@@ -190,8 +236,7 @@ export default function AgendaPage() {
       return true
     })
     if (appt) {
-      setApptSelecionado(appt)
-      setModalDetalhe(true)
+      abrirDetalhe(appt)
     } else {
       window.dispatchEvent(new CustomEvent("abrirModalAgenda", {
         detail: { hora: h, profId: pId, data: data || dataSelecionada }
@@ -220,8 +265,11 @@ export default function AgendaPage() {
             <div key={appt.id}
               className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${cor}`}
               style={{ top: `${topPct}%`, height: `${heightPct}%`, minHeight: 18, zIndex: 1 }}
-              onClick={(e) => { e.stopPropagation(); setApptSelecionado(appt); setModalDetalhe(true) }}>
-              <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through" : ""}`}>{appt.client?.name}</div>
+              onClick={(e) => { e.stopPropagation(); abrirDetalhe(appt) }}>
+              <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through" : ""}`}>
+                {appt.client?.name}
+                {comandas[appt.id]?.length > 0 && <span className="ml-1 text-green-400">●</span>}
+              </div>
               {heightPct > 30 && <div className="text-xs opacity-60 truncate">{appt.service?.name}</div>}
             </div>
           )
@@ -417,50 +465,190 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {/* Modal detalhe */}
-      {modalDetalhe && apptSelecionado && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Detalhes do Agendamento</h2>
-              <button onClick={() => setModalDetalhe(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-                <div className="text-white font-bold text-base mb-1">{apptSelecionado.client?.name}</div>
-                <div className="text-zinc-400 text-sm">{apptSelecionado.service?.name}</div>
-                <div className="text-zinc-500 text-xs mt-1">
-                  ⏰ {new Date(apptSelecionado.scheduledAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · {apptSelecionado.professional?.name}
-                </div>
+      {/* Modal detalhe — Comanda */}
+      {modalDetalhe && apptSelecionado && (() => {
+        const apptId = apptSelecionado.id
+        const itensComanda = comandas[apptId] ?? []
+        const precoCorte = apptSelecionado.service?.price ?? 0
+        const totalProdutos = itensComanda.reduce((s, i) => s + i.qty * i.produto.salePrice, 0)
+        const totalComanda = precoCorte + totalProdutos
+        const statusAtual = statusOverride[apptId] ?? apptSelecionado.status
+        const cancelado = statusAtual === "CANCELLED" || statusAtual === "NO_SHOW"
+
+        async function mudarStatus(novoStatus: string) {
+          await fetch("/api/agendamentos", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: apptId, status: novoStatus }),
+          })
+          setStatusOverride(prev => ({ ...prev, [apptId]: novoStatus }))
+          cacheAppts.current = {}
+          if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
+          else buscarAgendamentos(dataSelecionada)
+        }
+
+        const produtosFiltrados = produtosEstoque.filter(p =>
+          buscaProduto.length === 0 || p.name.toLowerCase().includes(buscaProduto.toLowerCase())
+        ).slice(0, 6)
+
+        function addItem(p: any) {
+          setComandas(prev => {
+            const curr = prev[apptId] ?? []
+            const idx = curr.findIndex(i => i.produto.id === p.id)
+            if (idx >= 0) {
+              const n = [...curr]; n[idx] = { ...n[idx], qty: n[idx].qty + 1 }
+              return { ...prev, [apptId]: n }
+            }
+            return { ...prev, [apptId]: [...curr, { produto: p, qty: 1 }] }
+          })
+          setBuscaProduto(""); setDropdownProduto(false)
+        }
+
+        function updateQty(idx: number, delta: number) {
+          setComandas(prev => {
+            const curr = [...(prev[apptId] ?? [])]
+            const novaQty = Math.max(1, Math.min(100, curr[idx].qty + delta))
+            curr[idx] = { ...curr[idx], qty: novaQty }
+            return { ...prev, [apptId]: curr }
+          })
+        }
+
+        function removeItem(idx: number) {
+          setComandas(prev => ({ ...prev, [apptId]: (prev[apptId] ?? []).filter((_, i) => i !== idx) }))
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+                <h2 className="text-white font-bold">Detalhes do Agendamento</h2>
+                <button onClick={() => setModalDetalhe(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-zinc-800 rounded-lg p-3">
-                  <div className="text-zinc-500 text-xs mb-1">Valor</div>
-                  <div className="text-amber-400 font-bold">R$ {apptSelecionado.service?.price}</div>
-                </div>
-                <div className="bg-zinc-800 rounded-lg p-3">
-                  <div className="text-zinc-500 text-xs mb-1">Status</div>
-                  <div className={`font-medium text-sm ${statusCor[apptSelecionado.status] ?? "text-zinc-400"}`}>
-                    {statusLabel[apptSelecionado.status] ?? apptSelecionado.status}
+
+              <div className="p-5 space-y-4">
+                {/* Cabeçalho do agendamento */}
+                <div>
+                  <div className="text-white font-bold text-lg">{apptSelecionado.client?.name}</div>
+                  <div className="text-zinc-400 text-sm mt-0.5">{apptSelecionado.service?.name}</div>
+                  <div className="text-zinc-500 text-xs mt-0.5">
+                    {apptSelecionado.professional?.name} · {new Date(apptSelecionado.scheduledAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setModalDetalhe(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Fechar
-                </button>
-                {!isCancelado(apptSelecionado) && (
-                  <button onClick={handleCancelar}
-                    className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                    ✕ Cancelar
+
+                {/* Valor e status */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-zinc-800 rounded-lg p-3">
+                    <div className="text-zinc-500 text-xs mb-1">Valor do corte</div>
+                    <div className="text-amber-400 font-bold">R$ {Number(precoCorte).toFixed(2)}</div>
+                  </div>
+                  <div className="bg-zinc-800 rounded-lg p-3">
+                    <div className="text-zinc-500 text-xs mb-1">Status</div>
+                    <select value={statusAtual} onChange={(e) => mudarStatus(e.target.value)}
+                      className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${statusCor[statusAtual] ?? "text-zinc-400"}`}>
+                      <option value="SCHEDULED" className="bg-zinc-800 text-white">Pendente</option>
+                      <option value="CONFIRMED" className="bg-zinc-800 text-white">Confirmado</option>
+                      <option value="IN_PROGRESS" className="bg-zinc-800 text-white">Em andamento</option>
+                      <option value="DONE" className="bg-zinc-800 text-white">Concluído</option>
+                      <option value="CANCELLED" className="bg-zinc-800 text-white">Cancelado</option>
+                      <option value="NO_SHOW" className="bg-zinc-800 text-white">Não compareceu</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Adicionar produto à comanda */}
+                {!cancelado && (
+                  <div>
+                    <label className="text-zinc-400 text-xs mb-1 block">Adicionar produto à comanda</label>
+                    <div className="relative">
+                      <input value={buscaProduto}
+                        onChange={(e) => { setBuscaProduto(e.target.value); setDropdownProduto(true) }}
+                        onFocus={() => setDropdownProduto(true)}
+                        onBlur={() => setTimeout(() => setDropdownProduto(false), 150)}
+                        placeholder="Buscar produto no estoque..."
+                        className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+                      {dropdownProduto && (
+                        produtosFiltrados.length > 0 ? (
+                          <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
+                            {produtosFiltrados.map(p => (
+                              <button key={p.id} type="button"
+                                onMouseDown={() => addItem(p)}
+                                className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
+                                <div className="flex justify-between">
+                                  <span className="text-white text-sm">{p.name}</span>
+                                  <span className="text-amber-400 text-sm font-mono">R$ {p.salePrice?.toFixed(2)}</span>
+                                </div>
+                                <div className="text-zinc-500 text-xs">Estoque: {p.stock}</div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : buscaProduto.length > 0 ? (
+                          <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-500 text-sm shadow-xl">
+                            Nenhum produto encontrado
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Itens adicionados com wheel scroll de quantidade */}
+                {itensComanda.length > 0 && (
+                  <div className="space-y-2">
+                    {itensComanda.map((item, idx) => (
+                      <div key={idx} className="bg-zinc-800 rounded-lg p-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-white text-sm font-medium truncate">{item.produto.name}</div>
+                          <div className="text-zinc-500 text-xs">R$ {item.produto.salePrice?.toFixed(2)}</div>
+                        </div>
+                        {/* Wheel scroll de quantidade */}
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => updateQty(idx, -1)}
+                            className="w-7 h-7 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white text-sm flex items-center justify-center transition-colors">−</button>
+                          <span className="text-white font-bold w-6 text-center">{item.qty}</span>
+                          <button type="button" onClick={() => updateQty(idx, 1)}
+                            className="w-7 h-7 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white text-sm flex items-center justify-center transition-colors">+</button>
+                        </div>
+                        <div className="text-amber-400 text-sm font-bold w-16 text-right">
+                          R$ {(item.produto.salePrice * item.qty).toFixed(2)}
+                        </div>
+                        <button type="button" onClick={() => removeItem(idx)}
+                          className="text-zinc-600 hover:text-red-400 transition-colors">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Comanda — resumo */}
+                <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-4 space-y-2">
+                  <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">Comanda</div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">✂️ {apptSelecionado.service?.name}</span>
+                    <span className="text-white font-medium">R$ {Number(precoCorte).toFixed(2)}</span>
+                  </div>
+                  {itensComanda.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-zinc-400">{item.qty}× {item.produto.name}</span>
+                      <span className="text-white font-medium">R$ {(item.produto.salePrice * item.qty).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-zinc-700 pt-2 flex justify-between">
+                    <span className="text-white font-bold">Total</span>
+                    <span className="text-amber-400 font-bold text-lg">R$ {totalComanda.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Finalizar cobrança */}
+                {!cancelado && (
+                  <button onClick={handleFinalizarComanda} disabled={finalizando}
+                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
+                    {finalizando ? "Aguarde..." : `Finalizar cobrança · R$ ${totalComanda.toFixed(2)}`}
                   </button>
                 )}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
     </DashboardLayout>
   )

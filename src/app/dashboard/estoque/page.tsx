@@ -208,6 +208,12 @@ export default function EstoquePage() {
   const [movimentos, setMovimentos] = useState<any[]>([])
   const [loadingMovimentos, setLoadingMovimentos] = useState(false)
 
+  // Vendas (PDV)
+  const [vendas, setVendas] = useState<any[]>([])
+  const [loadingVendas, setLoadingVendas] = useState(false)
+  const [erroVendas, setErroVendas] = useState("")
+  const [filtroDataVendas, setFiltroDataVendas] = useState("")
+
   const subgruposDaBase = GRUPOS[grupo] || []
   const todosSubgrupos = [...subgruposDaBase, ...produtos
     .filter(p => p.category === grupo && p.subCategory && !subgruposDaBase.includes(p.subCategory))
@@ -226,6 +232,12 @@ export default function EstoquePage() {
 
   useEffect(() => { buscarProdutos() }, [])
   useEffect(() => { if (aba === "movimentos") buscarMovimentos() }, [aba])
+  useEffect(() => { if (aba === "pdv") buscarVendas() }, [aba])
+  useEffect(() => {
+    function onVendaRegistrada() { buscarProdutos(); buscarVendas(); if (aba === "movimentos") buscarMovimentos() }
+    window.addEventListener("vendaRegistrada", onVendaRegistrada)
+    return () => window.removeEventListener("vendaRegistrada", onVendaRegistrada)
+  }, [aba, filtroDataVendas])
   useEffect(() => {
     fetch("/api/clientes").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
@@ -241,6 +253,23 @@ export default function EstoquePage() {
       setGruposExtras(cats)
     } catch { setErro("Erro ao carregar") }
     finally { setLoading(false) }
+  }
+
+  async function buscarVendas(data?: string) {
+    setLoadingVendas(true)
+    setErroVendas("")
+    try {
+      const d = data !== undefined ? data : filtroDataVendas
+      const url = d ? `/api/estoque/vendas?data=${d}` : "/api/estoque/vendas"
+      const res = await fetch(url)
+      const payload = await res.json()
+      if (!res.ok) { setErroVendas(payload.error || `Erro ${res.status}`); return }
+      setVendas(Array.isArray(payload) ? payload : [])
+    } catch (err) {
+      setErroVendas(String(err))
+    } finally {
+      setLoadingVendas(false)
+    }
   }
 
   async function buscarMovimentos() {
@@ -654,10 +683,103 @@ export default function EstoquePage() {
 
       {/* ABA PDV */}
       {aba === "pdv" && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
-          <div className="text-4xl mb-3">💳</div>
-          <div className="text-white font-medium mb-1">Ponto de Venda</div>
-          <div className="text-zinc-500 text-sm">Em breve</div>
+        <div>
+          {/* Filtro de data */}
+          <div className="flex items-center gap-3 mb-4">
+            <input type="date" value={filtroDataVendas}
+              onChange={(e) => { setFiltroDataVendas(e.target.value); buscarVendas(e.target.value) }}
+              className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-1.5 text-sm outline-none focus:border-amber-500 transition-colors" />
+            <button onClick={() => { setFiltroDataVendas(""); buscarVendas("") }}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${!filtroDataVendas ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"}`}>
+              Todas
+            </button>
+            <button onClick={() => buscarVendas(filtroDataVendas)}
+              className="text-xs px-3 py-1.5 rounded-lg border bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600 transition-colors">
+              ↻ Atualizar
+            </button>
+            {!loadingVendas && vendas.length > 0 && (
+              <div className="flex gap-4 text-sm ml-auto">
+                <span className="text-zinc-500">{vendas.length} venda{vendas.length !== 1 ? "s" : ""}</span>
+                <span className="text-green-400 font-bold">
+                  R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {erroVendas && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-3 text-red-400 text-sm">
+              Erro ao carregar: {erroVendas}
+            </div>
+          )}
+
+          {loadingVendas ? (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+          ) : vendas.length === 0 && !erroVendas ? (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+              <div className="text-3xl mb-3">🛒</div>
+              <div className="text-zinc-500 text-sm">
+                {filtroDataVendas ? "Nenhuma venda registrada nesta data" : "Nenhuma venda registrada"}
+              </div>
+              <button onClick={() => { setFiltroDataVendas(""); buscarVendas("") }}
+                className="mt-3 text-amber-400 text-xs hover:text-amber-300">
+                Ver todas as vendas →
+              </button>
+            </div>
+          ) : (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
+                    <th className="text-center px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Qtd</th>
+                    <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Unit.</th>
+                    <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendas.map((v: any, i: number) => {
+                    const cliente = v.reason?.replace(/^Venda — /, "").replace(/^Venda balcão$/, "Balcão") || "Balcão"
+                    const preco = v.unitPrice ?? v.product?.salePrice ?? 0
+                    const totalLinha = preco * v.quantity
+                    const descPct = v.unitPrice && v.product?.salePrice && v.unitPrice < v.product.salePrice
+                      ? ((1 - v.unitPrice / v.product.salePrice) * 100).toFixed(0)
+                      : null
+                    return (
+                      <tr key={v.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === vendas.length - 1 ? "border-0" : ""}`}>
+                        <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
+                          {new Date(v.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          {vendas.length > 1 && filtroDataVendas === "" && (
+                            <div className="text-zinc-700 text-xs">{new Date(v.createdAt).toLocaleDateString("pt-BR")}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-white text-sm">{v.product?.name || "—"}</td>
+                        <td className="px-4 py-3 text-zinc-400 text-sm">{cliente}</td>
+                        <td className="px-4 py-3 text-center text-zinc-300 text-sm">{v.quantity}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="text-amber-400 text-sm font-mono">R$ {preco.toFixed(2)}</div>
+                          {descPct && <div className="text-orange-400 text-xs">{descPct}% desc</div>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-green-400 font-bold font-mono">
+                          R$ {totalLinha.toFixed(2)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="border-t border-zinc-700">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-2 text-zinc-500 text-xs text-right">Total do dia</td>
+                    <td className="px-4 py-2 text-right text-green-400 font-bold font-mono">
+                      R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -925,7 +1047,7 @@ export default function EstoquePage() {
               className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
               <span>📥</span> Entrada de Mercadoria
             </button>
-            <button onClick={() => { setFabAberto(false); setItensVenda([]); setClienteVenda(""); setBuscaClienteVenda(""); setBuscaProdutoVenda(""); setDropdownClienteAberto(false); setModalVenda(true) }}
+            <button onClick={() => { setFabAberto(false); window.dispatchEvent(new CustomEvent("abrirVenda")) }}
               className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
               <span>💳</span> Venda
             </button>
@@ -1017,129 +1139,6 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* MODAL VENDA */}
-      {modalVenda && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Venda</h2>
-              <button onClick={() => setModalVenda(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={confirmarVenda} className="p-5 space-y-4">
-
-              {/* Cliente */}
-              <div className="relative">
-                <label className="text-zinc-400 text-xs mb-1 block">Cliente</label>
-                <input value={buscaClienteVenda}
-                  onChange={(e) => { setBuscaClienteVenda(e.target.value); setClienteVenda(e.target.value); setDropdownClienteAberto(true) }}
-                  onFocus={() => setDropdownClienteAberto(true)}
-                  onBlur={() => setTimeout(() => setDropdownClienteAberto(false), 150)}
-                  onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setDropdownClienteAberto(false) }}
-                  placeholder="Buscar ou digitar nome..."
-                  className={inputCls} />
-                {dropdownClienteAberto && buscaClienteVenda.length > 1 && (() => {
-                  const hits = clientes.filter(c => c.name.toLowerCase().includes(buscaClienteVenda.toLowerCase()) || c.phone?.includes(buscaClienteVenda)).slice(0, 5)
-                  return hits.length > 0 ? (
-                    <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
-                      {hits.map(c => (
-                        <button key={c.id} type="button"
-                          onMouseDown={() => { setBuscaClienteVenda(c.name); setClienteVenda(c.name); setDropdownClienteAberto(false) }}
-                          className="w-full text-left px-3 py-2 hover:bg-zinc-700 transition-colors">
-                          <div className="text-white text-sm">{c.name}</div>
-                          <div className="text-zinc-500 text-xs">{c.phone}</div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null
-                })()}
-              </div>
-
-              {/* Busca de produto */}
-              <div className="relative">
-                <label className="text-zinc-400 text-xs mb-1 block">Adicionar produto</label>
-                <input value={buscaProdutoVenda}
-                  onChange={(e) => { setBuscaProdutoVenda(e.target.value); setDropdownProdVenda(true) }}
-                  onFocus={() => setDropdownProdVenda(true)}
-                  onBlur={() => setTimeout(() => setDropdownProdVenda(false), 150)}
-                  placeholder="Digite para buscar produto..."
-                  className={inputCls} />
-                {dropdownProdVenda && buscaProdutoVenda.length > 0 && (() => {
-                  const hits = produtos.filter(p => p.isActive && p.stock > 0 && p.name.toLowerCase().includes(buscaProdutoVenda.toLowerCase())).slice(0, 6)
-                  return hits.length > 0 ? (
-                    <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
-                      {hits.map(p => (
-                        <button key={p.id} type="button" onMouseDown={() => adicionarItemVenda(p)}
-                          className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
-                          <div className="text-white text-sm">{p.name}</div>
-                          <div className="text-zinc-500 text-xs">R$ {p.salePrice?.toFixed(2)} · estoque: {p.stock}</div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-500 text-sm shadow-xl">
-                      Nenhum produto encontrado com estoque disponível
-                    </div>
-                  )
-                })()}
-              </div>
-
-              {/* Carrinho */}
-              {itensVenda.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider">Itens</p>
-                  {itensVenda.map((item, idx) => {
-                    const desconto = item.unitPrice < item.produto.salePrice
-                      ? ((1 - item.unitPrice / item.produto.salePrice) * 100).toFixed(0)
-                      : null
-                    return (
-                      <div key={idx} className="bg-zinc-800 rounded-lg p-3 flex items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-white text-sm font-medium truncate">{item.produto.name}</div>
-                          {desconto && <div className="text-orange-400 text-xs">{desconto}% de desconto</div>}
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="text-zinc-500 text-xs">Qtd</span>
-                          <input type="number" min="1" max={item.produto.stock} value={item.qty}
-                            onChange={(e) => setItensVenda(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, parseInt(e.target.value) || 1) } : it))}
-                            className="w-14 bg-zinc-700 border border-zinc-600 text-white rounded px-2 py-1 text-sm outline-none text-center" />
-                          <span className="text-zinc-500 text-xs">R$</span>
-                          <input type="number" min="0" step="0.01" value={item.unitPrice}
-                            onChange={(e) => setItensVenda(prev => prev.map((it, i) => i === idx ? { ...it, unitPrice: parseFloat(e.target.value) || 0 } : it))}
-                            className="w-20 bg-zinc-700 border border-zinc-600 text-white rounded px-2 py-1 text-sm outline-none" />
-                          <button type="button" onClick={() => setItensVenda(prev => prev.filter((_, i) => i !== idx))}
-                            className="text-zinc-600 hover:text-red-400 transition-colors ml-1">✕</button>
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Total */}
-                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-zinc-400 text-sm">Total da venda</span>
-                      <span className="text-green-400 font-bold text-lg">
-                        R$ {itensVenda.reduce((s, i) => s + i.qty * i.unitPrice, 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="text-zinc-600 text-xs mt-0.5">
-                      {itensVenda.reduce((s, i) => s + i.qty, 0)} {itensVenda.reduce((s, i) => s + i.qty, 0) === 1 ? "item" : "itens"}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setModalVenda(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvandoVenda || itensVenda.length === 0}
-                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                  {salvandoVenda ? "Registrando..." : `Registrar venda (${itensVenda.length} item${itensVenda.length !== 1 ? "s" : ""})`}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </DashboardLayout>
   )

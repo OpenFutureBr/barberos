@@ -1,10 +1,9 @@
+import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
-import { Pool } from "pg"
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
-const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
+
+
+
 
 export async function GET() {
   try {
@@ -35,6 +34,7 @@ export async function POST(request: Request) {
         quantity: qty,
         reason: body.reason || null,
         unitPrice: unitPrice ?? undefined,
+        appointmentId: body.appointmentId || null,
       },
     })
 

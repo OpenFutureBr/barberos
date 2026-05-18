@@ -4,9 +4,16 @@ import { useState, useEffect } from "react"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
+import VendaModal, { type CartItem } from "./VendaModal"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [modalAberto, setModalAberto] = useState(false)
+  const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
+  const [modalVendaAberto, setModalVendaAberto] = useState(false)
+
+  // Carrinho persistente — não some ao fechar o modal
+  const [cartItens, setCartItens] = useState<CartItem[]>([])
+  const cartCount = cartItens.reduce((s, i) => s + i.qty, 0)
+
   const [dadosModal, setDadosModal] = useState<{
     profissionais: any[]
     clientes: any[]
@@ -27,26 +34,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }).catch(console.error)
   }, [])
 
-  // ← NOVO: escuta clique em slot vazio da grade
   useEffect(() => {
-    function handleSlotEvento() {
-      setModalAberto(true)
+    function handleAgenda() { setModalAgendaAberto(true) }
+    function handleVenda() { setModalVendaAberto(true) }
+    window.addEventListener("abrirModalAgenda", handleAgenda)
+    window.addEventListener("abrirVenda", handleVenda)
+    return () => {
+      window.removeEventListener("abrirModalAgenda", handleAgenda)
+      window.removeEventListener("abrirVenda", handleVenda)
     }
-    window.addEventListener("abrirModalAgenda", handleSlotEvento)
-    return () => window.removeEventListener("abrirModalAgenda", handleSlotEvento)
   }, [])
 
   return (
     <div className="min-h-screen bg-zinc-950">
       <Sidebar />
-      <Topbar onAbrirModal={() => setModalAberto(true)} />
+      <Topbar
+        onAbrirModal={() => setModalAgendaAberto(true)}
+        onAbrirVenda={() => setModalVendaAberto(true)}
+        cartCount={cartCount}
+      />
       <main className="ml-48 pt-11 min-h-screen">
         <div className="p-4">{children}</div>
       </main>
       <AgendaModal
-        aberto={modalAberto}
-        onFechar={() => setModalAberto(false)}
+        aberto={modalAgendaAberto}
+        onFechar={() => setModalAgendaAberto(false)}
         dadosPreCarregados={dadosModal}
+      />
+      <VendaModal
+        aberto={modalVendaAberto}
+        onFechar={() => setModalVendaAberto(false)}
+        itens={cartItens}
+        setItens={setCartItens}
       />
     </div>
   )
