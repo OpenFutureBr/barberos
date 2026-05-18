@@ -23,7 +23,7 @@ const statusStyle: Record<string, string> = {
 }
 
 export default function FiscalPage() {
-  const [aba, setAba] = useState<"nfe" | "mei" | "config">("nfe")
+  const [aba, setAba] = useState<"nfe" | "mei">("nfe")
   const [modalEmitir, setModalEmitir] = useState(false)
   const [cliente, setCliente] = useState("")
   const [servico, setServico] = useState("")
@@ -90,7 +90,6 @@ export default function FiscalPage() {
         {[
           { id: "nfe", label: "📄 NF-e Emitidas" },
           { id: "mei", label: "🪪 Relatório MEI" },
-          { id: "config", label: "⚙ Configuração" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -183,38 +182,6 @@ export default function FiscalPage() {
               </button>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Aba Config */}
-      {aba === "config" && (
-        <div className="max-w-lg space-y-3">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-1">Dados da empresa</div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">CNPJ *</label>
-              <input placeholder="00.000.000/0001-00" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-            </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Razão Social *</label>
-              <input placeholder="Barbearia Costa Ltda" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-            </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Inscrição Municipal</label>
-              <input placeholder="000000-0" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-            </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Regime tributário</label>
-              <select className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
-                <option>Simples Nacional</option>
-                <option>Lucro Presumido</option>
-                <option>Lucro Real</option>
-              </select>
-            </div>
-            <button className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-              Salvar configurações
-            </button>
-          </div>
         </div>
       )}
 

@@ -134,7 +134,60 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState("")
   const [gruposExtras, setGruposExtras] = useState<string[]>([])
+  const [grupoAtivo, setGrupoAtivo] = useState("Todos")
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
+
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === "desc" ? "asc" : "desc")
+    else { setSortCol(col); setSortDir("desc") }
+  }
   const todosGrupos = [...Object.keys(GRUPOS), ...gruposExtras.filter(g => !Object.keys(GRUPOS).includes(g))]
+
+  const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+
+  function getStats(produto: any) {
+    const movs = produto?.stockMovements ?? []
+    if (!movs.length) return null
+    const saidas = movs.filter((m: any) => m.type === "SAIDA")
+    const entradas = movs.filter((m: any) => m.type === "ENTRADA")
+    const precos = saidas.map((m: any) => m.unitPrice).filter(Boolean)
+
+    // Dia da semana que mais vende
+    const porDia: Record<number, number> = {}
+    saidas.forEach((m: any) => {
+      const d = new Date(m.createdAt).getDay()
+      porDia[d] = (porDia[d] ?? 0) + m.quantity
+    })
+    const diaMaisVende = saidas.length
+      ? Number(Object.entries(porDia).sort((a, b) => b[1] - a[1])[0]?.[0] ?? -1)
+      : null
+
+    // Hora que mais vende
+    const porHora: Record<number, number> = {}
+    saidas.forEach((m: any) => {
+      const h = new Date(m.createdAt).getHours()
+      porHora[h] = (porHora[h] ?? 0) + m.quantity
+    })
+    const horaMaisVende = saidas.length
+      ? Number(Object.entries(porHora).sort((a, b) => b[1] - a[1])[0]?.[0] ?? -1)
+      : null
+
+    return {
+      totalVendas: saidas.reduce((s: number, m: any) => s + m.quantity, 0),
+      precoMin: precos.length ? Math.min(...precos) : null,
+      precoMax: precos.length ? Math.max(...precos) : null,
+      ultimaCompra: entradas[0]?.createdAt ?? null,
+      ultimaVenda: saidas[0]?.createdAt ?? null,
+      diaMaisVende,
+      horaMaisVende,
+    }
+  }
+
+  function fmtData(iso: string | null) {
+    if (!iso) return "—"
+    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+  }
 
   // Modal novo produto
   const [modalNovo, setModalNovo] = useState(false)
@@ -625,61 +678,214 @@ export default function EstoquePage() {
       )}
 
       {/* ABA CATÁLOGO */}
-      {aba === "catalogo" && (
-        <div>
-          <p className="text-zinc-500 text-xs mb-4">Clique em um produto para lançar no estoque. Passe o mouse para editar seus produtos.</p>
+      {aba === "catalogo" && (() => {
+        // Grupos disponíveis para as abas
+        const gruposDisponiveis = ["Todos", ...Object.keys(GRUPOS).filter(g => catalogoProdutos.some(p => p.category === g)), ...(meusProdutos.length ? ["Meus Produtos"] : [])]
 
-          {/* Produtos pré-definidos por grupo */}
-          {Object.keys(GRUPOS).map(grp => {
-            const itens = catalogoProdutos.filter(p => p.category === grp)
-            if (!itens.length) return null
-            const colapsado = gruposColapsados[grp]
-            return (
-              <div key={grp} className="mb-6">
-                <button onClick={() => toggleGrupo(grp)}
-                  className="flex items-center gap-2 w-full text-left mb-3 group">
-                  <span className={`text-zinc-500 text-xs transition-transform ${colapsado ? "-rotate-90" : ""}`}>▼</span>
-                  <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono group-hover:text-zinc-200 transition-colors">{grp}</span>
-                  <span className="text-zinc-600 text-xs">({itens.length})</span>
+        // Ordenação dos itens
+        function sortarItens<T extends any[]>(itens: T, ehDbItem: boolean): T {
+          if (!sortCol) return itens
+          return [...itens].sort((a, b) => {
+            const dbA = ehDbItem ? a : (produtos.find(p => p.name === a.name) ?? null)
+            const dbB = ehDbItem ? b : (produtos.find(p => p.name === b.name) ?? null)
+            const stA = getStats(dbA)
+            const stB = getStats(dbB)
+            let va: any, vb: any
+            switch (sortCol) {
+              case "nome":    va = a.name ?? ""; vb = b.name ?? ""; break
+              case "vendas":  va = stA?.totalVendas ?? -1; vb = stB?.totalVendas ?? -1; break
+              case "precoMin": va = stA?.precoMin ?? -1; vb = stB?.precoMin ?? -1; break
+              case "preco":   va = (dbA?.salePrice ?? a?.salePrice) ?? 0; vb = (dbB?.salePrice ?? b?.salePrice) ?? 0; break
+              case "precoMax": va = stA?.precoMax ?? -1; vb = stB?.precoMax ?? -1; break
+              case "inclusao": va = dbA?.createdAt ?? ""; vb = dbB?.createdAt ?? ""; break
+              case "compra":  va = stA?.ultimaCompra ?? ""; vb = stB?.ultimaCompra ?? ""; break
+              case "venda":   va = stA?.ultimaVenda ?? ""; vb = stB?.ultimaVenda ?? ""; break
+              case "estoque": va = (dbA?.stock ?? -1); vb = (dbB?.stock ?? -1); break
+              case "dia":     va = stA?.diaMaisVende ?? -1; vb = stB?.diaMaisVende ?? -1; break
+              case "hora":    va = stA?.horaMaisVende ?? -1; vb = stB?.horaMaisVende ?? -1; break
+              default: return 0
+            }
+            if (va < vb) return sortDir === "desc" ? 1 : -1
+            if (va > vb) return sortDir === "desc" ? -1 : 1
+            return 0
+          }) as T
+        }
+
+        // Itens do grupo ativo
+        const itensCatalogo: any[] = grupoAtivo === "Todos"
+          ? catalogoProdutos
+          : grupoAtivo === "Meus Produtos"
+          ? []
+          : catalogoProdutos.filter(p => p.category === grupoAtivo)
+
+        const itensMeus: any[] = grupoAtivo === "Todos" || grupoAtivo === "Meus Produtos" ? meusProdutos : []
+
+        // Linha de produto do catálogo (estático + match com DB)
+        function LinhaItem({ cat, dbProd, onEditar }: { cat?: any; dbProd?: any; onEditar?: () => void }) {
+          const nome = cat?.name ?? dbProd?.name ?? ""
+          const foto = cat?.photoUrl ?? dbProd?.photoUrl
+          const subcat = cat?.subCategory ?? dbProd?.subCategory
+          const precoAtual = dbProd?.salePrice ?? cat?.salePrice ?? 0
+          const noEstoque = dbProd && dbProd.isActive
+          const stats = dbProd ? getStats(dbProd) : null
+          const inclusao = dbProd?.createdAt ?? null
+          const item = cat ?? dbProd
+
+          return (
+            <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-800 hover:bg-zinc-800/40 cursor-pointer transition-colors group"
+              onClick={() => abrirLancamento(item)}>
+              {/* Foto */}
+              <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
+                {foto
+                  ? <img src={foto} alt={nome} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+                  : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-sm">📦</div>
+                }
+              </div>
+
+              {/* Nome */}
+              <div className="w-44 flex-shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white text-xs font-medium truncate">{nome}</span>
+                  {noEstoque && <span className="text-green-500 text-xs">●</span>}
+                </div>
+                <div className="text-zinc-600 text-xs truncate">{subcat}</div>
+              </div>
+
+              {/* Histórico vendas */}
+              <div className="w-20 flex-shrink-0 text-center">
+                {stats?.totalVendas ? (
+                  <span className="text-zinc-300 text-xs">{stats.totalVendas} vend.</span>
+                ) : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Mín */}
+              <div className="w-20 flex-shrink-0 text-center">
+                {stats?.precoMin != null
+                  ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMin.toFixed(2)}</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Atual */}
+              <div className="w-20 flex-shrink-0 text-center">
+                {dbProd
+                  ? <span className="text-amber-400 text-xs font-medium font-mono">{precoAtual.toFixed(2)}</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Máx */}
+              <div className="w-20 flex-shrink-0 text-center">
+                {stats?.precoMax != null
+                  ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMax.toFixed(2)}</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Estoque atual */}
+              <div className="w-20 flex-shrink-0 text-center">
+                {dbProd != null
+                  ? <span className={`text-xs font-mono font-medium ${dbProd.stock <= (dbProd.minStock ?? 5) ? "text-red-400" : "text-white"}`}>{dbProd.stock}</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Inclusão */}
+              <div className="w-20 flex-shrink-0 text-center">
+                <span className="text-zinc-600 text-xs">{fmtData(inclusao)}</span>
+              </div>
+
+              {/* Última compra */}
+              <div className="w-20 flex-shrink-0 text-center">
+                <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaCompra ?? null)}</span>
+              </div>
+
+              {/* Última venda */}
+              <div className="w-20 flex-shrink-0 text-center">
+                <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaVenda ?? null)}</span>
+              </div>
+
+              {/* Dia top */}
+              <div className="w-16 flex-shrink-0 text-center">
+                {stats?.diaMaisVende != null && stats.diaMaisVende >= 0
+                  ? <span className="text-zinc-300 text-xs">{DIAS_SEMANA[stats.diaMaisVende]}</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Hora top */}
+              <div className="w-16 flex-shrink-0 text-center">
+                {stats?.horaMaisVende != null && stats.horaMaisVende >= 0
+                  ? <span className="text-zinc-300 text-xs">{String(stats.horaMaisVende).padStart(2, "0")}h</span>
+                  : <span className="text-zinc-700 text-xs">—</span>}
+              </div>
+
+              {/* Editar */}
+              {onEditar && (
+                <button onClick={(e) => { e.stopPropagation(); onEditar() }}
+                  className="ml-auto text-zinc-700 hover:text-amber-400 text-xs opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                  ✏️
                 </button>
-                {!colapsado && (
-                  <div className="grid grid-cols-4 gap-3">
-                    {itens.map(p => {
-                      const noEstoque = produtos.find(prod => prod.name === p.name && prod.isActive)
-                      const inativo = produtos.find(prod => prod.name === p.name && !prod.isActive)
-                      return (
-                        <CardCatalogo key={p.name}
-                          nome={p.name} foto={p.photoUrl} subcat={p.subCategory}
-                          preco={p.salePrice} noEstoque={!!noEstoque} inativo={!!inativo} hasAlcohol={p.hasAlcohol}
-                          onClick={() => abrirLancamento(p)}
-                          onEditar={() => editarItemCatalogo(p)}
-                        />
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-
-          {/* Meus Produtos (criados manualmente) */}
-          {meusProdutos.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Meus Produtos</h3>
-              <div className="grid grid-cols-4 gap-3">
-                {meusProdutos.map(p => (
-                  <CardCatalogo key={p.id}
-                    nome={p.name} foto={p.photoUrl} subcat={p.subCategory}
-                    preco={p.salePrice} noEstoque={p.isActive} inativo={!p.isActive} hasAlcohol={p.hasAlcohol}
-                    onClick={() => abrirLancamento(p)}
-                    onEditar={() => abrirEditar(p)}
-                  />
-                ))}
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          )
+        }
+
+        return (
+          <div>
+            {/* Abas de grupo */}
+            <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1 overflow-x-auto flex-wrap">
+              {gruposDisponiveis.map(g => (
+                <button key={g} onClick={() => setGrupoAtivo(g)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all ${grupoAtivo === g ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+
+            {/* Cabeçalho interativo */}
+            {(() => {
+              function Th({ col, label, className }: { col: string; label: string; className?: string }) {
+                const ativo = sortCol === col
+                return (
+                  <button onClick={() => handleSort(col)}
+                    className={`${className} flex items-center justify-center gap-1 text-xs uppercase tracking-wide font-mono transition-colors select-none ${ativo ? "text-amber-400" : "text-zinc-600 hover:text-zinc-300"}`}>
+                    {label}
+                    <span className={`text-xs ${ativo ? "text-amber-400" : "text-zinc-700"}`}>
+                      {ativo ? (sortDir === "desc" ? "↓" : "↑") : "↕"}
+                    </span>
+                  </button>
+                )
+              }
+              return (
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-700 bg-zinc-900/60">
+                  <div className="w-9 flex-shrink-0" />
+                  <Th col="nome" label="Produto" className="w-44 flex-shrink-0 justify-start" />
+                  <Th col="vendas" label="Vendas" className="w-20 flex-shrink-0" />
+                  <Th col="precoMin" label="Mín" className="w-20 flex-shrink-0" />
+                  <Th col="preco" label="Atual" className="w-20 flex-shrink-0" />
+                  <Th col="precoMax" label="Máx" className="w-20 flex-shrink-0" />
+                  <Th col="estoque" label="Estoque" className="w-20 flex-shrink-0" />
+                  <Th col="inclusao" label="Inclusão" className="w-20 flex-shrink-0" />
+                  <Th col="compra" label="Ult. compra" className="w-20 flex-shrink-0" />
+                  <Th col="venda" label="Ult. venda" className="w-20 flex-shrink-0" />
+                  <Th col="dia" label="Dia top" className="w-16 flex-shrink-0" />
+                  <Th col="hora" label="Hora top" className="w-16 flex-shrink-0" />
+                </div>
+              )
+            })()}
+
+            {/* Linhas */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              {sortarItens(itensCatalogo, false).map(p => {
+                const dbProd = produtos.find(prod => prod.name === p.name)
+                return <LinhaItem key={p.name} cat={p} dbProd={dbProd} onEditar={dbProd ? () => abrirEditar(dbProd) : () => editarItemCatalogo(p)} />
+              })}
+              {sortarItens(itensMeus, true).map(p => (
+                <LinhaItem key={p.id} dbProd={p} onEditar={() => abrirEditar(p)} />
+              ))}
+              {itensCatalogo.length === 0 && itensMeus.length === 0 && (
+                <div className="py-8 text-center text-zinc-600 text-sm">Nenhum produto neste grupo</div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ABA PDV */}
       {aba === "pdv" && (

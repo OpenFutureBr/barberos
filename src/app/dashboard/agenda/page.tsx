@@ -23,7 +23,8 @@ const statusCor: Record<string, string> = {
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
   domicilio: "bg-teal-500/15 border-l-2 border-teal-500 text-teal-200",
-  cancelado: "bg-red-500/20 border-l-2 border-red-500 text-red-300 opacity-60",
+  concluido: "bg-green-500/15 border-l-2 border-green-400 text-green-200 opacity-60",
+  cancelado: "bg-red-500/15 border-l-2 border-red-400 text-red-300 opacity-50",
 }
 
 const HORA_INICIO = 8
@@ -80,6 +81,16 @@ export default function AgendaPage() {
       const saved = sessionStorage.getItem("barberos_comandas")
       if (saved) setComandas(JSON.parse(saved))
     } catch {}
+  }, [])
+
+  // Atualiza status imediatamente ao confirmar pagamento
+  useEffect(() => {
+    function onPago(e: Event) {
+      const id = (e as CustomEvent).detail as string
+      if (id) setStatusOverride(prev => ({ ...prev, [id]: "DONE" }))
+    }
+    window.addEventListener("pagamentoConfirmado", onPago)
+    return () => window.removeEventListener("pagamentoConfirmado", onPago)
   }, [])
 
   // Salva comandas no sessionStorage sempre que mudar
@@ -186,8 +197,21 @@ export default function AgendaPage() {
 
   function handleFinalizarComanda() {
     if (!apptSelecionado) return
+    const apptId = apptSelecionado.id
+    const itensComanda = comandas[apptId] ?? []
+    const precoCorte = apptSelecionado.service?.price ?? 0
+    const totalProdutos = itensComanda.reduce((s: number, i: any) => s + i.qty * i.produto.salePrice, 0)
     setModalDetalhe(false)
-    router.push(`/dashboard/agenda/comanda/${apptSelecionado.id}`)
+    window.dispatchEvent(new CustomEvent("abrirPagamento", {
+      detail: {
+        appointmentId: apptId,
+        clientName: apptSelecionado.client?.name ?? "",
+        serviceName: apptSelecionado.service?.name ?? "",
+        professionalName: apptSelecionado.professional?.name ?? "",
+        scheduledAt: apptSelecionado.scheduledAt,
+        amount: precoCorte + totalProdutos,
+      },
+    }))
   }
 
   async function handleCancelar() {
@@ -259,14 +283,20 @@ export default function AgendaPage() {
           const duracaoMin = appt.service?.durationMin || 30
           const topPct = (minutos / 60) * 100
           const heightPct = Math.min((duracaoMin / 60) * 100, 100 - topPct)
-          const cancelado = isCancelado(appt)
-          const cor = cancelado ? corAppt.cancelado : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
+          const statusEfetivo = statusOverride[appt.id] ?? appt.status
+          const cancelado = statusEfetivo === "CANCELLED" || statusEfetivo === "NO_SHOW"
+          const concluido = statusEfetivo === "DONE"
+          const cor = cancelado
+            ? corAppt.cancelado
+            : concluido
+              ? corAppt.concluido
+              : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
           return (
             <div key={appt.id}
               className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${cor}`}
               style={{ top: `${topPct}%`, height: `${heightPct}%`, minHeight: 18, zIndex: 1 }}
               onClick={(e) => { e.stopPropagation(); abrirDetalhe(appt) }}>
-              <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through" : ""}`}>
+              <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through opacity-70" : ""}`}>
                 {appt.client?.name}
                 {comandas[appt.id]?.length > 0 && <span className="ml-1 text-green-400">●</span>}
               </div>

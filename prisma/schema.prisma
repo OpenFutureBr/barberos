@@ -18,6 +18,15 @@ model Establishment {
   city              String?
   state             String?
   zipCode           String?
+  pixKey            String?
+  whatsapp          String?
+  instagram         String?
+  inauguratedAt       DateTime?
+  cnpj                String?
+  razaoSocial         String?
+  inscricaoMunicipal  String?
+  regimeTributario    String?
+  businessHours       Json?
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -29,6 +38,7 @@ model Establishment {
   services          Service[]
   subscriptionPlans SubscriptionPlan[]
   users             User[]
+  pricingRules      PricingRule[]
 
   @@map("establishments")
 }
@@ -412,6 +422,24 @@ model GiftCard {
   createdAt  DateTime  @default(now())
 
   @@map("gift_cards")
+}
+
+model PricingRule {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  isActive        Boolean       @default(true)
+  markupPct       Float         @default(0)
+  discountPct     Float         @default(0)
+  daysOfWeek      Int[]
+  startTime       String?
+  endTime         String?
+  establishmentId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+
+  @@map("pricing_rules")
 }
 
 model UserSchedule {

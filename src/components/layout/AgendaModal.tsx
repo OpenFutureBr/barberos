@@ -75,7 +75,7 @@ function WheelPicker({ items, value, onChange }: {
 
   useEffect(() => {
     if (innerRef.current) {
-      innerRef.current.style.transform = `translateY(${-currentIdx * ITEM_H}px)`
+      innerRef.current.style.transform = `translateY(${-currentIdx * ITEM_H - ITEM_H / 2}px)`
     }
   }, [currentIdx])
 
@@ -103,7 +103,7 @@ function WheelPicker({ items, value, onChange }: {
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 56, background: "linear-gradient(to bottom, #18181b, transparent)", zIndex: 2, pointerEvents: "none" }} />
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 56, background: "linear-gradient(to top, #18181b, transparent)", zIndex: 2, pointerEvents: "none" }} />
       <div style={{ position: "absolute", top: "50%", left: 8, right: 8, height: 40, transform: "translateY(-50%)", borderTop: "1px solid #52525b", borderBottom: "1px solid #52525b", zIndex: 1, pointerEvents: "none" }} />
-      <div ref={innerRef} style={{ display: "flex", flexDirection: "column", transform: `translateY(${-currentIdx * ITEM_H}px)` }}>
+      <div ref={innerRef} style={{ display: "flex", flexDirection: "column", transform: `translateY(${-currentIdx * ITEM_H - ITEM_H / 2}px)` }}>
         {[...Array(PAD)].map((_, i) => <div key={`t${i}`} style={{ height: ITEM_H }} />)}
         {items.map((item) => (
           <div key={item} style={{ height: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center", fontSize: item === value ? 22 : 16, fontWeight: item === value ? 600 : 400, color: item === value ? "#fff" : "#52525b", flexShrink: 0 }}>
@@ -176,6 +176,75 @@ function CamposEndereco({ cep, setCep, rua, setRua, numero, setNumero, bairro, s
         <input value={cidade} onChange={(e) => setCidade(e.target.value)} required placeholder="Ex: São Paulo" className={inputCls} />
       </div>
     </>
+  )
+}
+
+// Mini calendário inline
+function MiniCalendar({ value, onChange, min, max }: {
+  value: string; onChange: (v: string) => void; min?: string; max?: string
+}) {
+  const parseDate = (s: string) => { const [y, m, d] = s.split("-").map(Number); return { y, m: m - 1, d } }
+  const sel = parseDate(value)
+  const [view, setView] = useState({ y: sel.y, m: sel.m })
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
+
+  useEffect(() => {
+    const p = parseDate(value); setView({ y: p.y, m: p.m })
+  }, [value])
+
+  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+  const semana = ["D","S","T","Q","Q","S","S"]
+  const firstDay = new Date(view.y, view.m, 1).getDay()
+  const diasNoMes = new Date(view.y, view.m + 1, 0).getDate()
+
+  function navMes(delta: number) {
+    setView(v => {
+      let m = v.m + delta, y = v.y
+      if (m < 0) { m = 11; y-- } else if (m > 11) { m = 0; y++ }
+      return { y, m }
+    })
+  }
+
+  function selecionarDia(d: number) {
+    const dateStr = `${view.y}-${String(view.m + 1).padStart(2,"0")}-${String(d).padStart(2,"0")}`
+    if (min && dateStr < min) return
+    if (max && dateStr > max) return
+    onChange(dateStr)
+  }
+
+  return (
+    <div className="bg-zinc-800 rounded-xl p-2.5 select-none" style={{ width: 190 }}>
+      <div className="flex items-center justify-between mb-2 px-1">
+        <button type="button" onClick={() => navMes(-1)} className="text-zinc-400 hover:text-white text-lg leading-none w-6 h-6 flex items-center justify-center">‹</button>
+        <span className="text-white text-xs font-medium">{meses[view.m]} {view.y}</span>
+        <button type="button" onClick={() => navMes(1)} className="text-zinc-400 hover:text-white text-lg leading-none w-6 h-6 flex items-center justify-center">›</button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {semana.map((d, i) => <div key={i} className="text-zinc-600 text-xs text-center">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {[...Array(firstDay)].map((_, i) => <div key={`e${i}`} />)}
+        {[...Array(diasNoMes)].map((_, i) => {
+          const d = i + 1
+          const dateStr = `${view.y}-${String(view.m + 1).padStart(2,"0")}-${String(d).padStart(2,"0")}`
+          const isSelected = dateStr === value
+          const isToday = dateStr === today
+          const isDisabled = (min && dateStr < min) || (max && dateStr > max)
+          return (
+            <button key={d} type="button" onClick={() => selecionarDia(d)}
+              disabled={!!isDisabled}
+              className={`text-xs py-1 rounded text-center transition-colors ${
+                isSelected ? "bg-amber-500 text-black font-bold" :
+                isToday ? "text-amber-400 font-semibold" :
+                isDisabled ? "text-zinc-700 cursor-not-allowed" :
+                "text-zinc-300 hover:bg-zinc-700"
+              }`}>
+              {d}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -335,6 +404,8 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [agendamentos, setAgendamentos] = useState<any[]>([])
   const [salvando, setSalvando] = useState(false)
   const [carregando, setCarregando] = useState(false)
+  const [businessHours, setBusinessHours] = useState<any[]>([])
+  const [regrasPrecificacao, setRegrasPrecificacao] = useState<any[]>([])
 
   const inicial = getDataHoraInicial()
   const hojeISO = getDataSaoPaulo(new Date())
@@ -365,19 +436,30 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     (tipoAtendimento === "domicilio" ? p.attendsHome === true : true)
   )
 
-  // Verifica se o profissional atende no dia selecionado
+  // Horários da barbearia para o dia selecionado
   const diaSemana = getDiaSemana(dataSelecionada)
+  const horaEstab = businessHours.find((d: any) => d.dayOfWeek === diaSemana)
+  const estabAberto = !businessHours.length || (horaEstab?.isOpen !== false)
+  const inicioEstab = horaEstab?.startTime || "08:00"
+  const fimEstab = horaEstab?.endTime || "22:00"
+
+  // Verifica se o profissional atende no dia selecionado
   const schedulesDoDia = profSelecionado?.schedules?.find((s: any) => s.dayOfWeek === diaSemana)
-  const profAtendeDia = !profId || !profSelecionado?.schedules?.length || (schedulesDoDia?.isActive === true)
+  const profAtendeDia = estabAberto && (!profId || !profSelecionado?.schedules?.length || (schedulesDoDia?.isActive === true))
 
-  // Horários do profissional no dia
-  const inicioProf = schedulesDoDia?.startTime || "08:00"
-  const fimProf = schedulesDoDia?.endTime || "18:00"
+  // Horários do profissional limitados pelos horários da barbearia
+  const inicioProf = schedulesDoDia?.startTime || inicioEstab
+  const fimProf = schedulesDoDia?.endTime || fimEstab
+  // Interseção: começa no mais tarde dos dois, termina no mais cedo dos dois
+  const inicioEfetivo = inicioProf > inicioEstab ? inicioProf : inicioEstab
+  const fimEfetivo = fimProf < fimEstab ? fimProf : fimEstab
 
-  // Gera slots baseados no horário do profissional
-  const horasBase = profId && profSelecionado?.schedules?.length && schedulesDoDia?.isActive
-    ? gerarSlots(inicioProf, fimProf, 10)
-    : gerarSlots("08:00", "18:00", 10)
+  // Gera slots respeitando ambos os horários
+  const horasBase = estabAberto
+    ? (profId && profSelecionado?.schedules?.length && schedulesDoDia?.isActive
+        ? gerarSlots(inicioEfetivo, fimEfetivo, 10)
+        : gerarSlots(inicioEstab, fimEstab, 10))
+    : []
 
   // Serviços filtrados pelo profissional selecionado
   const servicosFiltrados = (() => {
@@ -388,6 +470,28 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     if (tipoAtendimento === "domicilio") return ativos.filter(s => s.availableHome === true)
     return ativos
   })()
+
+  function precoAjustado(preco: number): number {
+    const diaSemana = getDiaSemana(dataSelecionada)
+    const [hh, mm] = hora ? hora.split(":").map(Number) : [0, 0]
+    const horaMin = hh * 60 + mm
+    let netMarkup = 0
+    let netDesconto = 0
+    for (const regra of regrasPrecificacao) {
+      if (!regra.isActive) continue
+      if (!Array.isArray(regra.daysOfWeek) || !regra.daysOfWeek.includes(diaSemana)) continue
+      if (regra.startTime && regra.endTime) {
+        const [sh, sm] = regra.startTime.split(":").map(Number)
+        const [eh, em] = regra.endTime.split(":").map(Number)
+        if (horaMin < sh * 60 + sm || horaMin >= eh * 60 + em) continue
+      }
+      netMarkup += regra.markupPct || 0
+      netDesconto += regra.discountPct || 0
+    }
+    const netPct = netMarkup - netDesconto
+    if (!netPct) return preco
+    return preco * (1 + netPct / 100)
+  }
 
   const servicoSelecionado = servicos.find((s) => s.id === servicoId)
   const duracaoTotal = (servicoSelecionado?.durationMin || 30) + descansoMin
@@ -411,6 +515,14 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     if (!aberto) return
+    // Busca businessHours sempre (independente de dadosPreCarregados)
+    fetch("/api/configuracoes").then(r => r.json()).then(d => {
+      if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
+    }).catch(() => {})
+    fetch("/api/precificacao").then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setRegrasPrecificacao(d)
+    }).catch(() => {})
+
     if (dadosPreCarregados) {
       setProfissionais(dadosPreCarregados.profissionais)
       setClientes(dadosPreCarregados.clientes)
@@ -631,7 +743,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors disabled:opacity-50">
                   <option value="">{profId ? "Selecionar serviço..." : "Selecione um profissional primeiro"}</option>
                   {servicosFiltrados.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} — R$ {s.price} · {s.durationMin}min</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name} — R$ {precoAjustado(s.price).toFixed(2)} · {s.durationMin}min
+                    </option>
                   ))}
                 </select>
                 {profId && servicosFiltrados.length === 0 && (
@@ -639,52 +753,51 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 )}
               </div>
 
-              {/* Data */}
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Data *</label>
-                <input type="date" value={dataSelecionada} min={hojeISO} max={maxDataISO}
-                  onChange={(e) => setDataSelecionada(e.target.value)} required
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
-                {profId && !profAtendeDia && (
-                  <p className="text-red-400 text-xs mt-1">
-                    {profSelecionado?.name?.split(" ")[0]} não atende neste dia da semana.
-                  </p>
-                )}
-              </div>
+              {/* Data + Horário lado a lado */}
+              <div className="flex gap-3 items-start">
+                {/* Calendário */}
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1.5 block">Data *</label>
+                  <MiniCalendar value={dataSelecionada} onChange={setDataSelecionada} min={hojeISO} max={maxDataISO} />
+                  {profId && !profAtendeDia && (
+                    <p className="text-red-400 text-xs mt-1">{profSelecionado?.name?.split(" ")[0]} não atende neste dia.</p>
+                  )}
+                </div>
 
-              {/* Horário */}
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Horário *</label>
-                {!profAtendeDia ? (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
-                    Profissional não atende neste dia. Escolha outra data.
-                  </div>
-                ) : horariosDisponiveis.length === 0 ? (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
-                    Não há horários disponíveis para esta data, profissional e serviço.
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                      <WheelPicker
-                        items={[...new Set(horariosDisponiveis.map(h => h.split(":")[0]))]}
-                        value={hora.split(":")[0]}
-                        onChange={(h) => {
-                          const mins = horariosDisponiveis.filter(s => s.startsWith(h + ":")).map(s => s.split(":")[1])
-                          const newMin = mins.includes(hora.split(":")[1]) ? hora.split(":")[1] : mins[0]
-                          setHora(`${h}:${newMin ?? "00"}`)
-                        }}
-                      />
-                      <span className="text-white text-2xl font-bold">:</span>
-                      <WheelPicker
-                        items={horariosDisponiveis.filter(s => s.startsWith(hora.split(":")[0] + ":")).map(s => s.split(":")[1])}
-                        value={hora.split(":")[1]}
-                        onChange={(m) => setHora(`${hora.split(":")[0]}:${m}`)}
-                      />
+                {/* Horário */}
+                <div className="flex-1">
+                  <label className="text-zinc-400 text-xs mb-1.5 block">Horário *</label>
+                  {!profAtendeDia ? (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
+                      Prof. não atende neste dia.
                     </div>
-                    <span className="text-amber-400 text-sm font-medium">{hora}</span>
-                  </div>
-                )}
+                  ) : horariosDisponiveis.length === 0 ? (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
+                      Sem horários disponíveis.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <WheelPicker
+                          items={[...new Set(horariosDisponiveis.map(h => h.split(":")[0]))]}
+                          value={hora.split(":")[0]}
+                          onChange={(h) => {
+                            const mins = horariosDisponiveis.filter(s => s.startsWith(h + ":")).map(s => s.split(":")[1])
+                            const newMin = mins.includes(hora.split(":")[1]) ? hora.split(":")[1] : mins[0]
+                            setHora(`${h}:${newMin ?? "00"}`)
+                          }}
+                        />
+                        <span className="text-white text-xl font-bold">:</span>
+                        <WheelPicker
+                          items={horariosDisponiveis.filter(s => s.startsWith(hora.split(":")[0] + ":")).map(s => s.split(":")[1])}
+                          value={hora.split(":")[1]}
+                          onChange={(m) => setHora(`${hora.split(":")[0]}:${m}`)}
+                        />
+                      </div>
+                      <span className="text-amber-400 text-sm font-bold">{hora}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {tipoAtendimento === "domicilio" && clienteId && !clienteTemEndereco && (

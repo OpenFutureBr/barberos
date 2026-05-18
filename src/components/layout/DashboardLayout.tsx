@@ -5,10 +5,20 @@ import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
 import VendaModal, { type CartItem } from "./VendaModal"
+import PagamentoModal, { type DadosPagamento } from "./PagamentoModal"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
+  const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
+  const [isLight, setIsLight] = useState(false)
+
+  useEffect(() => {
+    try { setIsLight(localStorage.getItem("tema") === "light") } catch {}
+    function onTema(e: Event) { setIsLight((e as CustomEvent).detail === "light") }
+    window.addEventListener("temaAlterado", onTema)
+    return () => window.removeEventListener("temaAlterado", onTema)
+  }, [])
 
   // Carrinho persistente — não some ao fechar o modal
   const [cartItens, setCartItens] = useState<CartItem[]>([])
@@ -37,16 +47,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     function handleAgenda() { setModalAgendaAberto(true) }
     function handleVenda() { setModalVendaAberto(true) }
+    function handlePagamento(e: Event) { setDadosPagamento((e as CustomEvent).detail) }
     window.addEventListener("abrirModalAgenda", handleAgenda)
     window.addEventListener("abrirVenda", handleVenda)
+    window.addEventListener("abrirPagamento", handlePagamento)
     return () => {
       window.removeEventListener("abrirModalAgenda", handleAgenda)
       window.removeEventListener("abrirVenda", handleVenda)
+      window.removeEventListener("abrirPagamento", handlePagamento)
     }
   }, [])
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div
+      className="min-h-screen bg-zinc-950"
+      style={{ filter: isLight ? "invert(1) hue-rotate(180deg)" : "none", transition: "filter 0.35s ease" }}
+    >
       <Sidebar />
       <Topbar
         onAbrirModal={() => setModalAgendaAberto(true)}
@@ -66,6 +82,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onFechar={() => setModalVendaAberto(false)}
         itens={cartItens}
         setItens={setCartItens}
+      />
+      <PagamentoModal
+        dados={dadosPagamento}
+        onFechar={() => setDadosPagamento(null)}
+        onConfirmado={(id) => window.dispatchEvent(new CustomEvent("pagamentoConfirmado", { detail: id }))}
       />
     </div>
   )
