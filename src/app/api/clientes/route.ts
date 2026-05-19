@@ -13,8 +13,12 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
       }),
       // Appointments para mapear clientId → appointmentId + corte preferido
+      // Conta todos exceto cancelados/no-show
       prisma.appointment.findMany({
-        where: { establishmentId: "estab001", status: "DONE" as any },
+        where: {
+          establishmentId: "estab001",
+          status: { notIn: ["CANCELLED", "NO_SHOW"] as any },
+        },
         select: { id: true, clientId: true, service: { select: { name: true } } },
       }),
       // Todos os movimentos SAIDA com produto
