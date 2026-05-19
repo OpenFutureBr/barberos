@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
+type DetalheItem = { label: string; valor: number }
+
 type Lancamento = {
   id: string
   tipo: string
@@ -11,6 +13,7 @@ type Lancamento = {
   method: string | null
   createdAt: string
   origem: "pagamento" | "produto" | "manual"
+  detalhes: DetalheItem[] | null
   txId?: string
 }
 
@@ -64,6 +67,7 @@ export default function CaixaPage() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
+  const [expandidoId, setExpandidoId] = useState<string | null>(null)
 
   // Modal lançamento
   const [modalLancamento, setModalLancamento] = useState(false)
@@ -240,27 +244,57 @@ export default function CaixaPage() {
               </tr>
             </thead>
             <tbody>
-              {lancamentos.map((l, i) => (
-                <tr key={l.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === lancamentos.length - 1 ? "border-0" : ""}`}>
-                  <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(l.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    <div className="text-zinc-300 text-sm">{l.descricao}</div>
-                    {l.origem !== "manual" && (
-                      <div className="text-zinc-600 text-xs mt-0.5">{l.origem === "pagamento" ? "Pagamento confirmado" : "Venda de produto"}</div>
+              {lancamentos.map((l, i) => {
+                const expandido = expandidoId === l.id
+                const clicavel = !!l.detalhes
+                return (
+                  <>
+                    <tr key={l.id}
+                      onClick={() => clicavel && setExpandidoId(expandido ? null : l.id)}
+                      className={`border-b border-zinc-800 transition-colors ${i === lancamentos.length - 1 && !expandido ? "border-0" : ""} ${clicavel ? "hover:bg-zinc-800/40 cursor-pointer" : ""} ${expandido ? "bg-zinc-800/30" : ""}`}>
+                      <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(l.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-zinc-300 text-sm">{l.descricao}</span>
+                          {clicavel && <span className={`text-zinc-600 text-xs transition-transform ${expandido ? "rotate-90" : ""}`} style={{ display: "inline-block", transition: "transform 0.15s" }}>›</span>}
+                        </div>
+                        {l.detalhes && l.detalhes.length > 1 && !expandido && (
+                          <div className="text-zinc-600 text-xs mt-0.5">+ {l.detalhes.length - 1} produto{l.detalhes.length > 2 ? "s" : ""}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {l.method && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${metodoBadge(l.method)}`}>
+                            {metodoLabel(l.method)}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
+                        {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                      </td>
+                    </tr>
+                    {expandido && l.detalhes && (
+                      <tr key={`${l.id}-det`} className="border-b border-zinc-800">
+                        <td />
+                        <td colSpan={3} className="px-4 pb-3 pt-0">
+                          <div className="bg-zinc-800/60 rounded-lg overflow-hidden">
+                            {l.detalhes.map((d, di) => (
+                              <div key={di} className={`flex justify-between px-3 py-1.5 text-sm ${di < l.detalhes!.length - 1 ? "border-b border-zinc-700/50" : ""}`}>
+                                <span className="text-zinc-400">{d.label}</span>
+                                <span className="text-zinc-200 font-mono">R$ {d.valor.toFixed(2)}</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between px-3 py-1.5 border-t border-zinc-700 bg-zinc-800/80">
+                              <span className="text-zinc-400 text-sm font-medium">Total · {metodoLabel(l.method) || "—"}</span>
+                              <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>R$ {l.valor.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {l.method && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${metodoBadge(l.method)}`}>
-                        {metodoLabel(l.method)}
-                      </span>
-                    )}
-                  </td>
-                  <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
-                    {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+                  </>
+                )
+              })}
             </tbody>
           </table>
         )}

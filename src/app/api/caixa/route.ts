@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 
 const ESTAB = "estab001"
 
-// Retorna o caixa do dia (ou null se fechado/inexistente)
 async function getCaixaHoje() {
   const hoje = new Date()
   const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
@@ -19,73 +18,91 @@ export async function GET() {
   try {
     const caixa = await getCaixaHoje()
 
-    // Pagamentos confirmados hoje (receitas automáticas)
     const hoje = new Date()
     const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
     const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
 
+    // Pagamentos confirmados hoje
     const pagamentos = await prisma.payment.findMany({
       where: { createdAt: { gte: inicio, lte: fim } },
       include: {
         appointment: {
           include: {
             client: { select: { name: true } },
-            service: { select: { name: true } },
+            service: { select: { name: true, price: true } },
           },
         },
       },
       orderBy: { createdAt: "asc" },
     })
 
-    // Movimentos SAIDA (produtos vendidos) com unitPrice
+    // Todos os movimentos SAIDA com unitPrice hoje
     const movimentos = await prisma.stockMovement.findMany({
       where: { createdAt: { gte: inicio, lte: fim }, type: "SAIDA", unitPrice: { not: null } },
       include: { product: { select: { name: true } } },
       orderBy: { createdAt: "asc" },
     })
 
-    // Monta lista unificada de lançamentos
+    // Agrupa produtos por appointmentId
+    const prodsPorAppt: Record<string, { nome: string; qty: number; valor: number }[]> = {}
+    const apptIdsComPagamento = new Set(pagamentos.map(p => p.appointmentId))
+
+    for (const m of movimentos) {
+      if (!m.appointmentId) continue
+      if (!prodsPorAppt[m.appointmentId]) prodsPorAppt[m.appointmentId] = []
+      prodsPorAppt[m.appointmentId].push({
+        nome: m.product?.name ?? "Produto",
+        qty: m.quantity,
+        valor: m.quantity * (m.unitPrice ?? 0),
+      })
+    }
+
     const lancamentos: any[] = []
 
-    // Receitas de serviços (payments)
+    // Receitas de pagamentos (serviço + produtos condensados)
     for (const p of pagamentos) {
+      const apptId = p.appointmentId
+      const produtos = apptId ? (prodsPorAppt[apptId] ?? []) : []
+      const servicoNome = p.appointment?.service?.name ?? "Serviço"
+      const clienteNome = p.appointment?.client?.name ?? ""
+      const servicoValor = p.appointment?.service?.price ?? 0
+      const totalProdutos = produtos.reduce((s, x) => s + x.valor, 0)
+
       lancamentos.push({
         id: `pay-${p.id}`,
         tipo: "RECEITA",
-        descricao: p.appointment
-          ? `${p.appointment.service?.name ?? "Serviço"} — ${p.appointment.client?.name ?? ""}`
-          : "Pagamento",
+        descricao: clienteNome ? `${servicoNome} — ${clienteNome}` : servicoNome,
         valor: p.amount,
         method: p.method,
         createdAt: p.createdAt,
         origem: "pagamento",
+        detalhes: produtos.length > 0
+          ? [
+              { label: servicoNome, valor: servicoValor },
+              ...produtos.map(x => ({ label: `${x.nome} × ${x.qty}`, valor: x.valor })),
+            ]
+          : null,
       })
     }
 
-    // Receitas de produtos (movimentos SAIDA com valor)
-    const prodsPorAppt: Record<string, { nome: string; valor: number; createdAt: Date }> = {}
+    // Produtos vendidos SEM agendamento vinculado a pagamento (vendas avulsas)
     for (const m of movimentos) {
-      const key = m.appointmentId ?? m.id
-      if (!prodsPorAppt[key]) {
-        prodsPorAppt[key] = { nome: m.product?.name ?? "Produto", valor: 0, createdAt: m.createdAt }
-      }
-      prodsPorAppt[key].valor += m.quantity * (m.unitPrice ?? 0)
-    }
-    for (const [, v] of Object.entries(prodsPorAppt)) {
-      if (v.valor > 0) {
-        lancamentos.push({
-          id: `mov-${v.createdAt.getTime()}`,
-          tipo: "RECEITA",
-          descricao: `Produto: ${v.nome}`,
-          valor: v.valor,
-          method: null,
-          createdAt: v.createdAt,
-          origem: "produto",
-        })
-      }
+      if (m.appointmentId && apptIdsComPagamento.has(m.appointmentId)) continue
+      const valor = m.quantity * (m.unitPrice ?? 0)
+      if (valor <= 0) continue
+      lancamentos.push({
+        id: `mov-${m.id}`,
+        tipo: "RECEITA",
+        descricao: `${m.product?.name ?? "Produto"} × ${m.quantity}`,
+        valor,
+        method: null,
+        createdAt: m.createdAt,
+        origem: "produto",
+        detalhes: null,
+      })
     }
 
-    // Transações manuais do caixa (despesas, sangrias, receitas manuais)
+    // Transações manuais (despesas, sangrias, receitas manuais)
     if (caixa) {
       for (const t of caixa.transactions) {
         lancamentos.push({
@@ -96,6 +113,7 @@ export async function GET() {
           method: t.method,
           createdAt: t.createdAt,
           origem: "manual",
+          detalhes: null,
           txId: t.id,
         })
       }
@@ -116,10 +134,7 @@ export async function POST(request: Request) {
 
     if (body.action === "abrir") {
       const caixa = await prisma.cashRegister.create({
-        data: {
-          establishmentId: ESTAB,
-          openingAmount: parseFloat(body.openingAmount ?? 0),
-        },
+        data: { establishmentId: ESTAB, openingAmount: parseFloat(body.openingAmount ?? 0) },
       })
       return NextResponse.json(caixa)
     }
@@ -137,7 +152,6 @@ export async function POST(request: Request) {
     if (body.action === "lancar") {
       let caixa = await getCaixaHoje()
       if (!caixa) {
-        // Abre o caixa automaticamente se não existir
         caixa = await prisma.cashRegister.create({
           data: { establishmentId: ESTAB, openingAmount: 0 },
           include: { transactions: true },
