@@ -66,9 +66,11 @@ type Props = {
   dados: DadosPagamento | null
   onFechar: () => void
   onConfirmado?: (appointmentId: string) => void
+  // Substitui o endpoint padrão /api/pix/pagar — recebe { method, amount }
+  endpointOverride?: string
 }
 
-export default function PagamentoModal({ dados, onFechar, onConfirmado }: Props) {
+export default function PagamentoModal({ dados, onFechar, onConfirmado, endpointOverride }: Props) {
   const [metodo, setMetodo] = useState<MetodoPag>("PIX")
   const [confirmando, setConfirmando] = useState(false)
   const [copiado, setCopiado] = useState(false)
@@ -94,10 +96,14 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado }: Props)
     setConfirmando(true)
     try {
       const method = metodo === "CARD_CREDITO" || metodo === "CARD_DEBITO" ? "CARD" : metodo
-      const res = await fetch("/api/pix/pagar", {
+      const endpoint = endpointOverride ?? "/api/pix/pagar"
+      const body = endpointOverride
+        ? { method, amount: dados.amount }
+        : { appointmentId: dados.appointmentId, method, amount: dados.amount }
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: dados.appointmentId, method, amount: dados.amount }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         // Registra cada produto da comanda como movimento SAIDA

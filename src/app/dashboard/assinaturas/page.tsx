@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import PagamentoModal from "@/components/layout/PagamentoModal"
+import type { DadosPagamento } from "@/components/layout/PagamentoModal"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -47,8 +49,7 @@ export default function AssinaturasPage() {
   const [salvando, setSalvando] = useState(false)
   const [categorias, setCategorias] = useState<string[]>([])
   const [expandidoPlano, setExpandidoPlano] = useState<string | null>(null)
-  const [modalRenovar, setModalRenovar] = useState<Assinante | null>(null)
-  const [metodoRenovacao, setMetodoRenovacao] = useState("PIX")
+  const [dadosRenovacao, setDadosRenovacao] = useState<(DadosPagamento & { assinanteId: string }) | null>(null)
 
   // Painel lateral adicionar assinante
   const [painelAberto, setPainelAberto] = useState(false)
@@ -170,22 +171,14 @@ export default function AssinaturasPage() {
     })
   }
 
-  async function handleRenovar(e: { preventDefault: () => void }) {
-    e.preventDefault()
-    if (!modalRenovar) return
-    setSalvando(true)
-    try {
-      const res = await fetch(`/api/assinaturas/assinantes/${modalRenovar.id}/renovar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metodo: metodoRenovacao }),
-      })
-      const data = await res.json()
-      if (!res.ok) { alert(data.error || "Erro ao renovar"); return }
-      setAssinantes(prev => prev.map(a => a.id === modalRenovar.id ? data : a))
-      setModalRenovar(null)
-    } catch (err) { alert(String(err)) }
-    finally { setSalvando(false) }
+  function abrirRenovacao(a: Assinante) {
+    setDadosRenovacao({
+      assinanteId: a.id,
+      appointmentId: a.id, // usado como identificador interno no PagamentoModal
+      clientName: a.client.name,
+      serviceName: `Renovação — ${a.plan.name}`,
+      amount: a.price,
+    })
   }
 
   async function handleAdicionarAssinante(e: { preventDefault: () => void }) {
@@ -377,7 +370,7 @@ export default function AssinaturasPage() {
                         <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">{fmtMoeda(a.price)}</td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => { setModalRenovar(a); setMetodoRenovacao("PIX") }}
+                            onClick={() => abrirRenovacao(a)}
                             className="text-xs px-2.5 py-1 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-colors whitespace-nowrap"
                           >
                             Renovar
@@ -470,52 +463,6 @@ export default function AssinaturasPage() {
         </div>
       )}
 
-      {/* Modal renovar assinatura */}
-      {modalRenovar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Renovar assinatura</h2>
-              <button onClick={() => setModalRenovar(null)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleRenovar} className="p-5 space-y-4">
-              <div className="bg-zinc-800 rounded-xl p-4 space-y-1.5">
-                <div className="text-white font-medium">{modalRenovar.client.name}</div>
-                <div className="text-zinc-400 text-sm">{modalRenovar.plan.name}</div>
-                <div className="text-zinc-500 text-xs">
-                  Renovação até {fmtData((() => { const d = new Date(modalRenovar.nextBillingAt > new Date() ? modalRenovar.nextBillingAt : new Date()); d.setMonth(d.getMonth() + 1); return d.toISOString() })())}
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-400 text-sm">Valor</span>
-                <span className="text-amber-400 font-bold text-xl">{fmtMoeda(modalRenovar.price)}</span>
-              </div>
-              <div>
-                <label className="text-zinc-400 text-xs mb-2 block">Forma de pagamento</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["PIX", "Dinheiro", "Cartão"].map(m => (
-                    <button key={m} type="button" onClick={() => setMetodoRenovacao(m)}
-                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${metodoRenovacao === m ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setModalRenovar(null)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                  {salvando ? "Renovando..." : "Confirmar renovação"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Modal criar/editar plano */}
       {modalPlano && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -595,6 +542,19 @@ export default function AssinaturasPage() {
           </div>
         </div>
       )}
+      <PagamentoModal
+        dados={dadosRenovacao}
+        onFechar={() => setDadosRenovacao(null)}
+        endpointOverride={dadosRenovacao ? `/api/assinaturas/assinantes/${dadosRenovacao.assinanteId}/renovar` : undefined}
+        onConfirmado={() => {
+          if (!dadosRenovacao) return
+          // Atualiza o assinante localmente após renovação
+          fetch(`/api/assinaturas/assinantes`).then(r => r.json()).then(d => {
+            if (Array.isArray(d)) setAssinantes(d)
+          })
+          setDadosRenovacao(null)
+        }}
+      />
     </DashboardLayout>
   )
 }
