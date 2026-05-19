@@ -1,17 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
-const lancamentosMock = [
-  { id: "1", tipo: "RECEITA", descricao: "Corte + Barba — Felipe Gomes", valor: 95, metodo: "PIX", hora: "09:15" },
-  { id: "2", tipo: "RECEITA", descricao: "Corte — Pedro Silva", valor: 65, metodo: "PIX", hora: "10:30" },
-  { id: "3", tipo: "RECEITA", descricao: "Progressiva — Carla Dias", valor: 180, metodo: "Dinheiro", hora: "11:45" },
-  { id: "4", tipo: "DESPESA", descricao: "Compra de produtos — Distribarbearia", valor: 250, metodo: "PIX", hora: "12:00" },
-  { id: "5", tipo: "RECEITA", descricao: "Barba — João Ribeiro", valor: 45, metodo: "PIX", hora: "14:20" },
-  { id: "6", tipo: "RECEITA", descricao: "Corte VIP — Carlos Souza", valor: 95, metodo: "Cartão", hora: "15:10" },
-  { id: "7", tipo: "SANGRIA", descricao: "Retirada para troco", valor: 100, metodo: "Dinheiro", hora: "16:00" },
-]
+type Lancamento = {
+  id: string
+  tipo: string
+  descricao: string
+  valor: number
+  method: string | null
+  createdAt: string
+  origem: "pagamento" | "produto" | "manual"
+  txId?: string
+}
+
+type Caixa = {
+  id: string
+  openedAt: string
+  closedAt: string | null
+  openingAmount: number
+}
 
 const tipoStyle: Record<string, string> = {
   RECEITA: "text-green-400",
@@ -21,37 +29,121 @@ const tipoStyle: Record<string, string> = {
 
 const tipoSinal: Record<string, string> = {
   RECEITA: "+",
-  DESPESA: "-",
-  SANGRIA: "-",
+  DESPESA: "−",
+  SANGRIA: "−",
 }
 
-const metodoBadge: Record<string, string> = {
-  PIX: "bg-green-500/10 text-green-400 border border-green-500/20",
-  Dinheiro: "bg-zinc-700 text-zinc-300 border border-zinc-600",
-  Cartão: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+function fmtMoeda(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+}
+
+function fmtHora(iso: string) {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+}
+
+function metodoBadge(method: string | null): string {
+  if (!method) return "bg-zinc-700 text-zinc-400"
+  const m = method.toUpperCase()
+  if (m === "PIX") return "bg-green-500/10 text-green-400 border border-green-500/20"
+  if (m === "CARD" || m === "CARTÃO" || m === "CARD_CREDITO" || m === "CARD_DEBITO") return "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+  return "bg-zinc-700 text-zinc-300 border border-zinc-600"
+}
+
+function metodoLabel(method: string | null): string {
+  if (!method) return ""
+  const m = method.toUpperCase()
+  if (m === "PIX") return "PIX"
+  if (m === "CASH") return "Dinheiro"
+  if (m === "CARD" || m === "CARD_CREDITO") return "Crédito"
+  if (m === "CARD_DEBITO") return "Débito"
+  return method
 }
 
 export default function CaixaPage() {
-  const [caixaAberto, setCaixaAberto] = useState(true)
+  const [caixa, setCaixa] = useState<Caixa | null>(null)
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+
+  // Modal lançamento
   const [modalLancamento, setModalLancamento] = useState(false)
-  const [tipo, setTipo] = useState("RECEITA")
+  const [tipo, setTipo] = useState("DESPESA")
   const [descricao, setDescricao] = useState("")
   const [valor, setValor] = useState("")
   const [metodo, setMetodo] = useState("PIX")
 
-  const totalReceitas = lancamentosMock.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)
-  const totalDespesas = lancamentosMock.filter(l => l.tipo === "DESPESA").reduce((s, l) => s + l.valor, 0)
-  const totalSangria = lancamentosMock.filter(l => l.tipo === "SANGRIA").reduce((s, l) => s + l.valor, 0)
-  const saldoAtual = totalReceitas - totalDespesas - totalSangria
+  // Modal fechar caixa
+  const [modalFechar, setModalFechar] = useState(false)
+  const [valorFechamento, setValorFechamento] = useState("")
 
-  function handleLancamento(e: React.FormEvent) {
-    e.preventDefault()
-    setModalLancamento(false)
-    setDescricao("")
-    setValor("")
-    setTipo("RECEITA")
-    setMetodo("PIX")
+  const caixaAberto = caixa !== null && caixa.closedAt === null
+
+  const fetchDados = useCallback(() => {
+    setLoading(true)
+    fetch("/api/caixa")
+      .then(r => r.json())
+      .then(d => {
+        setCaixa(d.caixa ?? null)
+        setLancamentos(Array.isArray(d.lancamentos) ? d.lancamentos : [])
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { fetchDados() }, [fetchDados])
+
+  // Recarrega quando um pagamento é confirmado
+  useEffect(() => {
+    window.addEventListener("pagamentoConfirmado", fetchDados)
+    return () => window.removeEventListener("pagamentoConfirmado", fetchDados)
+  }, [fetchDados])
+
+  const receitas = lancamentos.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)
+  const despesas = lancamentos.filter(l => l.tipo === "DESPESA").reduce((s, l) => s + l.valor, 0)
+  const sangrias = lancamentos.filter(l => l.tipo === "SANGRIA").reduce((s, l) => s + l.valor, 0)
+  const saldo = receitas - despesas - sangrias
+
+  async function handleAbrirCaixa() {
+    setSalvando(true)
+    await fetch("/api/caixa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "abrir", openingAmount: 0 }),
+    })
+    fetchDados()
+    setSalvando(false)
   }
+
+  async function handleFecharCaixa(e: { preventDefault: () => void }) {
+    e.preventDefault()
+    setSalvando(true)
+    await fetch("/api/caixa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "fechar", closingAmount: parseFloat(valorFechamento) || saldo }),
+    })
+    setModalFechar(false)
+    fetchDados()
+    setSalvando(false)
+  }
+
+  async function handleLancamento(e: { preventDefault: () => void }) {
+    e.preventDefault()
+    const v = parseFloat(valor.replace(",", "."))
+    if (isNaN(v) || v <= 0) return
+    setSalvando(true)
+    await fetch("/api/caixa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "lancar", tipo, descricao, valor: v, metodo }),
+    })
+    setModalLancamento(false)
+    setDescricao(""); setValor(""); setTipo("DESPESA"); setMetodo("PIX")
+    fetchDados()
+    setSalvando(false)
+  }
+
+  const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
 
   return (
     <DashboardLayout>
@@ -60,7 +152,10 @@ export default function CaixaPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Controle de Caixa</h1>
-          <p className="text-zinc-500 text-sm">Domingo, 05 de Abril de 2026 · Aberto às 08:00</p>
+          <p className="text-zinc-500 text-sm capitalize">
+            {hoje}
+            {caixa && caixaAberto && ` · Aberto às ${fmtHora(caixa.openedAt)}`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -71,15 +166,16 @@ export default function CaixaPage() {
           </button>
           {caixaAberto ? (
             <button
-              onClick={() => setCaixaAberto(false)}
+              onClick={() => setModalFechar(true)}
               className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-2 rounded-lg text-sm border border-red-500/20 transition-colors"
             >
               Fechar caixa
             </button>
           ) : (
             <button
-              onClick={() => setCaixaAberto(true)}
-              className="bg-green-500/20 hover:bg-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/20 transition-colors"
+              onClick={handleAbrirCaixa}
+              disabled={salvando}
+              className="bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/20 transition-colors"
             >
               Abrir caixa
             </button>
@@ -87,18 +183,21 @@ export default function CaixaPage() {
         </div>
       </div>
 
-      {/* Status do caixa */}
-      <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+      {/* Status */}
+      <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-zinc-900 border-zinc-800"}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${caixaAberto ? "bg-green-500" : "bg-red-500"}`}></div>
-            <span className={`text-sm font-medium ${caixaAberto ? "text-green-400" : "text-red-400"}`}>
-              Caixa {caixaAberto ? "Aberto" : "Fechado"}
+            <div className={`w-2 h-2 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
+            <span className={`text-sm font-medium ${caixaAberto ? "text-green-400" : "text-zinc-500"}`}>
+              {caixaAberto ? "Caixa Aberto" : caixa?.closedAt ? "Caixa Fechado" : "Caixa não aberto hoje"}
             </span>
           </div>
           <div className="text-right">
             <div className="text-zinc-500 text-xs">Saldo atual</div>
-            <div className="text-white text-2xl font-bold">R$ {saldoAtual.toFixed(2)}</div>
+            {loading
+              ? <div className="h-7 w-28 bg-zinc-800 rounded animate-pulse mt-1" />
+              : <div className="text-white text-2xl font-bold">{fmtMoeda(saldo)}</div>
+            }
           </div>
         </div>
       </div>
@@ -107,15 +206,15 @@ export default function CaixaPage() {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Receitas</div>
-          <div className="text-green-400 text-xl font-bold">R$ {totalReceitas.toFixed(2)}</div>
+          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-green-400 text-xl font-bold">{fmtMoeda(receitas)}</div>}
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Despesas</div>
-          <div className="text-red-400 text-xl font-bold">R$ {totalDespesas.toFixed(2)}</div>
+          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-red-400 text-xl font-bold">{fmtMoeda(despesas)}</div>}
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Sangrias</div>
-          <div className="text-amber-400 text-xl font-bold">R$ {totalSangria.toFixed(2)}</div>
+          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-amber-400 text-xl font-bold">{fmtMoeda(sangrias)}</div>}
         </div>
       </div>
 
@@ -123,37 +222,50 @@ export default function CaixaPage() {
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
           <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Lançamentos do dia</span>
-          <span className="text-zinc-600 text-xs">{lancamentosMock.length} registros</span>
+          <span className="text-zinc-600 text-xs">{lancamentos.length} registros</span>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
-              <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Descrição</th>
-              <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Método</th>
-              <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lancamentosMock.map((l, i) => (
-              <tr key={l.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === lancamentosMock.length - 1 ? "border-0" : ""}`}>
-                <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{l.hora}</td>
-                <td className="px-4 py-3 text-zinc-300 text-sm">{l.descricao}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${metodoBadge[l.metodo] ?? "bg-zinc-700 text-zinc-400"}`}>
-                    {l.metodo}
-                  </span>
-                </td>
-                <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo]}`}>
-                  {tipoSinal[l.tipo]}R$ {l.valor.toFixed(2)}
-                </td>
+        {loading ? (
+          <div className="p-8 text-center text-zinc-600 text-sm">Carregando...</div>
+        ) : lancamentos.length === 0 ? (
+          <div className="p-8 text-center text-zinc-600 text-sm">Nenhum lançamento hoje</div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
+                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Descrição</th>
+                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Método</th>
+                <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lancamentos.map((l, i) => (
+                <tr key={l.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === lancamentos.length - 1 ? "border-0" : ""}`}>
+                  <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(l.createdAt)}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-zinc-300 text-sm">{l.descricao}</div>
+                    {l.origem !== "manual" && (
+                      <div className="text-zinc-600 text-xs mt-0.5">{l.origem === "pagamento" ? "Pagamento confirmado" : "Venda de produto"}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {l.method && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${metodoBadge(l.method)}`}>
+                        {metodoLabel(l.method)}
+                      </span>
+                    )}
+                  </td>
+                  <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
+                    {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {/* Modal lançamento */}
+      {/* Modal — novo lançamento */}
       {modalLancamento && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
@@ -162,87 +274,100 @@ export default function CaixaPage() {
               <button onClick={() => setModalLancamento(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
             </div>
             <form onSubmit={handleLancamento} className="p-5 space-y-3">
-
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo *</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {["RECEITA", "DESPESA", "SANGRIA"].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTipo(t)}
-                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${
-                        tipo === t
-                          ? t === "RECEITA" ? "bg-green-500/15 text-green-400 border-green-500/30"
-                          : t === "DESPESA" ? "bg-red-500/15 text-red-400 border-red-500/30"
-                          : "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                          : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
-                      }`}
-                    >
-                      {t === "RECEITA" ? "Receita" : t === "DESPESA" ? "Despesa" : "Sangria"}
+                  {([
+                    { key: "DESPESA", label: "Despesa", cls: "bg-red-500/15 text-red-400 border-red-500/30" },
+                    { key: "SANGRIA", label: "Sangria", cls: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+                    { key: "RECEITA", label: "Receita", cls: "bg-green-500/15 text-green-400 border-green-500/30" },
+                  ]).map(t => (
+                    <button key={t.key} type="button" onClick={() => setTipo(t.key)}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${tipo === t.key ? t.cls : "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
+                      {t.label}
                     </button>
                   ))}
                 </div>
               </div>
-
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Descrição *</label>
-                <input
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  required
-                  placeholder="Ex: Corte + Barba — João Silva"
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
-                />
+                <input value={descricao} onChange={e => setDescricao(e.target.value)} required
+                  placeholder="Ex: Compra de produtos"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
               </div>
-
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Valor (R$) *</label>
-                <input
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  required
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Ex: 95.00"
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
-                />
+                <input value={valor} onChange={e => setValor(e.target.value)} required
+                  inputMode="decimal" placeholder="0,00"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
               </div>
-
               <div>
-                <label className="text-zinc-400 text-xs mb-2 block">Método de pagamento</label>
+                <label className="text-zinc-400 text-xs mb-2 block">Método</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {["PIX", "Dinheiro", "Cartão"].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMetodo(m)}
-                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${
-                        metodo === m
-                          ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                          : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
-                      }`}
-                    >
+                  {["PIX", "Dinheiro", "Cartão"].map(m => (
+                    <button key={m} type="button" onClick={() => setMetodo(m)}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${metodo === m ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
                       {m}
                     </button>
                   ))}
                 </div>
               </div>
-
               <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalLancamento(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
+                <button type="button" onClick={() => setModalLancamento(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  Registrar
+                <button type="submit" disabled={salvando}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  {salvando ? "Registrando..." : "Registrar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — fechar caixa */}
+      {modalFechar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+              <h2 className="text-white font-bold">Fechar Caixa</h2>
+              <button onClick={() => setModalFechar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
+            </div>
+            <form onSubmit={handleFecharCaixa} className="p-5 space-y-4">
+              <div className="bg-zinc-800 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Receitas</span>
+                  <span className="text-green-400 font-mono">{fmtMoeda(receitas)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Despesas</span>
+                  <span className="text-red-400 font-mono">{fmtMoeda(despesas)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500">Sangrias</span>
+                  <span className="text-amber-400 font-mono">{fmtMoeda(sangrias)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold pt-1 border-t border-zinc-700">
+                  <span className="text-white">Saldo esperado</span>
+                  <span className="text-white font-mono">{fmtMoeda(saldo)}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Valor em caixa (contagem física)</label>
+                <input value={valorFechamento} onChange={e => setValorFechamento(e.target.value)}
+                  inputMode="decimal" placeholder={saldo.toFixed(2)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setModalFechar(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={salvando}
+                  className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+                  {salvando ? "Fechando..." : "Fechar caixa"}
                 </button>
               </div>
             </form>
