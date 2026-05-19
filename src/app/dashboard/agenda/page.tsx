@@ -38,6 +38,10 @@ function getDataSaoPaulo(data: Date) {
   return data.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
 }
 
+function adicionarMinutos(data: Date, minutos: number) {
+  return new Date(data.getTime() + minutos * 60 * 1000)
+}
+
 function adicionarDias(dataISO: string, dias: number) {
   const d = new Date(dataISO + "T12:00:00")
   d.setDate(d.getDate() + dias)
