@@ -46,6 +46,7 @@ export default function AssinaturasPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [categorias, setCategorias] = useState<string[]>([])
+  const [expandidoPlano, setExpandidoPlano] = useState<string | null>(null)
 
   // Painel lateral adicionar assinante
   const [painelAberto, setPainelAberto] = useState(false)
@@ -272,18 +273,29 @@ export default function AssinaturasPage() {
                       <span className="text-zinc-300">Atende a domicílio</span>
                     </div>
                   )}
-                  {p.services.length > 0 ? (
-                    <div>
-                      <div className="text-zinc-600 text-xs mb-1">Categorias cobertas:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {p.services.map(s => (
-                          <span key={s} className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">{s}</span>
-                        ))}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandidoPlano(expandidoPlano === p.id ? null : p.id)}
+                      className="flex items-center justify-between w-full text-left group"
+                    >
+                      <span className="text-zinc-500 text-xs">
+                        {p.services.length === 0
+                          ? "Cobre todos os serviços"
+                          : p.services.slice(0, 2).join(", ") + (p.services.length > 2 ? ` +${p.services.length - 2}` : "")}
+                      </span>
+                      <span className={`text-zinc-600 text-xs transition-transform group-hover:text-zinc-400 ${expandidoPlano === p.id ? "rotate-90" : ""}`}
+                        style={{ display: "inline-block", transition: "transform 0.15s" }}>›</span>
+                    </button>
+                    {expandidoPlano === p.id && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {p.services.length === 0
+                          ? categorias.map(c => <span key={c} className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">{c}</span>)
+                          : p.services.map(s => <span key={s} className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">{s}</span>)
+                        }
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-zinc-600 text-xs">Cobre todos os serviços</div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <div className="border-t border-zinc-800 pt-2 space-y-1.5">
