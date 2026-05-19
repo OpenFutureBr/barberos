@@ -58,9 +58,22 @@ export async function POST(request: Request) {
     if (appt?.client) {
       const clientId = appt.client.id
       const cashbackCfg = await getCashbackConfig()
+
+      // Separa serviço de produtos
+      const valorServico = Math.min(appt.service?.price ?? 0, valorPago)
+      const valorProdutos = Math.max(0, valorPago - valorServico)
+
       const isdomicilio = appt.serviceType === "HOME_VISIT"
-      const pct = isdomicilio ? cashbackCfg.domicilio : cashbackCfg.servicos
-      const cashbackValor = Math.round(valorPago * (pct / 100) * 100) / 100
+      const pctServico = isdomicilio ? cashbackCfg.domicilio : cashbackCfg.servicos
+      const pctProduto = cashbackCfg.produtos
+
+      const cashbackServico = valorServico * (pctServico / 100)
+      const cashbackProduto = valorProdutos * (pctProduto / 100)
+      const cashbackValor = Math.round((cashbackServico + cashbackProduto) * 100) / 100
+
+      const descricao = valorProdutos > 0
+        ? `${appt.service?.name ?? "Serviço"} · ${pctServico}% + produtos · ${pctProduto}%`
+        : `${appt.service?.name ?? "Serviço"} · ${pctServico}%`
 
       // Upsert da conta de fidelidade
       const loyaltyAccount = await prisma.loyaltyAccount.upsert({
@@ -85,7 +98,7 @@ export async function POST(request: Request) {
           loyaltyAccountId: loyaltyAccount.id,
           type: "EARNED",
           amount: cashbackValor,
-          description: `${appt.service?.name ?? "Serviço"} · ${pct}% cashback`,
+          description: descricao,
         },
       })
 
