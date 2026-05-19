@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const segmentoStyle: Record<string, string> = {
@@ -43,6 +44,7 @@ function formatarTelefone(valor: string, digitos: number): string {
 }
 
 export default function ClientesPage() {
+  const router = useRouter()
   const cacheClientes = useRef<any[] | null>(null)
 
   const [clientes, setClientes] = useState<any[]>([])
@@ -228,13 +230,17 @@ export default function ClientesPage() {
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Cliente</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Telefone</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Email</th>
+                <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Produto preferido</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Status</th>
-                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {clientesFiltrados.map((cliente, i) => (
-                <tr key={cliente.id} className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${i === clientesFiltrados.length - 1 ? "border-0" : ""}`}>
+                <tr
+                  key={cliente.id}
+                  onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                  className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer ${i === clientesFiltrados.length - 1 ? "border-0" : ""}`}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -246,14 +252,15 @@ export default function ClientesPage() {
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.phone}</td>
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.email || "—"}</td>
                   <td className="px-4 py-3">
+                    {cliente.produtoFavorito
+                      ? <span className="text-zinc-300 text-sm">{cliente.produtoFavorito}</span>
+                      : <span className="text-zinc-700 text-sm">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${segmentoStyle[cliente.segment] ?? segmentoStyle.NEW}`}>
                       {segmentoLabel[cliente.segment] ?? "Novo"}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <a href={`/dashboard/clientes/${cliente.id}`} className="text-zinc-600 hover:text-zinc-300 text-xs transition-colors">
-                      Ver perfil →
-                    </a>
                   </td>
                 </tr>
               ))}
