@@ -5,8 +5,20 @@ import { NextResponse } from "next/server"
 
 
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+
+    // Modo simples: apenas id, name, phone — sem análises pesadas
+    if (searchParams.get("modo") === "simples") {
+      const clientes = await prisma.client.findMany({
+        where: { establishmentId: "estab001", isActive: true },
+        select: { id: true, name: true, phone: true },
+        orderBy: { name: "asc" },
+      })
+      return NextResponse.json(clientes)
+    }
+
     const [clientes, appts, movimentos] = await Promise.all([
       prisma.client.findMany({
         where: { establishmentId: "estab001", isActive: true },

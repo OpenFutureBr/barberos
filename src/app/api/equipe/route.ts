@@ -15,7 +15,9 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
     })
-    return NextResponse.json(profissionais)
+    return NextResponse.json(profissionais, {
+      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" },
+    })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

@@ -11,7 +11,9 @@ export async function GET() {
       where: { establishmentId: "estab001" },
       orderBy: { createdAt: "desc" },
     })
-    return NextResponse.json(servicos)
+    return NextResponse.json(servicos, {
+      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" },
+    })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

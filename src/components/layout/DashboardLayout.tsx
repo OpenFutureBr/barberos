@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -29,11 +29,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     clientes: any[]
     servicos: any[]
   } | null>(null)
+  const carregadoRef = useRef(false)
 
-  useEffect(() => {
+  // Carrega dados apenas quando o modal for aberto pela primeira vez
+  function carregarDadosModal() {
+    if (carregadoRef.current) return
+    carregadoRef.current = true
     Promise.all([
       fetch("/api/equipe").then(r => r.json()),
-      fetch("/api/clientes").then(r => r.json()),
+      fetch("/api/clientes?modo=simples").then(r => r.json()), // só id, name, phone
       fetch("/api/servicos").then(r => r.json()),
     ]).then(([profs, cls, svcs]) => {
       setDadosModal({
@@ -42,11 +46,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         servicos: Array.isArray(svcs) ? svcs : [],
       })
     }).catch(console.error)
-  }, [])
+  }
 
   useEffect(() => {
-    function handleAgenda() { setModalAgendaAberto(true) }
-    function handleVenda() { setModalVendaAberto(true) }
+    function handleAgenda() { carregarDadosModal(); setModalAgendaAberto(true) }
+    function handleVenda() { carregarDadosModal(); setModalVendaAberto(true) }
     function handlePagamento(e: Event) { setDadosPagamento((e as CustomEvent).detail) }
     window.addEventListener("abrirModalAgenda", handleAgenda)
     window.addEventListener("abrirVenda", handleVenda)

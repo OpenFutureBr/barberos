@@ -14,9 +14,10 @@ const pool =
   new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 3,
-    min: 0,
-    idleTimeoutMillis: 0,        // não descarta conexões ociosas
+    max: 6,
+    min: 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
     allowExitOnIdle: false,
   })
 
