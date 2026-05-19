@@ -44,6 +44,24 @@ export async function POST(request: Request) {
       },
     })
 
+    // Verifica cobertura por assinatura ativa
+    let cobertoPorAssinatura = false
+    if (appt?.client) {
+      const assinatura = await prisma.subscription.findUnique({
+        where: { clientId: appt.client.id },
+        include: { plan: { select: { services: true, atendedomicilio: true } } },
+      })
+      if (assinatura && (assinatura.status === "ACTIVE")) {
+        const categoriaServico = appt.service?.category ?? null
+        const categoriasPlano = assinatura.plan.services // String[] de categorias
+        // Coberto se: plano não tem restrição de categoria OU categoria do serviço está na lista
+        const categoriaCoberta = categoriasPlano.length === 0 || (categoriaServico && categoriasPlano.includes(categoriaServico))
+        // Domicílio: se for home visit, plano precisa aceitar domicílio
+        const domicilioCoberto = appt.serviceType !== "HOME_VISIT" || assinatura.plan.atendedomicilio
+        cobertoPorAssinatura = !!(categoriaCoberta && domicilioCoberto)
+      }
+    }
+
     // Cria o Payment
     const payment = await prisma.payment.create({
       data: {
@@ -71,7 +89,9 @@ export async function POST(request: Request) {
       const valorProdutos = Math.max(0, valorPago - valorServico)
 
       const isdomicilio = appt.serviceType === "HOME_VISIT"
-      const pctServico = isdomicilio ? cashbackCfg.domicilio : cashbackCfg.servicos
+      const pctServico = cobertoPorAssinatura
+        ? cashbackCfg.assinaturas
+        : isdomicilio ? cashbackCfg.domicilio : cashbackCfg.servicos
       const pctProduto = cashbackCfg.produtos
 
       const cashbackServico = valorServico * (pctServico / 100)
