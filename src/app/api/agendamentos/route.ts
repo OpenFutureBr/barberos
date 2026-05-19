@@ -170,13 +170,23 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
 
-    if (!body.id || !body.status) {
-      return NextResponse.json({ error: "ID e status são obrigatórios" }, { status: 400 })
+    if (!body.id) {
+      return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 })
     }
+
+    const data: Record<string, unknown> = {}
+    if (body.status !== undefined) data.status = body.status
+    if (body.professionalId !== undefined) data.professionalId = body.professionalId
+    if (body.scheduledAt !== undefined) data.scheduledAt = new Date(body.scheduledAt)
 
     const agendamento = await prisma.appointment.update({
       where: { id: body.id },
-      data: { status: body.status },
+      data,
+      include: {
+        client: { select: { id: true, name: true, phone: true } },
+        professional: { select: { id: true, name: true } },
+        service: { select: { id: true, name: true, price: true, durationMin: true } },
+      },
     })
 
     return NextResponse.json(agendamento)

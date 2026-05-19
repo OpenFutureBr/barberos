@@ -74,6 +74,9 @@ export default function AgendaPage() {
   const [dropdownProduto, setDropdownProduto] = useState(false)
   const [finalizando, setFinalizando] = useState(false)
   const [statusOverride, setStatusOverride] = useState<Record<string, string>>({})
+  const [dragAppt, setDragAppt] = useState<any>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const [movendo, setMovendo] = useState(false)
 
   // Carrega comandas do sessionStorage ao montar
   useEffect(() => {
@@ -242,6 +245,63 @@ export default function AgendaPage() {
     return a.status === "CANCELLED" || a.status === "NO_SHOW"
   }
 
+  function isPendente(appt: any): boolean {
+    const status = statusOverride[appt.id] ?? appt.status
+    return ["SCHEDULED", "CONFIRMED", "IN_QUEUE"].includes(status)
+  }
+
+  function isDropValido(profId: string, hora: string, data: string): boolean {
+    if (!dragAppt) return false
+    if (!isPendente(dragAppt)) return false
+    // Tempo não passou
+    const slotTime = new Date(`${data}T${hora}:00-03:00`)
+    if (slotTime <= new Date()) return false
+    // Não é o mesmo slot
+    const dragDate = new Date(dragAppt.scheduledAt)
+    const dragHoraStr = `${String(dragDate.getHours()).padStart(2, "0")}:00`
+    const dragDataStr = getDataSaoPaulo(dragDate)
+    if (profId === dragAppt.professionalId && hora === dragHoraStr && data === dragDataStr) return false
+    // Barber pode realizar este serviço
+    const prof = profissionais.find(p => p.id === profId)
+    const serviceId = dragAppt.serviceId ?? dragAppt.service?.id
+    const podeServico = prof?.userServices?.some((us: any) => us.serviceId === serviceId)
+    if (!podeServico) return false
+    // Sem conflito de horário
+    const apptsList = profFiltro ? (agendamentosSemana[data] ?? []) : agendamentos
+    const breakProf = prof?.breakBetweenAppts ?? 10
+    const duracaoAppt = dragAppt.service?.durationMin ?? 30
+    const novIni = slotTime
+    const novFim = adicionarMinutos(novIni, duracaoAppt + breakProf)
+    return !apptsList.some(a => {
+      if (a.id === dragAppt.id) return false
+      if (a.professionalId !== profId) return false
+      const st = statusOverride[a.id] ?? a.status
+      if (st === "CANCELLED" || st === "NO_SHOW") return false
+      const ini = new Date(a.scheduledAt)
+      const fim = adicionarMinutos(ini, (a.service?.durationMin ?? 30) + breakProf)
+      return novIni < fim && novFim > ini
+    })
+  }
+
+  async function executarMover(profId: string, hora: string, data: string) {
+    if (!dragAppt || !isDropValido(profId, hora, data)) return
+    setMovendo(true)
+    const novaHora = new Date(`${data}T${hora}:00-03:00`)
+    const dataOriginal = getDataSaoPaulo(new Date(dragAppt.scheduledAt))
+    try {
+      await fetch("/api/agendamentos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: dragAppt.id, professionalId: profId, scheduledAt: novaHora.toISOString() }),
+      })
+      delete cacheAppts.current[dataOriginal]
+      delete cacheAppts.current[data]
+      await buscarAgendamentos(data)
+      if (data !== dataOriginal) await buscarAgendamentos(dataOriginal)
+    } catch (e) { console.error(e) }
+    finally { setDragAppt(null); setDragOverKey(null); setMovendo(false) }
+  }
+
   function getApptsDaHora(hora: string, profId: string, appts: any[]) {
     const [horaNum] = hora.split(":").map(Number)
     return appts.filter((a) => {
@@ -275,11 +335,32 @@ export default function AgendaPage() {
   }
 
   function renderSlots(hora: string, profId: string, appts: any[], data?: string) {
+    const dataEfetiva = data ?? dataSelecionada
+    const slotKey = `${profId}|${hora}|${dataEfetiva}`
+    const isDragOver = dragOverKey === slotKey
+    const valido = dragAppt ? isDropValido(profId, hora, dataEfetiva) : false
+
     const apptsDaHora = getApptsDaHora(hora, profId, appts)
     return (
-      <div className="border-r border-zinc-800 last:border-0 relative"
+      <div className={`border-r border-zinc-800 last:border-0 relative transition-colors ${
+        dragAppt
+          ? isDragOver && valido
+            ? "bg-green-500/15"
+            : isDragOver && !valido
+              ? "bg-red-500/10"
+              : ""
+          : ""
+      }`}
         style={{ height: SLOT_HEIGHT }}
-        onClick={() => handleSlotClick(hora, profId, data)}>
+        onClick={() => !dragAppt && handleSlotClick(hora, profId, data)}
+        onDragOver={e => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = valido ? "move" : "none"
+          setDragOverKey(slotKey)
+        }}
+        onDragLeave={() => setDragOverKey(null)}
+        onDrop={e => { e.preventDefault(); executarMover(profId, hora, dataEfetiva) }}
+      >
         {apptsDaHora.length === 0 && (
           <div className="absolute inset-1 rounded hover:bg-zinc-800/50 transition-colors" />
         )}
@@ -292,6 +373,8 @@ export default function AgendaPage() {
           const statusEfetivo = statusOverride[appt.id] ?? appt.status
           const cancelado = statusEfetivo === "CANCELLED" || statusEfetivo === "NO_SHOW"
           const concluido = statusEfetivo === "DONE"
+          const pendente = isPendente(appt)
+          const estaDragando = dragAppt?.id === appt.id
           const cor = cancelado
             ? corAppt.cancelado
             : concluido
@@ -299,9 +382,19 @@ export default function AgendaPage() {
               : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
           return (
             <div key={appt.id}
-              className={`absolute left-1 right-1 rounded px-1 overflow-hidden cursor-pointer ${cor}`}
+              draggable={pendente}
+              onDragStart={e => {
+                e.stopPropagation()
+                setDragAppt(appt)
+                setModalDetalhe(false)
+                e.dataTransfer.effectAllowed = "move"
+              }}
+              onDragEnd={() => { setDragAppt(null); setDragOverKey(null) }}
+              className={`absolute left-1 right-1 rounded px-1 overflow-hidden transition-opacity ${cor} ${
+                pendente ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+              } ${estaDragando ? "opacity-40" : ""}`}
               style={{ top: `${topPct}%`, height: `${heightPct}%`, minHeight: 18, zIndex: 1 }}
-              onClick={(e) => { e.stopPropagation(); abrirDetalhe(appt) }}>
+              onClick={(e) => { if (!dragAppt) { e.stopPropagation(); abrirDetalhe(appt) } }}>
               <div className={`text-xs font-semibold leading-tight truncate ${cancelado ? "line-through opacity-70" : ""}`}>
                 {appt.client?.name}
                 {comandas[appt.id]?.length > 0 && <span className="ml-1 text-green-400">●</span>}
@@ -334,7 +427,7 @@ export default function AgendaPage() {
         <div>
           <h1 className="text-white text-xl font-bold">Agenda</h1>
           <p className="text-zinc-500 text-sm capitalize">
-            {profFiltro ? profSelecionado?.name : dataFormatada}
+            {movendo ? "Movendo agendamento..." : profFiltro ? profSelecionado?.name : dataFormatada}
           </p>
         </div>
         <div className="flex items-center gap-2">
