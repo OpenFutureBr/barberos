@@ -673,12 +673,18 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
-                {/* Finalizar cobrança */}
-                {!cancelado && (
-                  <button onClick={handleFinalizarComanda} disabled={finalizando}
-                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
-                    {finalizando ? "Aguarde..." : `Finalizar cobrança · R$ ${totalComanda.toFixed(2)}`}
-                  </button>
+                {/* Finalizar cobrança — só quando pendente */}
+                {!cancelado && statusAtual !== "DONE" && (
+                  <div className="flex gap-2">
+                    <button onClick={() => setModalDetalhe(false)}
+                      className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold px-5 py-3.5 rounded-xl text-sm border border-zinc-700 transition-colors">
+                      Salvar
+                    </button>
+                    <button onClick={handleFinalizarComanda} disabled={finalizando}
+                      className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
+                      {finalizando ? "Aguarde..." : `Finalizar cobrança · R$ ${totalComanda.toFixed(2)}`}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
