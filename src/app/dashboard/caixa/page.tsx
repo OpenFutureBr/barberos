@@ -75,6 +75,7 @@ export default function CaixaPage() {
   // Modal fechar caixa
   const [modalFechar, setModalFechar] = useState(false)
   const [valorFechamento, setValorFechamento] = useState("")
+  const [detalheTipo, setDetalheTipo] = useState<string | null>(null)
 
   const caixaAberto = caixa !== null && caixa.closedAt === null
 
@@ -328,52 +329,120 @@ export default function CaixaPage() {
       )}
 
       {/* Modal — fechar caixa */}
-      {modalFechar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Fechar Caixa</h2>
-              <button onClick={() => setModalFechar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
+      {modalFechar && (() => {
+        // Agrupa por método para o tipo selecionado
+        function breakdownPorMetodo(tipo: string) {
+          const items = lancamentos.filter(l => l.tipo === tipo)
+          const grupos: Record<string, { valor: number; count: number; items: Lancamento[] }> = {}
+          for (const l of items) {
+            const key = metodoLabel(l.method) || "Sem método"
+            if (!grupos[key]) grupos[key] = { valor: 0, count: 0, items: [] }
+            grupos[key].valor += l.valor
+            grupos[key].count++
+            grupos[key].items.push(l)
+          }
+          return Object.entries(grupos).sort((a, b) => b[1].valor - a[1].valor)
+        }
+
+        const linhas = [
+          { tipo: "RECEITA", label: "Receitas", cor: "text-green-400", total: receitas },
+          { tipo: "DESPESA", label: "Despesas", cor: "text-red-400", total: despesas },
+          { tipo: "SANGRIA", label: "Sangrias", cor: "text-amber-400", total: sangrias },
+        ]
+
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+                {detalheTipo ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setDetalheTipo(null)} className="text-zinc-500 hover:text-white transition-colors text-sm">← Voltar</button>
+                    <h2 className="text-white font-bold">{linhas.find(l => l.tipo === detalheTipo)?.label}</h2>
+                  </div>
+                ) : (
+                  <h2 className="text-white font-bold">Fechar Caixa</h2>
+                )}
+                <button onClick={() => { setModalFechar(false); setDetalheTipo(null) }} className="text-zinc-500 hover:text-white text-xl">✕</button>
+              </div>
+
+              {detalheTipo ? (
+                /* Visão analítica */
+                <div className="p-5 space-y-3">
+                  <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Por método de pagamento</div>
+                  {breakdownPorMetodo(detalheTipo).map(([metodoNome, dados]) => (
+                    <div key={metodoNome} className="bg-zinc-800 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white text-sm font-medium">{metodoNome}</span>
+                          <span className="text-zinc-600 text-xs">{dados.count} lançamento{dados.count !== 1 ? "s" : ""}</span>
+                        </div>
+                        <span className={`font-bold font-mono text-sm ${linhas.find(l => l.tipo === detalheTipo)?.cor ?? "text-white"}`}>
+                          {fmtMoeda(dados.valor)}
+                        </span>
+                      </div>
+                      {/* Detalhes individuais */}
+                      {dados.items.map(item => (
+                        <div key={item.id} className="flex justify-between px-4 py-1.5 border-t border-zinc-700/60">
+                          <span className="text-zinc-400 text-xs truncate max-w-[200px]">{item.descricao}</span>
+                          <span className="text-zinc-300 text-xs font-mono flex-shrink-0 ml-2">R$ {item.valor.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {breakdownPorMetodo(detalheTipo).length === 0 && (
+                    <div className="text-zinc-600 text-sm text-center py-4">Nenhum lançamento</div>
+                  )}
+                </div>
+              ) : (
+                /* Visão sintética + fechamento */
+                <form onSubmit={handleFecharCaixa} className="p-5 space-y-4">
+                  <div className="bg-zinc-800 rounded-xl overflow-hidden">
+                    {linhas.map(({ tipo: t, label, cor, total }) => (
+                      <button key={t} type="button"
+                        onClick={() => setDetalheTipo(t)}
+                        className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-700 last:border-0 hover:bg-zinc-700/50 transition-colors group">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-400 text-sm group-hover:text-zinc-200 transition-colors">{label}</span>
+                          <span className="text-zinc-600 text-xs group-hover:text-zinc-400 transition-colors">ver detalhes →</span>
+                        </div>
+                        <span className={`font-mono font-bold text-sm ${cor}`}>{fmtMoeda(total)}</span>
+                      </button>
+                    ))}
+                    <div className="flex justify-between px-4 py-3 bg-zinc-700/30">
+                      <span className="text-white text-sm font-bold">Saldo esperado</span>
+                      <span className="text-white font-mono font-bold">{fmtMoeda(saldo)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-xs mb-1 block">Valor em caixa (contagem física)</label>
+                    <input value={valorFechamento} onChange={e => setValorFechamento(e.target.value)}
+                      inputMode="decimal" placeholder={saldo.toFixed(2)}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+                    {valorFechamento && !isNaN(parseFloat(valorFechamento)) && (
+                      <div className={`text-xs mt-1 ${Math.abs(parseFloat(valorFechamento) - saldo) < 0.01 ? "text-green-400" : "text-amber-400"}`}>
+                        {parseFloat(valorFechamento) >= saldo
+                          ? `Sobra: ${fmtMoeda(parseFloat(valorFechamento) - saldo)}`
+                          : `Falta: ${fmtMoeda(saldo - parseFloat(valorFechamento))}`
+                        }
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setModalFechar(false)}
+                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={salvando}
+                      className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+                      {salvando ? "Fechando..." : "Fechar caixa"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
-            <form onSubmit={handleFecharCaixa} className="p-5 space-y-4">
-              <div className="bg-zinc-800 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Receitas</span>
-                  <span className="text-green-400 font-mono">{fmtMoeda(receitas)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Despesas</span>
-                  <span className="text-red-400 font-mono">{fmtMoeda(despesas)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Sangrias</span>
-                  <span className="text-amber-400 font-mono">{fmtMoeda(sangrias)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold pt-1 border-t border-zinc-700">
-                  <span className="text-white">Saldo esperado</span>
-                  <span className="text-white font-mono">{fmtMoeda(saldo)}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Valor em caixa (contagem física)</label>
-                <input value={valorFechamento} onChange={e => setValorFechamento(e.target.value)}
-                  inputMode="decimal" placeholder={saldo.toFixed(2)}
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-              </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setModalFechar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                  {salvando ? "Fechando..." : "Fechar caixa"}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
     </DashboardLayout>
   )
