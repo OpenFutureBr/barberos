@@ -1,15 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { enviarWhatsApp } from "@/lib/whatsapp"
 
-const mensagensMock = [
-  { id: "1", tipo: "confirmacao", cliente: "João Ribeiro", telefone: "(11) 96543-2109", mensagem: "Olá João! Confirmando seu agendamento amanhã às 14h com Lucas. Responda SIM para confirmar ou NÃO para cancelar.", status: "entregue", hora: "13:00" },
-  { id: "2", tipo: "lembrete", cliente: "Felipe Gomes", telefone: "(11) 99874-3312", mensagem: "Oi Felipe! Daqui 1 hora é seu horário com Lucas às 14h. Te esperamos! 💈", status: "entregue", hora: "13:00" },
-  { id: "3", tipo: "risco", cliente: "Carlos Souza", telefone: "(11) 97654-3210", mensagem: "Oi Carlos! Faz 41 dias que não te vemos por aqui. Que tal agendar um corte? Use o link: barberos.com/barbearia-costa", status: "entregue", hora: "10:00" },
-  { id: "4", tipo: "risco", cliente: "Marcos Andrade", telefone: "(11) 95432-1098", mensagem: "Oi Marcos! Sentimos sua falta! Já faz 32 dias. Agende agora com 10% de desconto: barberos.com/barbearia-costa", status: "lido", hora: "10:00" },
-  { id: "5", tipo: "pix", cliente: "Pedro Silva", telefone: "(11) 98765-4321", mensagem: "Olá Pedro! Segue o PIX para seu corte de hoje: R$ 65,00. Chave PIX: barberos.com/pix/1234", status: "lido", hora: "09:15" },
-]
+type Cliente = { id: string; name: string; phone: string }
 
 const automacoesMock = [
   { id: "1", nome: "Confirmação de agendamento", descricao: "Enviada 24h antes do horário", ativa: true, tipo: "confirmacao", enviadas: 47 },
@@ -30,224 +25,237 @@ const tipoStyle: Record<string, string> = {
 }
 
 const tipoLabel: Record<string, string> = {
-  confirmacao: "Confirmação",
-  lembrete: "Lembrete",
-  risco: "Risco",
-  pix: "PIX",
-  aniversario: "Aniversário",
-  avaliacao: "Avaliação",
+  confirmacao: "Confirmação", lembrete: "Lembrete", risco: "Risco",
+  pix: "PIX", aniversario: "Aniversário", avaliacao: "Avaliação",
 }
 
-const statusStyle: Record<string, string> = {
-  entregue: "text-green-400",
-  lido: "text-blue-400",
-  falhou: "text-red-400",
-  pendente: "text-amber-400",
+const TEMPLATES = [
+  { label: "Lembrete", texto: (nome: string) => `Olá ${nome}! Lembrando do seu horário na Barbearia Costa. Qualquer dúvida é só chamar! 💈` },
+  { label: "Retorno", texto: (nome: string) => `Olá ${nome}! Sentimos sua falta por aqui 😊 Que tal agendar um horário? Estamos te esperando!` },
+  { label: "Promoção", texto: (nome: string) => `Olá ${nome}! Temos uma novidade especial para você. Entre em contato para saber mais! 🎉` },
+  { label: "Confirmação PIX", texto: (nome: string) => `Olá ${nome}! Seu pagamento foi confirmado. Obrigado pela preferência! ✅` },
+]
+
+function ClienteCombobox({ onSelect }: { onSelect: (c: Cliente | null) => void }) {
+  const [busca, setBusca] = useState("")
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [todos, setTodos] = useState<Cliente[]>([])
+  const [aberto, setAberto] = useState(false)
+  const [selecionado, setSelecionado] = useState<Cliente | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch("/api/clientes").then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setTodos(d)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!busca) { setClientes(todos.slice(0, 8)); return }
+    const q = busca.toLowerCase()
+    setClientes(todos.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 8))
+  }, [busca, todos])
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  function selecionar(c: Cliente) {
+    setSelecionado(c)
+    setBusca(c.name)
+    setAberto(false)
+    onSelect(c)
+  }
+
+  function limpar() {
+    setSelecionado(null)
+    setBusca("")
+    onSelect(null)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-green-500 transition-colors">
+        <input
+          value={busca}
+          onChange={e => { setBusca(e.target.value); setAberto(true); if (selecionado) { setSelecionado(null); onSelect(null) } }}
+          onFocus={() => setAberto(true)}
+          placeholder="Buscar cliente por nome ou telefone..."
+          className="flex-1 bg-transparent text-white px-3 py-2 text-sm outline-none placeholder:text-zinc-600"
+        />
+        {selecionado && (
+          <button onClick={limpar} className="px-3 text-zinc-500 hover:text-white transition-colors text-sm">✕</button>
+        )}
+      </div>
+      {aberto && clientes.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden">
+          {clientes.map(c => (
+            <button key={c.id} type="button"
+              onMouseDown={() => selecionar(c)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-700 transition-colors text-left">
+              <div className="w-7 h-7 rounded-full bg-zinc-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                {c.name.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <div className="text-white text-sm font-medium truncate">{c.name}</div>
+                <div className="text-zinc-500 text-xs font-mono">{c.phone}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {aberto && busca && clientes.length === 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 px-3 py-3 text-zinc-600 text-sm">
+          Nenhum cliente encontrado
+        </div>
+      )}
+    </div>
+  )
 }
 
-const statusLabel: Record<string, string> = {
-  entregue: "✓ Entregue",
-  lido: "✓✓ Lido",
-  falhou: "✕ Falhou",
-  pendente: "⏱ Pendente",
+function FormEnvio({ onEnviado }: { onEnviado?: () => void }) {
+  const [cliente, setCliente] = useState<Cliente | null>(null)
+  const [mensagem, setMensagem] = useState("")
+  const [status, setStatus] = useState<"idle" | "enviando" | "ok" | "erro">("idle")
+
+  async function handleEnviar() {
+    if (!cliente || !mensagem.trim()) return
+    setStatus("enviando")
+    const result = await enviarWhatsApp(cliente.phone, mensagem)
+    setStatus(result.ok ? "ok" : "erro")
+    if (result.ok) {
+      setTimeout(() => { setStatus("idle"); setMensagem(""); setCliente(null); onEnviado?.() }, 2500)
+    } else {
+      setTimeout(() => setStatus("idle"), 3000)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-zinc-400 text-xs mb-1.5 block">Cliente *</label>
+        <ClienteCombobox onSelect={setCliente} />
+        {cliente && (
+          <div className="mt-1.5 text-xs text-zinc-500 font-mono">
+            Telefone: {cliente.phone}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="text-zinc-400 text-xs mb-1.5 block">Mensagem *</label>
+        <textarea
+          value={mensagem}
+          onChange={e => setMensagem(e.target.value)}
+          rows={4}
+          placeholder="Digite a mensagem..."
+          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 transition-colors placeholder:text-zinc-600 resize-none"
+        />
+      </div>
+
+      <div>
+        <div className="text-zinc-500 text-xs mb-2">Templates rápidos:</div>
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.map(t => (
+            <button key={t.label} type="button"
+              onClick={() => setMensagem(t.texto(cliente?.name ?? "cliente"))}
+              className="text-xs px-2 py-1 rounded-md bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-green-500/30 hover:text-green-400 transition-colors">
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={handleEnviar}
+        disabled={!cliente || !mensagem.trim() || status === "enviando"}
+        className={`w-full font-semibold px-4 py-2.5 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+          status === "ok" ? "bg-green-500/30 text-green-400 border-green-500/30" :
+          status === "erro" ? "bg-red-500/20 text-red-400 border-red-500/20" :
+          "bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/20"
+        }`}
+      >
+        {status === "enviando" ? "Enviando..." : status === "ok" ? "✓ Enviado!" : status === "erro" ? "✕ Erro ao enviar" : "Enviar mensagem"}
+      </button>
+    </div>
+  )
 }
 
 export default function WhatsAppPage() {
-  const [aba, setAba] = useState<"automacoes" | "historico" | "enviar">("automacoes")
+  const [aba, setAba] = useState<"automacoes" | "enviar">("enviar")
   const [automacoes, setAutomacoes] = useState(automacoesMock)
-  const [modalEnviar, setModalEnviar] = useState(false)
-  const [mensagemManual, setMensagemManual] = useState("")
-  const [clienteManual, setClienteManual] = useState("")
 
   function toggleAutomacao(id: string) {
     setAutomacoes(prev => prev.map(a => a.id === id ? { ...a, ativa: !a.ativa } : a))
   }
 
-  const totalEnviadas = automacoes.reduce((s, a) => s + a.enviadas, 0)
   const ativas = automacoes.filter(a => a.ativa).length
 
   return (
     <DashboardLayout>
-
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-white text-xl font-bold">WhatsApp Automático</h1>
-          <p className="text-zinc-500 text-sm">Evolution API · {ativas} automações ativas · {totalEnviadas} mensagens enviadas</p>
+          <h1 className="text-white text-xl font-bold">WhatsApp</h1>
+          <p className="text-zinc-500 text-sm">Evolution API · {ativas} automações ativas</p>
         </div>
-        <button
-          onClick={() => setModalEnviar(true)}
-          className="bg-green-500/20 hover:bg-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm border border-green-500/20 transition-colors font-medium"
-        >
-          💬 Enviar mensagem
-        </button>
-      </div>
-
-      {/* Status da conexão */}
-      <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3 mb-4 flex items-center gap-3">
-        <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-        <div className="flex-1">
-          <div className="text-green-400 text-sm font-medium">WhatsApp conectado · Evolution API</div>
-          <div className="text-zinc-500 text-xs">Número: (11) 99999-0000 · Barbearia Costa</div>
-        </div>
-        <div className="text-right">
-          <div className="text-green-400 text-xs font-mono">{totalEnviadas} msgs</div>
-          <div className="text-zinc-600 text-xs">este mês</div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-green-400 text-xs">Conectado</span>
         </div>
       </div>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
         {[
-          { id: "automacoes", label: "⚡ Automações" },
-          { id: "historico", label: "📋 Histórico" },
-          { id: "enviar", label: "💬 Envio manual" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setAba(tab.id as any)}
+          { id: "enviar", label: "Envio manual" },
+          { id: "automacoes", label: "Automações" },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setAba(tab.id as any)}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
               aba === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
+            }`}>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Aba Automações */}
+      {/* Envio manual */}
+      {aba === "enviar" && (
+        <div className="max-w-lg">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <FormEnvio />
+          </div>
+        </div>
+      )}
+
+      {/* Automações */}
       {aba === "automacoes" && (
         <div className="space-y-3">
-          {automacoes.map((auto) => (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-amber-400 text-sm mb-2">
+            As automações serão implementadas em breve. Por enquanto use o envio manual.
+          </div>
+          {automacoes.map(auto => (
             <div key={auto.id} className={`bg-zinc-900 border rounded-xl p-4 flex items-center gap-4 transition-all ${auto.ativa ? "border-zinc-700" : "border-zinc-800 opacity-60"}`}>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-white text-sm font-medium">{auto.nome}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${tipoStyle[auto.tipo]}`}>
-                    {tipoLabel[auto.tipo]}
-                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${tipoStyle[auto.tipo]}`}>{tipoLabel[auto.tipo]}</span>
                 </div>
                 <div className="text-zinc-500 text-xs">{auto.descricao}</div>
                 <div className="text-zinc-600 text-xs mt-1">{auto.enviadas} mensagens enviadas</div>
               </div>
-
-              {/* Toggle */}
-              <div
-                onClick={() => toggleAutomacao(auto.id)}
-                className={`w-11 h-6 rounded-full cursor-pointer transition-all relative flex-shrink-0 ${auto.ativa ? "bg-green-500" : "bg-zinc-700"}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${auto.ativa ? "left-6" : "left-1"}`}></div>
+              <div onClick={() => toggleAutomacao(auto.id)}
+                className={`w-11 h-6 rounded-full cursor-pointer transition-all relative flex-shrink-0 ${auto.ativa ? "bg-green-500" : "bg-zinc-700"}`}>
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${auto.ativa ? "left-6" : "left-1"}`} />
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Aba Histórico */}
-      {aba === "historico" && (
-        <div className="space-y-3">
-          {mensagensMock.map((msg) => (
-            <div key={msg.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-white text-sm font-medium">{msg.cliente}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${tipoStyle[msg.tipo]}`}>
-                    {tipoLabel[msg.tipo]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={`text-xs ${statusStyle[msg.status]}`}>{statusLabel[msg.status]}</span>
-                  <span className="text-zinc-600 text-xs font-mono">{msg.hora}</span>
-                </div>
-              </div>
-              <div className="text-zinc-500 text-xs">{msg.telefone}</div>
-              <div className="bg-zinc-800 rounded-lg p-3 mt-2">
-                <div className="text-zinc-300 text-sm leading-relaxed">{msg.mensagem}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Aba Envio manual */}
-      {aba === "enviar" && (
-        <div className="max-w-lg">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Cliente *</label>
-              <input
-                value={clienteManual}
-                onChange={(e) => setClienteManual(e.target.value)}
-                placeholder="Buscar cliente..."
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 transition-colors placeholder:text-zinc-600"
-              />
-            </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Mensagem *</label>
-              <textarea
-                value={mensagemManual}
-                onChange={(e) => setMensagemManual(e.target.value)}
-                rows={4}
-                placeholder="Digite a mensagem..."
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 transition-colors placeholder:text-zinc-600 resize-none"
-              />
-            </div>
-
-            {/* Templates rápidos */}
-            <div>
-              <div className="text-zinc-500 text-xs mb-2">Templates rápidos:</div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Lembrete de agendamento",
-                  "Promoção especial",
-                  "Convite para retorno",
-                  "Confirmação de PIX",
-                ].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setMensagemManual(`Olá! ${t} - Barbearia Costa`)}
-                    className="text-xs px-2 py-1 rounded-md bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-green-500/30 hover:text-green-400 transition-colors"
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors"
-            >
-              💬 Enviar via WhatsApp
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal enviar */}
-      {modalEnviar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Enviar mensagem</h2>
-              <button onClick={() => setModalEnviar(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Cliente</label>
-                <input placeholder="Buscar cliente..." className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 transition-colors placeholder:text-zinc-600" />
-              </div>
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Mensagem</label>
-                <textarea rows={3} placeholder="Digite a mensagem..." className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 transition-colors placeholder:text-zinc-600 resize-none" />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setModalEnviar(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button onClick={() => setModalEnviar(false)} className="flex-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">Enviar</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </DashboardLayout>
   )
 }
