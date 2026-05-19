@@ -41,6 +41,7 @@ export default function ClientePerfilPage() {
   const { id } = useParams()
   const router = useRouter()
   const [aba, setAba] = useState<"perfil" | "historico" | "financeiro">("perfil")
+  const [apptExpandido, setApptExpandido] = useState<string | null>(null)
   const [cliente, setCliente] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState("")
@@ -404,19 +405,87 @@ export default function ClientePerfilPage() {
               <div className="text-zinc-600 text-xs mt-1">por visita</div>
             </div>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Últimos pagamentos</div>
-            {agendamentos.slice(0, 5).map((a: any, i: number) => (
-              <div key={a.id} className="flex justify-between py-2 border-b border-zinc-800 last:border-0">
-                <div>
-                  <div className="text-white text-sm">{a.service?.name || "—"}</div>
-                  <div className="text-zinc-500 text-xs">{new Date(a.scheduledAt).toLocaleDateString("pt-BR")}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-amber-400 font-bold font-mono">R$ {a.service?.price || "—"}</div>
-                </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-800">
+              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Pagamentos</div>
+            </div>
+            {agendamentos.length === 0 ? (
+              <div className="p-6 text-center text-zinc-600 text-sm">Nenhum pagamento</div>
+            ) : (
+              <div className="divide-y divide-zinc-800">
+                {agendamentos.map((a: any) => {
+                  const produtos = a.produtos ?? []
+                  const totalProdutos = produtos.reduce((s: number, m: any) => s + m.quantity * (m.unitPrice ?? m.product?.salePrice ?? 0), 0)
+                  const totalAppt = (a.payment?.amount ?? a.service?.price ?? 0)
+                  const expandido = apptExpandido === a.id
+
+                  return (
+                    <div key={a.id}>
+                      {/* Linha clicável */}
+                      <button
+                        type="button"
+                        onClick={() => setApptExpandido(expandido ? null : a.id)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-800/40 transition-colors text-left"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-white text-sm font-medium">
+                            {a.service?.name || "—"}
+                            {produtos.length > 0 && (
+                              <span className="text-zinc-500 font-normal"> + {produtos.length} produto{produtos.length > 1 ? "s" : ""}</span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500 text-xs mt-0.5">
+                            {new Date(a.scheduledAt).toLocaleDateString("pt-BR")} · {a.professional?.name?.split(" ")[0]}
+                            {a.payment?.method && <span className="ml-1 text-zinc-600">· {a.payment.method}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-amber-400 font-bold font-mono">R$ {totalAppt.toFixed(2)}</div>
+                          <span className={`text-zinc-600 text-xs transition-transform ${expandido ? "rotate-90" : ""}`} style={{ display: "inline-block", transition: "transform 0.15s" }}>›</span>
+                        </div>
+                      </button>
+
+                      {/* Detalhes expandidos */}
+                      {expandido && (
+                        <div className="bg-zinc-800/40 px-4 pb-3 pt-1 space-y-1.5 border-t border-zinc-800/60">
+                          {/* Serviço */}
+                          <div className="flex justify-between text-sm">
+                            <span className="text-zinc-400">{a.service?.name}</span>
+                            <span className="text-white font-mono">R$ {(a.service?.price ?? 0).toFixed(2)}</span>
+                          </div>
+                          {/* Produtos */}
+                          {produtos.map((m: any) => (
+                            <div key={m.id} className="flex justify-between text-sm">
+                              <span className="text-zinc-400">{m.product?.name} <span className="text-zinc-600 text-xs">×{m.quantity}</span></span>
+                              <span className="text-white font-mono">R$ {(m.quantity * (m.unitPrice ?? m.product?.salePrice ?? 0)).toFixed(2)}</span>
+                            </div>
+                          ))}
+                          {/* Total e cashback */}
+                          <div className="flex justify-between text-sm pt-1 border-t border-zinc-700">
+                            <span className="text-white font-semibold">Total</span>
+                            <span className="text-amber-400 font-bold font-mono">R$ {totalAppt.toFixed(2)}</span>
+                          </div>
+                          {/* Cashback da transação */}
+                          {cliente.loyaltyAccount?.transactions?.find((t: any) =>
+                            Math.abs(new Date(t.createdAt).getTime() - new Date(a.scheduledAt).getTime()) < 60000 * 5
+                          ) && (() => {
+                            const tx = cliente.loyaltyAccount.transactions.find((t: any) =>
+                              Math.abs(new Date(t.createdAt).getTime() - new Date(a.scheduledAt).getTime()) < 60000 * 5
+                            )
+                            return (
+                              <div className="flex justify-between text-xs text-green-400">
+                                <span>Cashback gerado</span>
+                                <span className="font-mono">+ R$ {tx.amount.toFixed(2)}</span>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
