@@ -357,7 +357,9 @@ export default function CaixaPage() {
                 {detalheTipo ? (
                   <div className="flex items-center gap-2">
                     <button onClick={() => setDetalheTipo(null)} className="text-zinc-500 hover:text-white transition-colors text-sm">← Voltar</button>
-                    <h2 className="text-white font-bold">{linhas.find(l => l.tipo === detalheTipo)?.label}</h2>
+                    <h2 className="text-white font-bold">
+                      {detalheTipo === "SALDO" ? "Saldo esperado" : linhas.find(l => l.tipo === detalheTipo)?.label}
+                    </h2>
                   </div>
                 ) : (
                   <h2 className="text-white font-bold">Fechar Caixa</h2>
@@ -369,28 +371,53 @@ export default function CaixaPage() {
                 /* Visão analítica */
                 <div className="p-5 space-y-3">
                   <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Por método de pagamento</div>
-                  {breakdownPorMetodo(detalheTipo).map(([metodoNome, dados]) => (
-                    <div key={metodoNome} className="bg-zinc-800 rounded-xl overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-white text-sm font-medium">{metodoNome}</span>
-                          <span className="text-zinc-600 text-xs">{dados.count} lançamento{dados.count !== 1 ? "s" : ""}</span>
-                        </div>
-                        <span className={`font-bold font-mono text-sm ${linhas.find(l => l.tipo === detalheTipo)?.cor ?? "text-white"}`}>
-                          {fmtMoeda(dados.valor)}
-                        </span>
-                      </div>
-                      {/* Detalhes individuais */}
-                      {dados.items.map(item => (
-                        <div key={item.id} className="flex justify-between px-4 py-1.5 border-t border-zinc-700/60">
-                          <span className="text-zinc-400 text-xs truncate max-w-[200px]">{item.descricao}</span>
-                          <span className="text-zinc-300 text-xs font-mono flex-shrink-0 ml-2">R$ {item.valor.toFixed(2)}</span>
+
+                  {detalheTipo === "SALDO" ? (
+                    /* Saldo: agrupa todos os lançamentos por método (sem histórico) */
+                    (() => {
+                      const grupos: Record<string, number> = {}
+                      for (const l of lancamentos) {
+                        const key = metodoLabel(l.method) || "Sem método"
+                        const sinal = l.tipo === "RECEITA" ? 1 : -1
+                        grupos[key] = (grupos[key] ?? 0) + l.valor * sinal
+                      }
+                      return Object.entries(grupos)
+                        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                        .map(([nome, val]) => (
+                          <div key={nome} className="bg-zinc-800 rounded-xl flex items-center justify-between px-4 py-3">
+                            <span className="text-white text-sm font-medium">{nome}</span>
+                            <span className={`font-bold font-mono text-sm ${val >= 0 ? "text-green-400" : "text-red-400"}`}>
+                              {val >= 0 ? "+" : "−"} {fmtMoeda(Math.abs(val))}
+                            </span>
+                          </div>
+                        ))
+                    })()
+                  ) : (
+                    /* Receita/Despesa/Sangria: agrupa com histórico */
+                    <>
+                      {breakdownPorMetodo(detalheTipo).map(([metodoNome, dados]) => (
+                        <div key={metodoNome} className="bg-zinc-800 rounded-xl overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white text-sm font-medium">{metodoNome}</span>
+                              <span className="text-zinc-600 text-xs">{dados.count} lançamento{dados.count !== 1 ? "s" : ""}</span>
+                            </div>
+                            <span className={`font-bold font-mono text-sm ${linhas.find(l => l.tipo === detalheTipo)?.cor ?? "text-white"}`}>
+                              {fmtMoeda(dados.valor)}
+                            </span>
+                          </div>
+                          {dados.items.map(item => (
+                            <div key={item.id} className="flex justify-between px-4 py-1.5 border-t border-zinc-700/60">
+                              <span className="text-zinc-400 text-xs truncate max-w-[200px]">{item.descricao}</span>
+                              <span className="text-zinc-300 text-xs font-mono flex-shrink-0 ml-2">R$ {item.valor.toFixed(2)}</span>
+                            </div>
+                          ))}
                         </div>
                       ))}
-                    </div>
-                  ))}
-                  {breakdownPorMetodo(detalheTipo).length === 0 && (
-                    <div className="text-zinc-600 text-sm text-center py-4">Nenhum lançamento</div>
+                      {breakdownPorMetodo(detalheTipo).length === 0 && (
+                        <div className="text-zinc-600 text-sm text-center py-4">Nenhum lançamento</div>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (
@@ -408,10 +435,14 @@ export default function CaixaPage() {
                         <span className={`font-mono font-bold text-sm ${cor}`}>{fmtMoeda(total)}</span>
                       </button>
                     ))}
-                    <div className="flex justify-between px-4 py-3 bg-zinc-700/30">
-                      <span className="text-white text-sm font-bold">Saldo esperado</span>
+                    <button type="button" onClick={() => setDetalheTipo("SALDO")}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-zinc-700/30 hover:bg-zinc-700/50 transition-colors group">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-bold">Saldo esperado</span>
+                        <span className="text-zinc-500 text-xs group-hover:text-zinc-400 transition-colors">ver detalhes →</span>
+                      </div>
                       <span className="text-white font-mono font-bold">{fmtMoeda(saldo)}</span>
-                    </div>
+                    </button>
                   </div>
                   <div>
                     <label className="text-zinc-400 text-xs mb-1 block">Valor em caixa (contagem física)</label>
