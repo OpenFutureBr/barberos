@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import BotaoWhatsApp from "@/components/ui/BotaoWhatsApp"
 
 function fmtMoeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -300,14 +301,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="py-2.5 pr-4 text-zinc-500 text-xs">{fmtDataCurta(c.ultimaVisita)}</td>
                       <td className="py-2.5">
-                        <a
-                          href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-lg transition-colors"
-                        >
-                          💬 WhatsApp
-                        </a>
+                        <BotaoWhatsApp telefone={c.phone} nome={c.name} />
                       </td>
                     </tr>
                   ))}
