@@ -286,9 +286,17 @@ export default function AssinaturasPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-zinc-500 border-t border-zinc-800 pt-2">
-                  <span>{p.subscriptions.length} assinante{p.subscriptions.length !== 1 ? "s" : ""}</span>
-                  <button onClick={() => abrirModalPlano(p)} className="text-zinc-500 hover:text-zinc-200 transition-colors">✏ Editar</button>
+                <div className="border-t border-zinc-800 pt-2 space-y-1.5">
+                  <button
+                    onClick={() => { setAba("assinantes"); setPainelAberto(true); setPlanoSelecionado(p.id) }}
+                    className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-medium py-1.5 rounded-lg border border-amber-500/20 transition-colors"
+                  >
+                    + Adicionar assinante
+                  </button>
+                  <div className="flex items-center justify-between text-xs text-zinc-500">
+                    <span>{p.subscriptions.length} assinante{p.subscriptions.length !== 1 ? "s" : ""}</span>
+                    <button onClick={() => abrirModalPlano(p)} className="text-zinc-500 hover:text-zinc-200 transition-colors">✏ Editar</button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -456,7 +464,7 @@ export default function AssinaturasPage() {
               {categorias.length > 0 && (
                 <div>
                   <label className="text-zinc-400 text-xs mb-2 block">Categorias de serviço cobertas pelo plano</label>
-                  <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {categorias.map(cat => (
                       <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
                         <div
