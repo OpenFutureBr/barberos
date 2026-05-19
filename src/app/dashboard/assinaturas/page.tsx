@@ -77,9 +77,14 @@ export default function AssinaturasPage() {
     ]).then(([p, a, svcs]) => {
       if (Array.isArray(p)) setPlanos(p)
       if (Array.isArray(a)) setAssinantes(a)
+      // Lista fixa de categorias (mesma do cadastro de serviços)
+      const fixas = ["Corte", "Barba", "Combo", "Química", "Tratamento", "Premium"]
       if (Array.isArray(svcs)) {
-        const cats = [...new Set(svcs.map((s: any) => s.category).filter(Boolean))] as string[]
-        setCategorias(cats)
+        const doDb = svcs.map((s: any) => s.category).filter(Boolean) as string[]
+        const todas = [...new Set([...fixas, ...doDb])]
+        setCategorias(todas)
+      } else {
+        setCategorias(fixas)
       }
     }).catch(console.error)
     .finally(() => setLoading(false))
