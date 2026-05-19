@@ -27,6 +27,7 @@ model Establishment {
   inscricaoMunicipal  String?
   regimeTributario    String?
   businessHours       Json?
+  cashbackConfig      Json?
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt

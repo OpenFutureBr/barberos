@@ -81,6 +81,12 @@ export default function ConfiguracoesPage() {
   const [inscricaoMunicipal, setInscricaoMunicipal] = useState("")
   const [regimeTributario, setRegimeTributario] = useState("Simples Nacional")
   const [businessHours, setBusinessHours] = useState(defaultHours)
+  const [cashbackConfig, setCashbackConfig] = useState({
+    servicos: 7,
+    domicilio: 5,
+    produtos: 3,
+    assinaturas: 10,
+  })
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -110,6 +116,9 @@ export default function ConfiguracoesPage() {
         setLogoUrl(d.logoUrl ?? null)
         if (d.businessHours && Array.isArray(d.businessHours)) {
           setBusinessHours(d.businessHours)
+        }
+        if (d.cashbackConfig && typeof d.cashbackConfig === "object") {
+          setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
         }
       })
       .catch(console.error)
@@ -158,6 +167,7 @@ export default function ConfiguracoesPage() {
           inscricaoMunicipal: inscricaoMunicipal || null,
           regimeTributario: regimeTributario || null,
           businessHours,
+          cashbackConfig,
           logoUrl: logoUrl?.split("?")[0],
         }),
       })
@@ -394,6 +404,33 @@ export default function ConfiguracoesPage() {
                   ) : (
                     <span className="text-zinc-600 text-xs">Fechado</span>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cashback */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-1">Cashback por categoria</div>
+            <p className="text-zinc-600 text-xs mb-4">Percentual creditado automaticamente ao cliente após cada pagamento confirmado.</p>
+            <div className="space-y-3">
+              {([
+                { key: "servicos", label: "Serviços presenciais" },
+                { key: "domicilio", label: "Serviços a domicílio" },
+                { key: "produtos", label: "Produtos (PDV)" },
+                { key: "assinaturas", label: "Planos / Assinaturas" },
+              ] as const).map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-4">
+                  <span className="flex-1 text-white text-sm">{label}</span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range" min="0" max="20" step="1"
+                      value={cashbackConfig[key]}
+                      onChange={e => setCashbackConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
+                      className="w-28 accent-amber-500"
+                    />
+                    <span className="text-amber-400 font-bold text-sm w-8 text-right">{cashbackConfig[key]}%</span>
+                  </div>
                 </div>
               ))}
             </div>

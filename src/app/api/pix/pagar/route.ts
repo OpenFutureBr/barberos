@@ -1,11 +1,18 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
-// Percentual de cashback padrão por valor do serviço
-function calcularPercentual(valor: number): number {
-  if (valor >= 150) return 8
-  if (valor >= 80) return 7
-  return 5
+type CashbackConfig = { servicos: number; domicilio: number; produtos: number; assinaturas: number }
+
+const defaultCashbackConfig: CashbackConfig = { servicos: 7, domicilio: 5, produtos: 3, assinaturas: 10 }
+
+async function getCashbackConfig(): Promise<CashbackConfig> {
+  try {
+    const estab = await prisma.establishment.findUnique({ where: { id: "estab001" }, select: { cashbackConfig: true } })
+    if (estab?.cashbackConfig && typeof estab.cashbackConfig === "object") {
+      return { ...defaultCashbackConfig, ...(estab.cashbackConfig as object) }
+    }
+  } catch {}
+  return defaultCashbackConfig
 }
 
 function calcularNivel(totalGasto: number): "BRONZE" | "SILVER" | "GOLD" | "VIP" {
@@ -50,7 +57,9 @@ export async function POST(request: Request) {
     // Credita cashback se encontrou o cliente
     if (appt?.client) {
       const clientId = appt.client.id
-      const pct = calcularPercentual(valorPago)
+      const cashbackCfg = await getCashbackConfig()
+      const isdomicilio = appt.serviceType === "HOME_VISIT"
+      const pct = isdomicilio ? cashbackCfg.domicilio : cashbackCfg.servicos
       const cashbackValor = Math.round(valorPago * (pct / 100) * 100) / 100
 
       // Upsert da conta de fidelidade

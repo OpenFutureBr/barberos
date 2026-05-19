@@ -33,6 +33,7 @@ export async function PUT(request: Request) {
         inscricaoMunicipal: body.inscricaoMunicipal || null,
         regimeTributario: body.regimeTributario || null,
         businessHours: body.businessHours ?? undefined,
+        cashbackConfig: body.cashbackConfig ?? undefined,
         ...(body.logoUrl ? { logoUrl: body.logoUrl } : {}),
       },
     })

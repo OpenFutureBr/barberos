@@ -3,14 +3,6 @@
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
-const configCashback = [
-  { id: "1", servico: "Corte de Cabelo", percentual: 5 },
-  { id: "2", servico: "Corte + Barba", percentual: 7 },
-  { id: "3", servico: "Barba Completa", percentual: 5 },
-  { id: "4", servico: "Progressiva / Escova", percentual: 8 },
-  { id: "5", servico: "Pacote VIP", percentual: 10 },
-  { id: "6", servico: "Domicílio (qualquer)", percentual: 5 },
-]
 
 const nivelStyle: Record<string, string> = {
   VIP: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
@@ -58,8 +50,7 @@ type HistoricoItem = {
 }
 
 export default function CashbackPage() {
-  const [aba, setAba] = useState<"config" | "ranking" | "historico">("ranking")
-  const [percentuais, setPercentuais] = useState(configCashback)
+  const [aba, setAba] = useState<"ranking" | "historico">("ranking")
   const [loading, setLoading] = useState(true)
 
   const [saldoAtivo, setSaldoAtivo] = useState(0)
@@ -129,7 +120,6 @@ export default function CashbackPage() {
         {[
           { id: "ranking", label: "Ranking" },
           { id: "historico", label: "Histórico" },
-          { id: "config", label: "Configuração" },
         ].map(tab => (
           <button key={tab.id} onClick={() => setAba(tab.id as any)}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
@@ -217,35 +207,6 @@ export default function CashbackPage() {
         </div>
       )}
 
-      {/* Configuração */}
-      {aba === "config" && (
-        <div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden mb-3">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Percentual de cashback por serviço</div>
-              <div className="text-zinc-600 text-xs mt-0.5">Configuração local — integração com pagamentos em breve</div>
-            </div>
-            <div className="divide-y divide-zinc-800">
-              {percentuais.map(item => (
-                <div key={item.id} className="flex items-center gap-4 px-4 py-3">
-                  <div className="flex-1 text-white text-sm">{item.servico}</div>
-                  <div className="flex items-center gap-2">
-                    <input type="range" min="0" max="20" value={item.percentual}
-                      onChange={e => updatePercentual(item.id, parseInt(e.target.value))}
-                      className="w-24 accent-amber-500" />
-                    <div className="w-10 text-right">
-                      <span className="text-amber-400 font-bold text-sm">{item.percentual}%</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-amber-400 text-sm">
-            Os percentuais serão aplicados automaticamente ao confirmar pagamentos via PIX.
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   )
 }
