@@ -30,6 +30,13 @@ function gerarPix(chave: string, nome: string, cidade: string, valor: number): s
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
+export type ComandaItem = {
+  productId: string
+  nome: string
+  qty: number
+  unitPrice: number
+}
+
 export type DadosPagamento = {
   appointmentId: string
   clientName: string
@@ -37,6 +44,7 @@ export type DadosPagamento = {
   professionalName?: string
   scheduledAt?: string
   amount: number
+  comandaItens?: ComandaItem[]
 }
 
 type MetodoPag = "PIX" | "CASH" | "CARD_CREDITO" | "CARD_DEBITO"
@@ -92,6 +100,23 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado }: Props)
         body: JSON.stringify({ appointmentId: dados.appointmentId, method, amount: dados.amount }),
       })
       if (res.ok) {
+        // Registra cada produto da comanda como movimento SAIDA
+        if (dados.comandaItens && dados.comandaItens.length > 0) {
+          await Promise.all(dados.comandaItens.map(item =>
+            fetch("/api/estoque/movimentos", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                productId: item.productId,
+                type: "SAIDA",
+                quantity: item.qty,
+                unitPrice: item.unitPrice,
+                appointmentId: dados.appointmentId,
+                reason: `Comanda - ${dados.clientName}`,
+              }),
+            })
+          ))
+        }
         onFechar()
         onConfirmado?.(dados.appointmentId)
       }

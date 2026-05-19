@@ -210,6 +210,12 @@ export default function AgendaPage() {
         professionalName: apptSelecionado.professional?.name ?? "",
         scheduledAt: apptSelecionado.scheduledAt,
         amount: precoCorte + totalProdutos,
+        comandaItens: itensComanda.map((i: any) => ({
+          productId: i.produto.id,
+          nome: i.produto.name,
+          qty: i.qty,
+          unitPrice: i.produto.salePrice,
+        })),
       },
     }))
   }
