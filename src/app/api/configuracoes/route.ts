@@ -14,6 +14,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
+
     const estab = await prisma.establishment.update({
       where: { id: "estab001" },
       data: {
@@ -37,6 +38,21 @@ export async function PUT(request: Request) {
         ...(body.logoUrl ? { logoUrl: body.logoUrl } : {}),
       },
     })
+
+    // Grava versão histórica na tabela dedicada sempre que o cashback mudar
+    if (body.cashbackConfig && typeof body.cashbackConfig === "object") {
+      const cfg = body.cashbackConfig as Record<string, number>
+      await prisma.cashbackConfig.create({
+        data: {
+          servicos:    Number(cfg.servicos    ?? 7),
+          domicilio:   Number(cfg.domicilio   ?? 5),
+          produtos:    Number(cfg.produtos    ?? 3),
+          assinaturas: Number(cfg.assinaturas ?? 10),
+          establishmentId: "estab001",
+        },
+      })
+    }
+
     return NextResponse.json(estab)
   } catch (error) {
     console.error("[PUT /api/configuracoes]", error)

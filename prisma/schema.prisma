@@ -40,6 +40,7 @@ model Establishment {
   subscriptionPlans SubscriptionPlan[]
   users             User[]
   pricingRules      PricingRule[]
+  cashbackConfigs   CashbackConfig[]
 
   @@map("establishments")
 }
@@ -366,13 +367,19 @@ model LoyaltyAccount {
 }
 
 model LoyaltyTransaction {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   type             String
   amount           Float
   description      String?
-  createdAt        DateTime       @default(now())
+  servicoBase      Float?
+  servicoRate      Float?
+  produtoBase      Float?
+  produtoRate      Float?
+  createdAt        DateTime        @default(now())
   loyaltyAccountId String
-  loyaltyAccount   LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id])
+  cashbackConfigId String?
+  loyaltyAccount   LoyaltyAccount  @relation(fields: [loyaltyAccountId], references: [id])
+  cashbackConfig   CashbackConfig? @relation(fields: [cashbackConfigId], references: [id])
 
   @@map("loyalty_transactions")
 }
@@ -441,6 +448,20 @@ model PricingRule {
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   @@map("pricing_rules")
+}
+
+model CashbackConfig {
+  id              String               @id @default(cuid())
+  servicos        Float                @default(7)
+  domicilio       Float                @default(5)
+  produtos        Float                @default(3)
+  assinaturas     Float                @default(10)
+  establishmentId String
+  createdAt       DateTime             @default(now())
+  establishment   Establishment        @relation(fields: [establishmentId], references: [id])
+  transactions    LoyaltyTransaction[]
+
+  @@map("cashback_configs")
 }
 
 model UserSchedule {

@@ -5,8 +5,15 @@ type CashbackConfig = { servicos: number; domicilio: number; produtos: number; a
 
 const defaultCashbackConfig: CashbackConfig = { servicos: 7, domicilio: 5, produtos: 3, assinaturas: 10 }
 
-async function getCashbackConfig(): Promise<CashbackConfig> {
+async function getCashbackConfig(): Promise<CashbackConfig & { id?: string }> {
   try {
+    // Busca a versão mais recente da tabela histórica
+    const cfg = await prisma.cashbackConfig.findFirst({
+      where: { establishmentId: "estab001" },
+      orderBy: { createdAt: "desc" },
+    })
+    if (cfg) return cfg
+    // Fallback: lê do JSON do estabelecimento
     const estab = await prisma.establishment.findUnique({ where: { id: "estab001" }, select: { cashbackConfig: true } })
     if (estab?.cashbackConfig && typeof estab.cashbackConfig === "object") {
       return { ...defaultCashbackConfig, ...(estab.cashbackConfig as object) }
@@ -92,13 +99,18 @@ export async function POST(request: Request) {
         },
       })
 
-      // Registra a transação de cashback
+      // Registra a transação com auditoria completa dos percentuais aplicados
       await prisma.loyaltyTransaction.create({
         data: {
           loyaltyAccountId: loyaltyAccount.id,
           type: "EARNED",
           amount: cashbackValor,
           description: descricao,
+          servicoBase: valorServico,
+          servicoRate: pctServico,
+          produtoBase: valorProdutos > 0 ? valorProdutos : null,
+          produtoRate: valorProdutos > 0 ? pctProduto : null,
+          ...(cashbackCfg.id ? { cashbackConfigId: cashbackCfg.id } : {}),
         },
       })
 
