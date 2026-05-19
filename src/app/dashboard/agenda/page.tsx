@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
@@ -81,6 +81,7 @@ export default function AgendaPage() {
   const [dragAppt, setDragAppt] = useState<any>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [movendo, setMovendo] = useState(false)
+  const gridRef = useRef<HTMLDivElement>(null)
 
   // Carrega comandas do sessionStorage ao montar
   useEffect(() => {
@@ -131,6 +132,14 @@ export default function AgendaPage() {
     const interval = setInterval(calcularLinha, 60000)
     return () => clearInterval(interval)
   }, [dataSelecionada, hojeISO])
+
+  // Auto-scroll para a hora atual ao abrir
+  useEffect(() => {
+    if (linhaVermelha === null || !gridRef.current) return
+    // Mostra 2 horas antes da hora atual para dar contexto
+    const scrollY = Math.max(0, linhaVermelha - SLOT_HEIGHT * 2)
+    gridRef.current.scrollTo({ top: scrollY, behavior: "smooth" })
+  }, [linhaVermelha, loadingProfs])
 
   const janela6Dias = gerarJanela6Dias(iniciJanela)
 
@@ -502,8 +511,8 @@ export default function AgendaPage() {
 
         /* ── VISÃO SEMANAL DO PROFISSIONAL ── */
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-          {/* Cabeçalho com 6 datas */}
-          <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(6, 1fr)` }}>
+          {/* Cabeçalho com 6 datas — sticky */}
+          <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(6, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
             {janela6Dias.map((data) => {
               const isToday = data === hojeISO
@@ -554,9 +563,9 @@ export default function AgendaPage() {
       ) : (
 
         /* ── VISÃO GERAL POR PROFISSIONAL ── */
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-          {/* Cabeçalho profissionais */}
-          <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, 1fr)` }}>
+        <div ref={gridRef} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
+          {/* Cabeçalho profissionais — sticky */}
+          <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
             {profissionaisExibidos.map((prof) => (
               <div key={prof.id} className="p-2 flex flex-col items-center gap-1 border-r border-zinc-800 last:border-0">
