@@ -4,6 +4,17 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
+function tempoComoCliente(createdAt: string): string {
+  const dias = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000)
+  if (dias < 1) return "hoje"
+  if (dias < 30) return `${dias}d`
+  const meses = Math.floor(dias / 30)
+  if (meses < 12) return `${meses}m`
+  const anos = Math.floor(dias / 365)
+  const mesesResto = Math.floor((dias % 365) / 30)
+  return mesesResto > 0 ? `${anos}a ${mesesResto}m` : `${anos}a`
+}
+
 const segmentoStyle: Record<string, string> = {
   VIP: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
   REGULAR: "bg-green-500/10 text-green-400 border border-green-500/20",
@@ -230,7 +241,9 @@ export default function ClientesPage() {
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Cliente</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Telefone</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Email</th>
+                <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Corte preferido</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Produto preferido</th>
+                <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Cliente há</th>
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Status</th>
               </tr>
             </thead>
@@ -251,11 +264,14 @@ export default function ClientesPage() {
                   </td>
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.phone}</td>
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.email || "—"}</td>
-                  <td className="px-4 py-3">
-                    {cliente.produtoFavorito
-                      ? <span className="text-zinc-300 text-sm">{cliente.produtoFavorito}</span>
-                      : <span className="text-zinc-700 text-sm">—</span>
-                    }
+                  <td className="px-4 py-3 text-zinc-300 text-sm">
+                    {cliente.cortePreferido ?? <span className="text-zinc-700">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-300 text-sm">
+                    {cliente.produtoFavorito ?? <span className="text-zinc-700">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400 text-sm font-mono">
+                    {tempoComoCliente(cliente.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${segmentoStyle[cliente.segment] ?? segmentoStyle.NEW}`}>

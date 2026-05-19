@@ -12,10 +12,10 @@ export async function GET() {
         where: { establishmentId: "estab001", isActive: true },
         orderBy: { createdAt: "desc" },
       }),
-      // Appointments só para mapear clientId → appointmentId
+      // Appointments para mapear clientId → appointmentId + corte preferido
       prisma.appointment.findMany({
-        where: { establishmentId: "estab001" },
-        select: { id: true, clientId: true },
+        where: { establishmentId: "estab001", status: "DONE" as any },
+        select: { id: true, clientId: true, service: { select: { name: true } } },
       }),
       // Todos os movimentos SAIDA com produto
       prisma.stockMovement.findMany({
@@ -26,7 +26,25 @@ export async function GET() {
 
     // Mapa appointmentId → clientId
     const apptCliente: Record<string, string> = {}
-    for (const a of appts) apptCliente[a.id] = a.clientId
+    // Corte preferido: clientId → { serviceName → count }
+    const cortePorCliente: Record<string, Record<string, number>> = {}
+    for (const a of appts) {
+      apptCliente[a.id] = a.clientId
+      if (a.service?.name) {
+        if (!cortePorCliente[a.clientId]) cortePorCliente[a.clientId] = {}
+        const s = a.service.name
+        cortePorCliente[a.clientId][s] = (cortePorCliente[a.clientId][s] ?? 0) + 1
+      }
+    }
+
+    // Corte favorito por cliente (maior frequência; empate → alfabético)
+    const cortePreferido: Record<string, string> = {}
+    for (const [clientId, servicos] of Object.entries(cortePorCliente)) {
+      const sorted = Object.entries(servicos).sort((a, b) =>
+        b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
+      )
+      if (sorted.length > 0) cortePreferido[clientId] = sorted[0][0]
+    }
 
     // Agrupa: clientId → produtoNome → quantidade total
     const qtdPorCliente: Record<string, Record<string, number>> = {}
@@ -51,6 +69,7 @@ export async function GET() {
     const resultado = clientes.map(c => ({
       ...c,
       produtoFavorito: produtoFavorito[c.id] ?? null,
+      cortePreferido: cortePreferido[c.id] ?? null,
     }))
 
     return NextResponse.json(resultado)
