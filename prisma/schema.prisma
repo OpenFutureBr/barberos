@@ -385,17 +385,19 @@ model LoyaltyTransaction {
 }
 
 model SubscriptionPlan {
-  id              String         @id @default(cuid())
-  name            String
-  description     String?
-  price           Float
-  services        String[]
-  isActive        Boolean        @default(true)
-  establishmentId String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  establishment   Establishment  @relation(fields: [establishmentId], references: [id])
-  subscriptions   Subscription[]
+  id                String         @id @default(cuid())
+  name              String
+  description       String?
+  price             Float
+  cortesIncluidos   Int            @default(4)
+  atendedomicilio   Boolean        @default(false)
+  services          String[]
+  isActive          Boolean        @default(true)
+  establishmentId   String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  establishment     Establishment  @relation(fields: [establishmentId], references: [id])
+  subscriptions     Subscription[]
 
   @@map("subscription_plans")
 }
