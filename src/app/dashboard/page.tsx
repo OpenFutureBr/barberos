@@ -53,7 +53,10 @@ type Appt = {
 
 type DashData = {
   faturamento: number; atendimentos: number; ticketMedio: number
-  clientesVip: number; pendentes: number; mesAtualClientes: number; mesAnteriorClientes: number
+  clientesVip: number; pendentes: number; cancelados: number
+  mesAtualClientes: number; mesAnteriorClientes: number
+  topServicos: { nome: string; count: number; receita: number }[]
+  topProdutos: { nome: string; qtd: number; receita: number }[]
 }
 
 type CaixaData = { caixa: { id: string; closedAt: string | null } | null; lancamentos: any[] }
@@ -167,8 +170,11 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
 
+      {/* ── STICKY: CABEÇALHO + FILTRO + KPIs ── */}
+      <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
+
       {/* ── CABEÇALHO ── */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-zinc-500 text-sm">{SAUDACAO()}</div>
           <h1 className="text-white text-2xl font-bold tracking-tight mt-0.5">
@@ -214,12 +220,12 @@ export default function DashboardPage() {
       </div>
 
       {/* ── KPIs PRINCIPAIS ── */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-4 gap-3">
 
         {/* Faturamento */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
-          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Faturamento hoje</div>
+          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Faturamento</div>
           {loading
             ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
             : <div className="text-amber-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.faturamento ?? 0)}</div>
@@ -242,7 +248,12 @@ export default function DashboardPage() {
               </div>
             )
           }
-          <div className="text-zinc-600 text-xs mt-1">concluídos hoje</div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-zinc-600 text-xs">concluídos</span>
+            {(dados?.cancelados ?? 0) > 0 && (
+              <span className="text-red-400/60 text-xs">{dados?.cancelados} cancelado{dados?.cancelados !== 1 ? "s" : ""}</span>
+            )}
+          </div>
         </div>
 
         {/* Ticket médio */}
@@ -256,7 +267,7 @@ export default function DashboardPage() {
           <div className="text-zinc-600 text-xs mt-1">por atendimento</div>
         </div>
 
-        {/* Caixa */}
+        {/* Caixa — sempre atual */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
           <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${caixaAberto ? "via-green-500/60" : "via-zinc-600/40"} to-transparent`} />
           <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Saldo no caixa</div>
@@ -264,10 +275,14 @@ export default function DashboardPage() {
             ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
             : <div className={`text-2xl font-bold tabular-nums ${caixaAberto ? "text-white" : "text-zinc-600"}`}>{fmtMoeda(saldoCaixa)}</div>
           }
-          <div className="text-zinc-600 text-xs mt-1">{lancamentos.length} lançamentos</div>
+          <div className="text-zinc-600 text-xs mt-1">saldo atual · {lancamentos.length} lançamentos</div>
         </div>
 
       </div>
+
+      </div>{/* fim sticky */}
+
+      <div className="mt-4">
 
       {/* ── LINHA CENTRAL ── */}
       <div className="grid grid-cols-5 gap-4 mb-4">
@@ -471,6 +486,83 @@ export default function DashboardPage() {
 
         </div>
       </div>
+
+      {/* ── TOP SERVIÇOS E PRODUTOS ── */}
+      <div className="grid grid-cols-2 gap-4 mt-4">
+
+        {/* Top serviços */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Top serviços</div>
+            <span className="text-zinc-700 text-xs">no período</span>
+          </div>
+          {loading ? (
+            <div className="p-4 space-y-2">{[1,2,3].map(i=><div key={i} className="h-8 bg-zinc-800 rounded animate-pulse"/>)}</div>
+          ) : !dados?.topServicos?.length ? (
+            <div className="p-6 text-center text-zinc-700 text-sm">Sem dados no período</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {dados.topServicos.map((s, i) => {
+                const max = dados.topServicos[0].count
+                return (
+                  <div key={s.nome}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-600 text-xs w-4">{i+1}</span>
+                        <span className="text-zinc-200 text-sm">{s.nome}</span>
+                        <span className="text-zinc-600 text-xs">{s.count}×</span>
+                      </div>
+                      <span className="text-zinc-400 text-xs font-mono">{fmtMoeda(s.receita)}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-zinc-600"}`}
+                        style={{ width: `${(s.count / max) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Top produtos */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Top produtos vendidos</div>
+            <span className="text-zinc-700 text-xs">no período</span>
+          </div>
+          {loading ? (
+            <div className="p-4 space-y-2">{[1,2,3].map(i=><div key={i} className="h-8 bg-zinc-800 rounded animate-pulse"/>)}</div>
+          ) : !dados?.topProdutos?.length ? (
+            <div className="p-6 text-center text-zinc-700 text-sm">Sem vendas de produtos no período</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {dados.topProdutos.map((p, i) => {
+                const max = dados.topProdutos[0].qtd
+                return (
+                  <div key={p.nome}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-600 text-xs w-4">{i+1}</span>
+                        <span className="text-zinc-200 text-sm">{p.nome}</span>
+                        <span className="text-zinc-600 text-xs">{p.qtd} un.</span>
+                      </div>
+                      <span className="text-zinc-400 text-xs font-mono">{fmtMoeda(p.receita)}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${i === 0 ? "bg-blue-500" : "bg-zinc-600"}`}
+                        style={{ width: `${(p.qtd / max) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      </div>{/* fim mt-4 */}
 
     </DashboardLayout>
   )
