@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 type DetalheItem = { label: string; valor: number }
@@ -248,8 +248,8 @@ export default function CaixaPage() {
                 const expandido = expandidoId === l.id
                 const clicavel = !!l.detalhes
                 return (
-                  <>
-                    <tr key={l.id}
+                  <React.Fragment key={l.id}>
+                    <tr
                       onClick={() => clicavel && setExpandidoId(expandido ? null : l.id)}
                       className={`border-b border-zinc-800 transition-colors ${i === lancamentos.length - 1 && !expandido ? "border-0" : ""} ${clicavel ? "hover:bg-zinc-800/40 cursor-pointer" : ""} ${expandido ? "bg-zinc-800/30" : ""}`}>
                       <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(l.createdAt)}</td>
@@ -274,7 +274,7 @@ export default function CaixaPage() {
                       </td>
                     </tr>
                     {expandido && l.detalhes && (
-                      <tr key={`${l.id}-det`} className="border-b border-zinc-800">
+                      <tr className="border-b border-zinc-800">
                         <td />
                         <td colSpan={3} className="px-4 pb-3 pt-0">
                           <div className="bg-zinc-800/60 rounded-lg overflow-hidden">
@@ -292,7 +292,7 @@ export default function CaixaPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
             </tbody>
