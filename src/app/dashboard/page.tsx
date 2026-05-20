@@ -12,6 +12,39 @@ function fmtPct(v: number) {
 }
 function hojeStr() { return new Date().toISOString().split("T")[0] }
 
+function navDia(iso: string, delta: number) {
+  const d = new Date(iso + "T12:00:00")
+  d.setDate(d.getDate() + delta)
+  return d.toISOString().split("T")[0]
+}
+
+type Periodo = "hoje" | "ontem" | "semana" | "mes" | "custom"
+
+function calcRange(p: Periodo): { from: string; to: string } {
+  const n = new Date()
+  const hoje = n.toISOString().split("T")[0]
+  if (p === "hoje") return { from: hoje, to: hoje }
+  if (p === "ontem") { const d = navDia(hoje, -1); return { from: d, to: d } }
+  if (p === "semana") {
+    const dow = n.getDay()
+    const seg = navDia(hoje, -dow + (dow === 0 ? -6 : 1))
+    return { from: seg, to: hoje }
+  }
+  if (p === "mes") {
+    const from = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`
+    return { from, to: hoje }
+  }
+  return { from: hoje, to: hoje }
+}
+
+const PERIODOS: { key: Periodo; label: string }[] = [
+  { key: "hoje",   label: "Hoje" },
+  { key: "ontem",  label: "Ontem" },
+  { key: "semana", label: "Esta semana" },
+  { key: "mes",    label: "Este mês" },
+  { key: "custom", label: "Período" },
+]
+
 type Appt = {
   id: string; status: string; scheduledAt: string
   client: { name: string }; service: { name: string; price: number; durationMin: number }
@@ -44,6 +77,9 @@ export default function DashboardPage() {
   const [evolucao, setEvolucao] = useState<{ mes: number; label: string; valor: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [estab, setEstab] = useState<{ name: string } | null>(null)
+  const [periodo, setPeriodo] = useState<Periodo>("hoje")
+  const [customFrom, setCustomFrom] = useState(hojeStr())
+  const [customTo, setCustomTo] = useState(hojeStr())
 
   // Relógio ao vivo
   useEffect(() => {
@@ -58,11 +94,14 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [])
 
+  const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
+
   const fetchDados = useCallback(async () => {
+    const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
     const hoje = hojeStr()
     try {
       const [dashRes, apptsRes, caixaRes, estabRes] = await Promise.all([
-        fetch(`/api/dashboard?from=${hoje}&to=${hoje}`).then(r => r.json()),
+        fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()),
         fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()),
         fetch("/api/caixa").then(r => r.json()),
         fetch("/api/configuracoes").then(r => r.json()),
@@ -79,7 +118,7 @@ export default function DashboardPage() {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { fetchDados() }, [fetchDados])
+  useEffect(() => { fetchDados() }, [fetchDados, periodo, customFrom, customTo])
   useEffect(() => {
     window.addEventListener("pagamentoConfirmado", fetchDados)
     return () => window.removeEventListener("pagamentoConfirmado", fetchDados)
@@ -144,6 +183,34 @@ export default function DashboardPage() {
             {caixaAberto ? "Caixa aberto" : "Caixa fechado"}
           </div>
         </div>
+      </div>
+
+      {/* ── FILTRO DE PERÍODO ── */}
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
+        <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5">
+          {PERIODOS.map(p => (
+            <button key={p.key} onClick={() => setPeriodo(p.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                periodo === p.key ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-zinc-200"
+              }`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periodo === "custom" && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
+            <span className="text-zinc-600 text-xs">até</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
+          </div>
+        )}
+        {periodo !== "hoje" && (
+          <div className="text-zinc-600 text-xs ml-1">
+            {range.from === range.to ? range.from : `${range.from} → ${range.to}`}
+          </div>
+        )}
       </div>
 
       {/* ── KPIs PRINCIPAIS ── */}
