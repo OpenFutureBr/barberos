@@ -279,6 +279,8 @@ export default function AgendaPage() {
     const serviceId = dragAppt.serviceId ?? dragAppt.service?.id
     const podeServico = prof?.userServices?.some((us: any) => us.serviceId === serviceId)
     if (!podeServico) return false
+    // Se for domicílio, barbeiro deve atender a domicílio
+    if (dragAppt.serviceType === "HOME_VISIT" && !prof?.attendsHome) return false
     // Sem conflito de horário
     const apptsList = profFiltro ? (agendamentosSemana[data] ?? []) : agendamentos
     const breakProf = prof?.breakBetweenAppts ?? 10
