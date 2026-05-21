@@ -320,7 +320,6 @@ export default function AgendaPage() {
     // Sem conflito de horário
     const apptsList = profFiltro ? (agendamentosSemana[data] ?? []) : agendamentos
     const breakProf = prof?.breakBetweenAppts ?? 10
-    const duracaoAppt = dragAppt.service?.durationMin ?? 30
     const novIni = slotTime
     const novFim = adicionarMinutos(novIni, duracaoAppt + breakProf)
     return !apptsList.some(a => {
