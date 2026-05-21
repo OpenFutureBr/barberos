@@ -143,10 +143,12 @@ model Client {
   loyaltyLevel     LoyaltyLevel    @default(BRONZE)
   segment          ClientSegment   @default(NEW)
   avgVisitInterval Int?
-  lastVisitAt      DateTime?
-  totalSpent       Float           @default(0)
-  favoritoCorte    String?
-  favoritoProduto  String?
+  lastVisitAt        DateTime?
+  totalSpent         Float           @default(0)
+  totalAtendimentos  Int             @default(0)
+  ticketMedio        Float           @default(0)
+  favoritoCorte      String?
+  favoritoProduto    String?
   establishmentId  String
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

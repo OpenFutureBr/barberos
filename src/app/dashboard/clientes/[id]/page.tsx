@@ -42,6 +42,8 @@ export default function ClientePerfilPage() {
   const router = useRouter()
   const [aba, setAba] = useState<"perfil" | "historico" | "financeiro">("perfil")
   const [apptExpandido, setApptExpandido] = useState<string | null>(null)
+  const [historicoTake, setHistoricoTake] = useState(10)
+  const [financeiroTake, setFinanceiroTake] = useState(10)
   const [cliente, setCliente] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState("")
@@ -187,14 +189,23 @@ export default function ClientePerfilPage() {
 
   const idade = calcularIdade(cliente.birthDate)
   const agendamentos = cliente.appointments || []
-  const totalGasto = agendamentos.reduce((s: number, a: any) => s + (a.service?.price || 0), 0)
-  const ticketMedio = agendamentos.length > 0 ? Math.round(totalGasto / agendamentos.length) : 0
-  const ultimaVisita = agendamentos[0]?.scheduledAt
-    ? new Date(agendamentos[0].scheduledAt).toLocaleDateString("pt-BR")
-    : "—"
+  // Dados físicos — calculados e salvos no momento do pagamento
+  const totalGasto = cliente.totalSpent ?? 0
+  const ticketMedio = cliente.ticketMedio ?? 0
+  const ultimaVisita = cliente.lastVisitAt
+    ? new Date(cliente.lastVisitAt).toLocaleDateString("pt-BR")
+    : agendamentos[0]?.scheduledAt
+      ? new Date(agendamentos[0].scheduledAt).toLocaleDateString("pt-BR")
+      : "—"
 
   return (
     <DashboardLayout>
+
+      {/* Botão voltar */}
+      <button onClick={() => router.back()}
+        className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm mb-4 transition-colors">
+        ← Voltar
+      </button>
 
       {/* Header do cliente */}
       <div className="flex items-start gap-5 mb-6 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -352,6 +363,17 @@ export default function ClientePerfilPage() {
       {/* Aba Histórico */}
       {aba === "historico" && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+            <span className="text-zinc-500 text-xs">{Math.min(historicoTake, agendamentos.length)} de {agendamentos.length} agendamentos</span>
+            <div className="flex items-center gap-0.5 bg-zinc-800 rounded-lg p-0.5">
+              {[10, 30, 50, 100].map(n => (
+                <button key={n} onClick={() => setHistoricoTake(n)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${historicoTake === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
           {agendamentos.length === 0 ? (
             <div className="p-8 text-center text-zinc-600 text-sm">Nenhum agendamento encontrado</div>
           ) : (
@@ -366,8 +388,8 @@ export default function ClientePerfilPage() {
                 </tr>
               </thead>
               <tbody>
-                {agendamentos.map((a: any, i: number) => (
-                  <tr key={a.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === agendamentos.length - 1 ? "border-0" : ""}`}>
+                {agendamentos.slice(0, historicoTake).map((a: any, i: number) => (
+                  <tr key={a.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === Math.min(historicoTake, agendamentos.length) - 1 ? "border-0" : ""}`}>
                     <td className="px-4 py-3 text-zinc-400 text-sm font-mono">
                       {new Date(a.scheduledAt).toLocaleDateString("pt-BR")}
                     </td>
@@ -406,14 +428,22 @@ export default function ClientePerfilPage() {
             </div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Pagamentos</div>
+              <div className="flex items-center gap-0.5 bg-zinc-800 rounded-lg p-0.5">
+                {[10, 30, 50, 100].map(n => (
+                  <button key={n} onClick={() => setFinanceiroTake(n)}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${financeiroTake === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
             {agendamentos.length === 0 ? (
               <div className="p-6 text-center text-zinc-600 text-sm">Nenhum pagamento</div>
             ) : (
               <div className="divide-y divide-zinc-800">
-                {agendamentos.map((a: any) => {
+                {agendamentos.slice(0, financeiroTake).map((a: any) => {
                   const produtos = a.produtos ?? []
                   const totalProdutos = produtos.reduce((s: number, m: any) => s + m.quantity * (m.unitPrice ?? m.product?.salePrice ?? 0), 0)
                   const totalAppt = (a.payment?.amount ?? a.service?.price ?? 0)

@@ -33,7 +33,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
           payment: { select: { amount: true, method: true } },
         },
         orderBy: { scheduledAt: "desc" },
-        take: 10,
+        take: 100,
       }),
     ])
 

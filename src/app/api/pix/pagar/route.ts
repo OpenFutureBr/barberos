@@ -168,13 +168,18 @@ export async function POST(request: Request) {
         b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
       )[0]?.[0] ?? null
 
-      // Atualiza saldo, nível e favoritos do cliente
+      // Atualiza saldo, nível, favoritos e métricas materializadas
       const novoTotal = appt.client.totalSpent + valorPago
+      const novasVisitas = appt.client.totalAtendimentos + 1
+      const novoTicketMedio = Math.round((novoTotal / novasVisitas) * 100) / 100
+
       await prisma.client.update({
         where: { id: clientId },
         data: {
           cashbackBalance: { increment: cashbackValor },
           totalSpent: { increment: valorPago },
+          totalAtendimentos: { increment: 1 },
+          ticketMedio: novoTicketMedio,
           lastVisitAt: new Date(),
           loyaltyLevel: calcularNivel(novoTotal) as any,
           favoritoCorte,
