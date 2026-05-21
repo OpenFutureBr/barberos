@@ -58,7 +58,11 @@ export default function PainelTVPage() {
   const [appts, setAppts] = useState<Appt[]>([])
   const [youtubeUrl, setYoutubeUrl] = useState("")
   const [configModal, setConfigModal] = useState(false)
-  const [urlInput, setUrlInput] = useState("")
+  // Múltiplas playlists
+  const [playlists, setPlaylists] = useState<{ label: string; url: string }[]>([])
+  const [playlistAtiva, setPlaylistAtiva] = useState(0)
+  const [novaPlaylistLabel, setNovaPlaylistLabel] = useState("")
+  const [novaPlaylistUrl, setNovaPlaylistUrl] = useState("")
 
   // Relógio
   useEffect(() => {
@@ -87,11 +91,17 @@ export default function PainelTVPage() {
     return () => { window.removeEventListener("logoAtualizada", onLogo); window.removeEventListener("estabelecimentoAtualizado", onEstab) }
   }, [])
 
-  // URL do YouTube do localStorage
+  // Playlists do localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("painel_youtube_url") ?? ""
-    setYoutubeUrl(saved)
-    setUrlInput(saved)
+    try {
+      const saved = JSON.parse(localStorage.getItem("painel_playlists") ?? "[]")
+      if (Array.isArray(saved) && saved.length > 0) {
+        setPlaylists(saved)
+        const idx = parseInt(localStorage.getItem("painel_playlist_ativa") ?? "0")
+        setPlaylistAtiva(Math.min(idx, saved.length - 1))
+        setYoutubeUrl(saved[Math.min(idx, saved.length - 1)]?.url ?? "")
+      }
+    } catch {}
   }, [])
 
   // Fila de espera
@@ -115,10 +125,27 @@ export default function PainelTVPage() {
     return () => clearInterval(t)
   }, [fetchFila])
 
-  function salvarYoutube() {
-    localStorage.setItem("painel_youtube_url", urlInput)
-    setYoutubeUrl(urlInput)
-    setConfigModal(false)
+  function adicionarPlaylist() {
+    if (!novaPlaylistUrl.trim()) return
+    const nova = { label: novaPlaylistLabel.trim() || `Playlist ${playlists.length + 1}`, url: novaPlaylistUrl.trim() }
+    const novas = [...playlists, nova]
+    setPlaylists(novas)
+    localStorage.setItem("painel_playlists", JSON.stringify(novas))
+    setNovaPlaylistLabel("")
+    setNovaPlaylistUrl("")
+  }
+
+  function removerPlaylist(idx: number) {
+    const novas = playlists.filter((_, i) => i !== idx)
+    setPlaylists(novas)
+    localStorage.setItem("painel_playlists", JSON.stringify(novas))
+    if (playlistAtiva >= novas.length) selecionarPlaylist(Math.max(0, novas.length - 1))
+  }
+
+  function selecionarPlaylist(idx: number) {
+    setPlaylistAtiva(idx)
+    setYoutubeUrl(playlists[idx]?.url ?? "")
+    localStorage.setItem("painel_playlist_ativa", String(idx))
   }
 
   const embedUrl = buildIframeSrc(youtubeUrl)
@@ -167,7 +194,7 @@ export default function PainelTVPage() {
           <div className="text-zinc-500 text-xs capitalize">{dataStr}</div>
         </div>
 
-        {/* Voltar + config */}
+        {/* Config */}
         <div className="flex items-center gap-2">
           <button onClick={() => setConfigModal(true)}
             className="text-zinc-600 hover:text-zinc-400 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors">
@@ -175,10 +202,6 @@ export default function PainelTVPage() {
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
-          <a href="/dashboard"
-            className="text-zinc-500 hover:text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors">
-            ← Voltar
-          </a>
         </div>
       </header>
 
@@ -288,38 +311,60 @@ export default function PainelTVPage() {
         </div>
       </div>
 
-      {/* ── MODAL CONFIGURAÇÃO ── */}
+      {/* ── MODAL CONFIGURAÇÃO DE PLAYLISTS ── */}
       {configModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-white font-bold">Configurar vídeo YouTube</h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+              <h2 className="text-white font-bold">Playlists do YouTube</h2>
               <button onClick={() => setConfigModal(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
             </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">URL do vídeo ou ID</label>
-              <input
-                value={urlInput}
-                onChange={e => setUrlInput(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600"
-              />
-              <p className="text-zinc-600 text-xs mt-1">Cole a URL de um vídeo ou playlist do YouTube. Uma playlist permite navegar entre vídeos.</p>
-            </div>
-            {urlInput && !buildIframeSrc(urlInput) && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">
-                URL não reconhecida. Cole uma URL de vídeo ou playlist do YouTube.
+            <div className="p-5 space-y-4">
+
+              {/* Lista de playlists */}
+              {playlists.length === 0 ? (
+                <div className="text-zinc-600 text-sm text-center py-2">Nenhuma playlist cadastrada</div>
+              ) : (
+                <div className="space-y-2">
+                  {playlists.map((p, idx) => (
+                    <div key={idx} className={`flex items-center gap-2 p-3 rounded-xl border transition-colors cursor-pointer ${
+                      playlistAtiva === idx ? "bg-amber-500/10 border-amber-500/30" : "bg-zinc-800 border-zinc-700 hover:border-zinc-600"
+                    }`} onClick={() => { selecionarPlaylist(idx); setConfigModal(false) }}>
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${playlistAtiva === idx ? "bg-amber-500" : "bg-zinc-600"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium truncate ${playlistAtiva === idx ? "text-amber-400" : "text-white"}`}>{p.label}</div>
+                        <div className="text-zinc-600 text-xs truncate">{p.url}</div>
+                      </div>
+                      <button type="button" onClick={e => { e.stopPropagation(); removerPlaylist(idx) }}
+                        className="text-zinc-700 hover:text-red-400 transition-colors text-sm flex-shrink-0">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Adicionar nova */}
+              <div className="border-t border-zinc-800 pt-4 space-y-2">
+                <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Adicionar playlist</div>
+                <input
+                  value={novaPlaylistLabel}
+                  onChange={e => setNovaPlaylistLabel(e.target.value)}
+                  placeholder="Nome (ex: Trap, Lo-fi, Sertanejo)"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600"
+                />
+                <input
+                  value={novaPlaylistUrl}
+                  onChange={e => setNovaPlaylistUrl(e.target.value)}
+                  placeholder="URL do YouTube (vídeo ou playlist)"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600"
+                />
+                {novaPlaylistUrl && !buildIframeSrc(novaPlaylistUrl) && (
+                  <div className="text-red-400 text-xs">URL não reconhecida</div>
+                )}
+                <button onClick={adicionarPlaylist} disabled={!novaPlaylistUrl.trim() || !buildIframeSrc(novaPlaylistUrl)}
+                  className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-semibold py-2 rounded-lg text-sm transition-colors">
+                  + Adicionar
+                </button>
               </div>
-            )}
-            <div className="flex gap-3">
-              <button onClick={() => setConfigModal(false)}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm transition-colors">
-                Cancelar
-              </button>
-              <button onClick={salvarYoutube}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2.5 rounded-lg text-sm transition-colors">
-                Salvar
-              </button>
             </div>
           </div>
         </div>

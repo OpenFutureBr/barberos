@@ -11,7 +11,7 @@ const menuGroups = [
       { href: "/dashboard", label: "Dashboard", icon: "◈" },
       { href: "/dashboard/agenda", label: "Agenda", icon: "◷" },
       { href: "/dashboard/fila", label: "Fila de Espera", icon: "●" },
-      { href: "/dashboard/painel-tv", label: "Painel TV", icon: "📺" },
+      { href: "/dashboard/painel-tv", label: "Painel TV", icon: "📺", newTab: true },
     ],
   },
   {
@@ -197,6 +197,8 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    target={(item as any).newTab ? "_blank" : undefined}
+                    rel={(item as any).newTab ? "noopener noreferrer" : undefined}
                     className={`flex items-center gap-2 mx-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
                       isActive
                         ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
