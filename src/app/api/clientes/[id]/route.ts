@@ -33,7 +33,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
           payment: { select: { amount: true, method: true } },
         },
         orderBy: { scheduledAt: "desc" },
-        take: 100, // Limita a 100 visitas — mais do que suficiente para o perfil
+        take: 10,
       }),
     ])
 
