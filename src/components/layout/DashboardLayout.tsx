@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { setCache } from "@/lib/prefetch-cache"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -18,6 +19,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     function onTema(e: Event) { setIsLight((e as CustomEvent).detail === "light") }
     window.addEventListener("temaAlterado", onTema)
     return () => window.removeEventListener("temaAlterado", onTema)
+  }, [])
+
+  // Prefetch silencioso de dados frequentes ao carregar o dashboard
+  useEffect(() => {
+    // Clientes (primeira página) — maior gargalo atual
+    fetch("/api/clientes?page=1&perPage=30")
+      .then(r => r.json())
+      .then(d => { if (!d.error) setCache("clientes:1:30:", d) })
+      .catch(() => {})
+    // Configurações (usada em muitos modais)
+    fetch("/api/configuracoes")
+      .then(r => r.json())
+      .then(d => { if (!d.error) setCache("configuracoes", d) })
+      .catch(() => {})
   }, [])
 
   // Carrinho persistente — não some ao fechar o modal

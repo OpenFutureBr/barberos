@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
 
 function tempoComoCliente(createdAt: string): string {
   const dias = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000)
@@ -87,12 +88,30 @@ export default function ClientesPage() {
   useEffect(() => { buscarClientes() }, [page, perPage, busca])
 
   async function buscarClientes() {
+    const cacheKey = `clientes:${page}:${perPage}:${busca}`
+
+    // Stale-while-revalidate: mostra cache imediatamente se existir
+    const cached = getCache(cacheKey)
+    if (cached) {
+      setClientes(cached.clientes ?? [])
+      setTotal(cached.total ?? 0)
+      setTotalPages(cached.totalPages ?? 1)
+      setLoading(false)
+      // Atualiza em background silenciosamente
+      fetch(`/api/clientes?page=${page}&perPage=${perPage}${busca ? `&busca=${busca}` : ""}`)
+        .then(r => r.json())
+        .then(d => { if (!d.error) { setCache(cacheKey, d); setClientes(d.clientes ?? []); setTotal(d.total ?? 0) } })
+        .catch(() => {})
+      return
+    }
+
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
       if (busca) params.set("busca", busca)
       const res = await fetch(`/api/clientes?${params}`)
       const data = await res.json()
+      if (!data.error) setCache(cacheKey, data)
       setClientes(Array.isArray(data.clientes) ? data.clientes : [])
       setTotal(data.total ?? 0)
       setTotalPages(data.totalPages ?? 1)
@@ -181,6 +200,7 @@ export default function ClientesPage() {
         setErro(result.error || "Erro ao salvar cliente.")
         return
       }
+      invalidateCache("clientes:")
       await buscarClientes()
       fecharModal()
     } catch {
