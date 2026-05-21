@@ -134,7 +134,41 @@ export async function POST(request: Request) {
         },
       })
 
-      // Atualiza saldo e nível do cliente
+      // Calcula corte e produto favorito do cliente (materializa no registro)
+      const [todasAppts, todosMovs] = await Promise.all([
+        prisma.appointment.findMany({
+          where: { clientId, status: { notIn: ["CANCELLED", "NO_SHOW"] as any } },
+          select: { service: { select: { name: true } } },
+        }),
+        prisma.stockMovement.findMany({
+          where: {
+            type: "SAIDA",
+            appointmentId: { not: null },
+            appointment: { clientId } as any,
+          },
+          select: { quantity: true, product: { select: { name: true } } },
+        }),
+      ])
+
+      // Corte favorido: serviço mais frequente
+      const svcCount: Record<string, number> = {}
+      for (const a of todasAppts) {
+        if (a.service?.name) svcCount[a.service.name] = (svcCount[a.service.name] ?? 0) + 1
+      }
+      const favoritoCorte = Object.entries(svcCount).sort((a, b) =>
+        b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
+      )[0]?.[0] ?? null
+
+      // Produto favorito: produto mais vendido por quantidade
+      const prodCount: Record<string, number> = {}
+      for (const m of todosMovs) {
+        if (m.product?.name) prodCount[m.product.name] = (prodCount[m.product.name] ?? 0) + m.quantity
+      }
+      const favoritoProduto = Object.entries(prodCount).sort((a, b) =>
+        b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
+      )[0]?.[0] ?? null
+
+      // Atualiza saldo, nível e favoritos do cliente
       const novoTotal = appt.client.totalSpent + valorPago
       await prisma.client.update({
         where: { id: clientId },
@@ -143,6 +177,8 @@ export async function POST(request: Request) {
           totalSpent: { increment: valorPago },
           lastVisitAt: new Date(),
           loyaltyLevel: calcularNivel(novoTotal) as any,
+          favoritoCorte,
+          favoritoProduto,
         },
       })
     }

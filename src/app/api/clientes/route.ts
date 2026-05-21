@@ -1,15 +1,11 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
-
-
-
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
 
-    // Modo simples: apenas id, name, phone — sem análises pesadas
+    // Modo simples: apenas id, name, phone — para comboboxes
     if (searchParams.get("modo") === "simples") {
       const clientes = await prisma.client.findMany({
         where: { establishmentId: "estab001", isActive: true },
@@ -19,76 +15,42 @@ export async function GET(request: Request) {
       return NextResponse.json(clientes)
     }
 
-    const [clientes, appts, movimentos] = await Promise.all([
+    // Paginação
+    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"))
+    const perPage = [10, 30, 50].includes(parseInt(searchParams.get("perPage") ?? "30"))
+      ? parseInt(searchParams.get("perPage")!)
+      : 30
+    const busca = searchParams.get("busca") ?? ""
+
+    const where: any = {
+      establishmentId: "estab001",
+      isActive: true,
+      ...(busca ? {
+        OR: [
+          { name: { contains: busca, mode: "insensitive" } },
+          { phone: { contains: busca } },
+        ],
+      } : {}),
+    }
+
+    // Uma única query leve — favoritoCorte e favoritoProduto já estão no registro
+    const [total, clientes] = await Promise.all([
+      prisma.client.count({ where }),
       prisma.client.findMany({
-        where: { establishmentId: "estab001", isActive: true },
+        where,
         orderBy: { createdAt: "desc" },
-      }),
-      // Appointments para mapear clientId → appointmentId + corte preferido
-      // Conta todos exceto cancelados/no-show
-      prisma.appointment.findMany({
-        where: {
-          establishmentId: "estab001",
-          status: { notIn: ["CANCELLED", "NO_SHOW"] as any },
-        },
-        select: { id: true, clientId: true, service: { select: { name: true } } },
-      }),
-      // Todos os movimentos SAIDA com produto
-      prisma.stockMovement.findMany({
-        where: { type: "SAIDA", appointmentId: { not: null } },
-        select: { appointmentId: true, quantity: true, product: { select: { name: true } } },
+        skip: (page - 1) * perPage,
+        take: perPage,
       }),
     ])
 
-    // Mapa appointmentId → clientId
-    const apptCliente: Record<string, string> = {}
-    // Corte preferido: clientId → { serviceName → count }
-    const cortePorCliente: Record<string, Record<string, number>> = {}
-    for (const a of appts) {
-      apptCliente[a.id] = a.clientId
-      if (a.service?.name) {
-        if (!cortePorCliente[a.clientId]) cortePorCliente[a.clientId] = {}
-        const s = a.service.name
-        cortePorCliente[a.clientId][s] = (cortePorCliente[a.clientId][s] ?? 0) + 1
-      }
-    }
-
-    // Corte favorito por cliente (maior frequência; empate → alfabético)
-    const cortePreferido: Record<string, string> = {}
-    for (const [clientId, servicos] of Object.entries(cortePorCliente)) {
-      const sorted = Object.entries(servicos).sort((a, b) =>
-        b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
-      )
-      if (sorted.length > 0) cortePreferido[clientId] = sorted[0][0]
-    }
-
-    // Agrupa: clientId → produtoNome → quantidade total
-    const qtdPorCliente: Record<string, Record<string, number>> = {}
-    for (const m of movimentos) {
-      if (!m.appointmentId || !m.product?.name) continue
-      const clientId = apptCliente[m.appointmentId]
-      if (!clientId) continue
-      if (!qtdPorCliente[clientId]) qtdPorCliente[clientId] = {}
-      const nome = m.product.name
-      qtdPorCliente[clientId][nome] = (qtdPorCliente[clientId][nome] ?? 0) + m.quantity
-    }
-
-    // Produto favorito por cliente (maior qtd; empate → alfabético)
-    const produtoFavorito: Record<string, string> = {}
-    for (const [clientId, prods] of Object.entries(qtdPorCliente)) {
-      const sorted = Object.entries(prods).sort((a, b) =>
-        b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR")
-      )
-      if (sorted.length > 0) produtoFavorito[clientId] = sorted[0][0]
-    }
-
-    const resultado = clientes.map(c => ({
-      ...c,
-      produtoFavorito: produtoFavorito[c.id] ?? null,
-      cortePreferido: cortePreferido[c.id] ?? null,
-    }))
-
-    return NextResponse.json(resultado)
+    return NextResponse.json({
+      clientes,
+      total,
+      page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    })
   } catch (error) {
     console.error("Erro ao buscar clientes:", error)
     return NextResponse.json({ error: "Erro ao buscar clientes" }, { status: 500 })
@@ -98,8 +60,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    console.log("Criando cliente:", body)
-
     const cliente = await prisma.client.create({
       data: {
         name: body.name,
@@ -114,8 +74,6 @@ export async function POST(request: Request) {
         homeCity: body.homeCity || null,
       },
     })
-
-    console.log("Cliente criado:", cliente)
     return NextResponse.json(cliente)
   } catch (error) {
     console.error("Erro ao criar cliente:", error)

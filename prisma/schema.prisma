@@ -145,6 +145,8 @@ model Client {
   avgVisitInterval Int?
   lastVisitAt      DateTime?
   totalSpent       Float           @default(0)
+  favoritoCorte    String?
+  favoritoProduto  String?
   establishmentId  String
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

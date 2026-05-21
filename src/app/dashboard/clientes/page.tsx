@@ -56,11 +56,15 @@ function formatarTelefone(valor: string, digitos: number): string {
 
 export default function ClientesPage() {
   const router = useRouter()
-  const cacheClientes = useRef<any[] | null>(null)
 
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState("")
+  const [buscaInput, setBuscaInput] = useState("")
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(30)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState("")
@@ -80,21 +84,18 @@ export default function ClientesPage() {
 
   const pais = paises[paisIdx]
 
-  useEffect(() => { buscarClientes() }, [])
+  useEffect(() => { buscarClientes() }, [page, perPage, busca])
 
-  async function buscarClientes(forcar = false) {
-    if (cacheClientes.current && !forcar) {
-      setClientes(cacheClientes.current)
-      setLoading(false)
-      return
-    }
+  async function buscarClientes() {
     setLoading(true)
     try {
-      const res = await fetch("/api/clientes")
+      const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
+      if (busca) params.set("busca", busca)
+      const res = await fetch(`/api/clientes?${params}`)
       const data = await res.json()
-      const lista = Array.isArray(data) ? data : []
-      cacheClientes.current = lista
-      setClientes(lista)
+      setClientes(Array.isArray(data.clientes) ? data.clientes : [])
+      setTotal(data.total ?? 0)
+      setTotalPages(data.totalPages ?? 1)
     } catch {
       setErro("Erro ao carregar clientes")
     } finally {
@@ -180,8 +181,7 @@ export default function ClientesPage() {
         setErro(result.error || "Erro ao salvar cliente.")
         return
       }
-      cacheClientes.current = null
-      await buscarClientes(true)
+      await buscarClientes()
       fecharModal()
     } catch {
       setErro("Erro inesperado. Tente novamente.")
@@ -190,10 +190,11 @@ export default function ClientesPage() {
     }
   }
 
-  const clientesFiltrados = clientes.filter((c) =>
-    c.name?.toLowerCase().includes(busca.toLowerCase()) ||
-    c.phone?.includes(busca)
-  )
+  // Busca com debounce (600ms)
+  useEffect(() => {
+    const t = setTimeout(() => { setBusca(buscaInput); setPage(1) }, 600)
+    return () => clearTimeout(t)
+  }, [buscaInput])
 
   return (
     <DashboardLayout>
@@ -201,7 +202,7 @@ export default function ClientesPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Clientes</h1>
-          <p className="text-zinc-500 text-sm">{clientes.length} cadastrados</p>
+          <p className="text-zinc-500 text-sm">{total} cadastrados</p>
         </div>
         <button
           onClick={() => setModalAberto(true)}
@@ -211,19 +212,27 @@ export default function ClientesPage() {
         </button>
       </div>
 
-      <div className="mb-4">
+      <div className="flex items-center gap-3 mb-4">
         <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
+          value={buscaInput}
+          onChange={(e) => setBuscaInput(e.target.value)}
           placeholder="Buscar por nome ou telefone..."
-          className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
+          className="flex-1 bg-zinc-900 border border-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
         />
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+          {[10, 30, 50].map(n => (
+            <button key={n} onClick={() => { setPerPage(n); setPage(1) }}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${perPage === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-zinc-500 text-sm">Carregando clientes...</div>
-        ) : clientesFiltrados.length === 0 ? (
+        ) : clientes.length === 0 ? (
           <div className="p-8 text-center">
             <div className="text-zinc-600 text-sm mb-2">
               {busca ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado ainda"}
@@ -248,11 +257,11 @@ export default function ClientesPage() {
               </tr>
             </thead>
             <tbody>
-              {clientesFiltrados.map((cliente, i) => (
+              {clientes.map((cliente, i) => (
                 <tr
                   key={cliente.id}
                   onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
-                  className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer ${i === clientesFiltrados.length - 1 ? "border-0" : ""}`}
+                  className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer ${i === clientes.length - 1 ? "border-0" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -265,10 +274,10 @@ export default function ClientesPage() {
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.phone}</td>
                   <td className="px-4 py-3 text-zinc-400 text-sm">{cliente.email || "—"}</td>
                   <td className="px-4 py-3 text-zinc-300 text-sm">
-                    {cliente.cortePreferido ?? <span className="text-zinc-700">—</span>}
+                    {cliente.favoritoCorte ?? <span className="text-zinc-700">—</span>}
                   </td>
                   <td className="px-4 py-3 text-zinc-300 text-sm">
-                    {cliente.produtoFavorito ?? <span className="text-zinc-700">—</span>}
+                    {cliente.favoritoProduto ?? <span className="text-zinc-700">—</span>}
                   </td>
                   <td className="px-4 py-3 text-zinc-400 text-sm font-mono">
                     {tempoComoCliente(cliente.createdAt)}
@@ -284,6 +293,43 @@ export default function ClientesPage() {
           </table>
         )}
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-zinc-500 text-sm">
+            Exibindo {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} de {total}
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white disabled:opacity-30 hover:bg-zinc-800 transition-colors">
+              «
+            </button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white disabled:opacity-30 hover:bg-zinc-800 transition-colors">
+              ‹
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+              const p = start + i
+              return (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${p === page ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white hover:bg-zinc-800"}`}>
+                  {p}
+                </button>
+              )
+            })}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white disabled:opacity-30 hover:bg-zinc-800 transition-colors">
+              ›
+            </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white disabled:opacity-30 hover:bg-zinc-800 transition-colors">
+              »
+            </button>
+          </div>
+        </div>
+      )}
 
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
