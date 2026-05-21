@@ -110,7 +110,7 @@ export default function AgendaPage() {
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO)
   const [profFiltro, setProfFiltro] = useState<string>("") // "" = visão geral
   const [iniciJanela, setInicioJanela] = useState(hojeISO)
-  const [filtroStatus, setFiltroStatus] = useState<"ativos" | "todos" | "cancelados">("ativos")
+  const [filtroStatus, setFiltroStatus] = useState<"ativos" | "todos">("ativos")
 
   const isHoje = dataSelecionada === hojeISO
   const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", {
@@ -483,14 +483,12 @@ export default function AgendaPage() {
         <div className="flex items-center gap-2">
           {/* Filtro de status */}
           <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
-            {(["ativos", "todos", "cancelados"] as const).map((f) => (
+            {(["ativos", "todos"] as const).map((f) => (
               <button key={f} onClick={() => setFiltroStatus(f)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                  filtroStatus === f
-                    ? f === "cancelados" ? "bg-red-500/20 text-red-400" : "bg-zinc-700 text-white"
-                    : "text-zinc-500 hover:text-zinc-300"
+                  filtroStatus === f ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
                 }`}>
-                {f === "ativos" ? "Ativos" : f === "todos" ? "Todos" : "Cancelados"}
+                {f === "ativos" ? "Pendentes" : "Todos"}
               </button>
             ))}
           </div>
