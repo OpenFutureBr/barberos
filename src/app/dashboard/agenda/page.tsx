@@ -314,8 +314,8 @@ export default function AgendaPage() {
     const fimMin = fh * 60 + fm
     const duracaoAppt = dragAppt.service?.durationMin ?? 30
 
-    if (slotMin < iniMin) return false                  // antes da abertura
-    if (slotMin + duracaoAppt > fimMin) return false    // termina após o fechamento
+    if (slotMin < iniMin) return false    // antes da abertura
+    if (slotMin >= fimMin) return false   // início no encerramento ou depois
 
     // Sem conflito de horário
     const apptsList = profFiltro ? (agendamentosSemana[data] ?? []) : agendamentos
