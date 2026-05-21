@@ -505,7 +505,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     if (!profId || !servicoId) return true
     const temConflito = agendamentos.some((a) => {
       if (a.professionalId !== profId) return false
-      if (a.status === "CANCELLED" || a.status === "NO_SHOW") return false
+      if (["CANCELLED", "NO_SHOW", "DONE"].includes(a.status)) return false
       const inicioExistente = new Date(a.scheduledAt)
       const fimExistente = adicionarMinutos(inicioExistente, (a.service?.durationMin || 30) + descansoMin)
       return inicioNovo < fimExistente && fimNovo > inicioExistente

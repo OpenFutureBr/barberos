@@ -291,7 +291,7 @@ export default function AgendaPage() {
       if (a.id === dragAppt.id) return false
       if (a.professionalId !== profId) return false
       const st = statusOverride[a.id] ?? a.status
-      if (st === "CANCELLED" || st === "NO_SHOW") return false
+      if (["CANCELLED", "NO_SHOW", "DONE"].includes(st)) return false
       const ini = new Date(a.scheduledAt)
       const fim = adicionarMinutos(ini, (a.service?.durationMin ?? 30) + breakProf)
       return novIni < fim && novFim > ini
