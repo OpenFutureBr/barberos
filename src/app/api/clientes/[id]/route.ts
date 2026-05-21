@@ -1,41 +1,58 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
-
-
-
-
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const cliente = await prisma.client.findUnique({
-      where: { id },
-      include: {
-        appointments: {
-          where: { status: { not: "CANCELLED" as any } },
-          include: {
-            service: true,
-            professional: true,
-            payment: { select: { amount: true, method: true } },
+
+    // Roda cliente (dados básicos + loyalty) e agendamentos em PARALELO
+    const [cliente, appointments] = await Promise.all([
+      prisma.client.findUnique({
+        where: { id },
+        include: {
+          loyaltyAccount: {
+            include: {
+              transactions: {
+                orderBy: { createdAt: "desc" },
+                take: 20,
+                select: { id: true, type: true, amount: true, description: true, createdAt: true },
+              },
+            },
           },
-          orderBy: { scheduledAt: "desc" },
         },
-        loyaltyAccount: {
-          include: {
-            transactions: { orderBy: { createdAt: "desc" }, take: 20 },
-          },
+      }),
+      prisma.appointment.findMany({
+        where: { clientId: id, status: { not: "CANCELLED" as any } },
+        select: {
+          id: true,
+          scheduledAt: true,
+          status: true,
+          serviceType: true,
+          service: { select: { name: true, price: true, durationMin: true } },
+          professional: { select: { name: true } },
+          payment: { select: { amount: true, method: true } },
         },
-      },
-    })
+        orderBy: { scheduledAt: "desc" },
+        take: 100, // Limita a 100 visitas — mais do que suficiente para o perfil
+      }),
+    ])
 
     if (!cliente) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
 
-    // Busca produtos consumidos em cada agendamento
-    const apptIds = cliente.appointments.map(a => a.id)
-    const movimentos = apptIds.length > 0 ? await prisma.stockMovement.findMany({
-      where: { appointmentId: { in: apptIds }, type: "SAIDA" },
-      include: { product: { select: { name: true, salePrice: true } } },
-    }) : []
+    // Busca movimentos apenas para os agendamentos retornados (no máximo 100)
+    const apptIds = appointments.map(a => a.id)
+    const movimentos = apptIds.length > 0
+      ? await prisma.stockMovement.findMany({
+          where: { appointmentId: { in: apptIds }, type: "SAIDA" },
+          select: {
+            id: true,
+            appointmentId: true,
+            quantity: true,
+            unitPrice: true,
+            product: { select: { name: true, salePrice: true } },
+          },
+        })
+      : []
 
     // Agrupa movimentos por appointmentId
     const movPorAppt: Record<string, typeof movimentos> = {}
@@ -45,14 +62,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       movPorAppt[m.appointmentId].push(m)
     }
 
-    const clienteComProdutos = {
+    return NextResponse.json({
       ...cliente,
-      appointments: cliente.appointments.map(a => ({
-        ...a,
-        produtos: movPorAppt[a.id] ?? [],
-      })),
-    }
-    return NextResponse.json(clienteComProdutos)
+      appointments: appointments.map(a => ({ ...a, produtos: movPorAppt[a.id] ?? [] })),
+    })
   } catch (error) {
     console.error("Erro ao buscar cliente:", error)
     return NextResponse.json({ error: "Erro ao buscar cliente" }, { status: 500 })
@@ -87,10 +100,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    await prisma.client.update({
-      where: { id },
-      data: { isActive: false },
-    })
+    await prisma.client.update({ where: { id }, data: { isActive: false } })
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("Erro ao excluir cliente:", error)

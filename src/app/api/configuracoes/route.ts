@@ -4,7 +4,9 @@ import prisma from "@/lib/prisma"
 export async function GET() {
   try {
     const estab = await prisma.establishment.findUnique({ where: { id: "estab001" } })
-    return NextResponse.json(estab)
+    return NextResponse.json(estab, {
+      headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
+    })
   } catch (error) {
     console.error("[GET /api/configuracoes]", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
