@@ -143,9 +143,15 @@ export default function AgendaPage() {
 
   const janela6Dias = gerarJanela6Dias(iniciJanela)
 
+  const [businessHours, setBusinessHours] = useState<any[]>([])
+
   useEffect(() => {
-    fetch("/api/equipe").then(r => r.json()).then(profs => {
+    Promise.all([
+      fetch("/api/equipe").then(r => r.json()),
+      fetch("/api/configuracoes").then(r => r.json()),
+    ]).then(([profs, cfg]) => {
       setProfissionais(Array.isArray(profs) ? profs : [])
+      if (Array.isArray(cfg?.businessHours)) setBusinessHours(cfg.businessHours)
       setLoadingProfs(false)
     }).catch(console.error)
   }, [])
@@ -281,6 +287,36 @@ export default function AgendaPage() {
     if (!podeServico) return false
     // Se for domicílio, barbeiro deve atender a domicílio
     if (dragAppt.serviceType === "HOME_VISIT" && !prof?.attendsHome) return false
+
+    // Verifica horários de funcionamento (estabelecimento ∩ barbeiro)
+    const diaSemanaNum = new Date(data + "T12:00:00").getDay()
+    const horaEstab = businessHours.find((d: any) => d.dayOfWeek === diaSemanaNum)
+    if (horaEstab?.isOpen === false) return false // estabelecimento fechado no dia
+
+    const estabInicio = horaEstab?.startTime ?? "08:00"
+    const estabFim = horaEstab?.endTime ?? "22:00"
+    const scheduleDia = prof?.schedules?.find((s: any) => s.dayOfWeek === diaSemanaNum)
+    if (scheduleDia && scheduleDia.isActive === false) return false // barbeiro não trabalha
+
+    const profInicio = scheduleDia?.startTime ?? estabInicio
+    const profFim = scheduleDia?.endTime ?? estabFim
+
+    // Interseção dos horários
+    const iniEfetivo = profInicio > estabInicio ? profInicio : estabInicio
+    const fimEfetivo = profFim < estabFim ? profFim : estabFim
+
+    // Slot deve estar dentro do intervalo e o corte deve terminar antes do fechamento
+    const [sh, sm] = hora.split(":").map(Number)
+    const [ih, im] = iniEfetivo.split(":").map(Number)
+    const [fh, fm] = fimEfetivo.split(":").map(Number)
+    const slotMin = sh * 60 + sm
+    const iniMin = ih * 60 + im
+    const fimMin = fh * 60 + fm
+    const duracaoAppt = dragAppt.service?.durationMin ?? 30
+
+    if (slotMin < iniMin) return false                  // antes da abertura
+    if (slotMin + duracaoAppt > fimMin) return false    // termina após o fechamento
+
     // Sem conflito de horário
     const apptsList = profFiltro ? (agendamentosSemana[data] ?? []) : agendamentos
     const breakProf = prof?.breakBetweenAppts ?? 10

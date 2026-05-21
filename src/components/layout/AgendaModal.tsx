@@ -502,6 +502,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     const fimNovo = adicionarMinutos(inicioNovo, duracaoTotal)
     const agoraMais5 = adicionarMinutos(new Date(), 5)
     if (inicioNovo <= agoraMais5) return false
+    // Corte deve terminar antes ou no horário de encerramento efetivo
+    const fimEfetivoDate = new Date(`${dataSelecionada}T${fimEfetivo}:00-03:00`)
+    if (fimNovo > fimEfetivoDate) return false
     if (!profId || !servicoId) return true
     const temConflito = agendamentos.some((a) => {
       if (a.professionalId !== profId) return false
