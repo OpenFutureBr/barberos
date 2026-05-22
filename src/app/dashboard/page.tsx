@@ -102,26 +102,29 @@ export default function DashboardPage() {
   const fetchDados = useCallback(async () => {
     const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
     const hoje = hojeStr()
+    setLoading(true)
     try {
       const [dashRes, apptsRes, caixaRes, estabRes] = await Promise.all([
-        fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()),
-        fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()),
-        fetch("/api/caixa").then(r => r.json()),
-        fetch("/api/configuracoes").then(r => r.json()),
+        fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()).catch(() => ({})),
+        fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()).catch(() => []),
+        fetch("/api/caixa").then(r => r.json()).catch(() => ({})),
+        fetch("/api/configuracoes").then(r => r.json()).catch(() => ({})),
       ])
-      if (!dashRes.error) setDados(dashRes)
+      if (dashRes && !dashRes.error) setDados(dashRes)
       if (Array.isArray(apptsRes)) setAppts(apptsRes)
-      if (!caixaRes.error) setCaixa(caixaRes)
-      if (!estabRes.error) setEstab(estabRes)
+      if (caixaRes && !caixaRes.error) setCaixa(caixaRes)
+      if (estabRes && !estabRes.error) setEstab(estabRes)
 
-      // Evolução do ano
-      const finRes = await fetch(`/api/financeiro?mes=${new Date().getMonth()+1}&ano=${new Date().getFullYear()}`).then(r => r.json())
-      if (Array.isArray(finRes.evolucao)) setEvolucao(finRes.evolucao)
-    } catch (e) { console.error(e) }
+      // Evolução — não bloqueia os KPIs se falhar
+      fetch(`/api/financeiro?mes=${new Date().getMonth()+1}&ano=${new Date().getFullYear()}`)
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d?.evolucao)) setEvolucao(d.evolucao) })
+        .catch(() => {})
+    } catch (e) { console.error("[dashboard]", e) }
     finally { setLoading(false) }
-  }, [])
+  }, [periodo, customFrom, customTo])
 
-  useEffect(() => { fetchDados() }, [fetchDados, periodo, customFrom, customTo])
+  useEffect(() => { fetchDados() }, [fetchDados])
   useEffect(() => {
     window.addEventListener("pagamentoConfirmado", fetchDados)
     return () => window.removeEventListener("pagamentoConfirmado", fetchDados)
