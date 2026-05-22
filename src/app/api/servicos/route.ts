@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         availableHome: body.availableHome ?? false,
         establishmentId: "estab001",
         isActive: body.isActive ?? true,
+        photoUrl: body.photoUrl || null,
       },
     })
     return NextResponse.json(servico)
@@ -51,6 +52,7 @@ export async function PUT(request: Request) {
         durationMin: parseInt(body.durationMin),
         availableHome: body.availableHome ?? false,
         isActive: body.isActive ?? true,
+        ...(body.photoUrl !== undefined ? { photoUrl: body.photoUrl || null } : {}),
       },
     })
     return NextResponse.json(servico)

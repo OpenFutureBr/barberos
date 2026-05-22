@@ -171,6 +171,7 @@ model Service {
   price           Float
   durationMin     Int
   category        String?
+  photoUrl        String?
   isActive        Boolean       @default(true)
   availableHome   Boolean       @default(false)
   establishmentId String
