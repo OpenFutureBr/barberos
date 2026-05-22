@@ -39,6 +39,13 @@ export async function GET(request: Request) {
       ["CANCELLED", "NO_SHOW"].includes(a.status as string)
     ).length
 
+    // Split presencial vs domicílio
+    const donePresencial = doneAppts.filter(a => a.serviceType !== "HOME_VISIT")
+    const donedomicilio = doneAppts.filter(a => a.serviceType === "HOME_VISIT")
+    const movPresencial = movements // todos sem appointmentId são PDV (sem tipo)
+    const receitaPresencial = donePresencial.reduce((s, a) => s + a.service.price, 0)
+    const receitadomicilio = donedomicilio.reduce((s, a) => s + a.service.price, 0)
+
     const serviceRevenue = doneAppts.reduce((s, a) => s + (a.payment?.amount ?? a.service.price), 0)
     const productRevenue = movements.reduce((s, m) => s + m.quantity * (m.unitPrice ?? 0), 0)
     const faturamento = serviceRevenue + productRevenue
@@ -94,6 +101,10 @@ export async function GET(request: Request) {
       faturamento, atendimentos, ticketMedio, clientesVip,
       pendentes, cancelados, mesAtualClientes, mesAnteriorClientes,
       topServicos, topProdutos,
+      split: {
+        presencial: { atendimentos: donePresencial.length, receita: Math.round(receitaPresencial * 100) / 100 },
+        domicilio: { atendimentos: donedomicilio.length, receita: Math.round(receitadomicilio * 100) / 100 },
+      },
     })
   } catch (error) {
     console.error("[GET /api/dashboard]", error)

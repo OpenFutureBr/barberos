@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npx prisma *)",
+      "Bash(npx tsc *)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\paulo.leigo\\\\barberos\\\\src\\\\app\\\\api\\\\agenda\\\\comanda\\\\[apptId]\" 2>/dev/null; echo \"ok\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\paulo.leigo\\\\barberos\\\\src\\\\app\\\\dashboard\\\\agenda\\\\comanda\\\\[apptId]\" 2>/dev/null; echo \"ok\")",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(git commit *)",
+      "Bash(node -e 'const {PrismaClient} = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.service.findMany\\({select:{category:true}}\\).then\\(r=>console.log\\([...new Set\\(r.map\\(s=>s.category\\).filter\\(Boolean\\)\\)]\\)\\).finally\\(\\(\\)=>p.$disconnect\\(\\)\\)')"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\paulo.leigo\\barberos\\src\\app\\api\\agenda\\comanda",
+      "c:\\Users\\paulo.leigo\\barberos\\src\\app\\dashboard\\agenda\\comanda"
+    ]
+  }
+}

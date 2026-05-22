@@ -30,10 +30,13 @@ export async function GET(request: Request) {
       }),
     ])
 
-    // Serviços: sempre pelo preço base do serviço (não pelo payment.amount que inclui produtos)
     const receitaServicos = appointments.reduce((s, a) => s + a.service.price, 0)
-    // Produtos: todos os movimentos SAIDA com unitPrice (vendas avulsas + comanda)
     const receitaProdutos = movements.reduce((s, m) => s + m.quantity * (m.unitPrice ?? 0), 0)
+    // Split presencial vs domicílio
+    const presencial = appointments.filter(a => a.serviceType !== "HOME_VISIT")
+    const domicilio = appointments.filter(a => a.serviceType === "HOME_VISIT")
+    const receitaPresencial = presencial.reduce((s, a) => s + a.service.price, 0)
+    const receitadomicilio = domicilio.reduce((s, a) => s + a.service.price, 0)
 
     // Repasses por profissional
     const repMap: Record<string, any> = {}
@@ -90,6 +93,8 @@ export async function GET(request: Request) {
         receitaServicos: Math.round(receitaServicos * 100) / 100,
         receitaProdutos: Math.round(receitaProdutos * 100) / 100,
         totalReceitas: Math.round((receitaServicos + receitaProdutos) * 100) / 100,
+        presencial: { atendimentos: presencial.length, receita: Math.round(receitaPresencial * 100) / 100 },
+        domicilio: { atendimentos: domicilio.length, receita: Math.round(receitadomicilio * 100) / 100 },
       },
       repasses,
       evolucao,

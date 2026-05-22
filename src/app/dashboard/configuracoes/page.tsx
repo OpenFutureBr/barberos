@@ -82,11 +82,19 @@ export default function ConfiguracoesPage() {
   const [regimeTributario, setRegimeTributario] = useState("Simples Nacional")
   const [businessHours, setBusinessHours] = useState(defaultHours)
   const [cashbackConfig, setCashbackConfig] = useState({
-    servicos: 7,
-    domicilio: 5,
-    produtos: 3,
-    assinaturas: 10,
+    servicos: 7, domicilio: 5, produtos: 3, assinaturas: 10,
   })
+  const [painelConfig, setPainelConfig] = useState<{
+    playlists: { label: string; url: string }[]
+    slots: { id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]
+  }>({ playlists: [], slots: [{ id: "fila", type: "fila", duracao: 30, ativo: true }] })
+  const [novaPlaylistLabel, setNovaPlaylistLabel] = useState("")
+  const [novaPlaylistUrl, setNovaPlaylistUrl] = useState("")
+  const [novoSlotTipo, setNovoSlotTipo] = useState("promocao")
+  const [novoSlotTitulo, setNovoSlotTitulo] = useState("")
+  const [novoSlotTexto, setNovoSlotTexto] = useState("")
+  const [novoSlotDuracao, setNovoSlotDuracao] = useState("15")
+  const [novoSlotCor, setNovoSlotCor] = useState("amber")
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -119,6 +127,9 @@ export default function ConfiguracoesPage() {
         }
         if (d.cashbackConfig && typeof d.cashbackConfig === "object") {
           setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
+        }
+        if (d.painelConfig && typeof d.painelConfig === "object") {
+          setPainelConfig(prev => ({ ...prev, ...(d.painelConfig as object) }))
         }
       })
       .catch(console.error)
@@ -168,6 +179,7 @@ export default function ConfiguracoesPage() {
           regimeTributario: regimeTributario || null,
           businessHours,
           cashbackConfig,
+          painelConfig,
           logoUrl: logoUrl?.split("?")[0],
         }),
       })
@@ -433,6 +445,114 @@ export default function ConfiguracoesPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Painel TV — Playlists */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
+            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Painel TV — Playlists do YouTube</div>
+            {painelConfig.playlists.length === 0 && (
+              <div className="text-zinc-600 text-xs">Nenhuma playlist cadastrada</div>
+            )}
+            <div className="space-y-2">
+              {painelConfig.playlists.map((p, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-xs font-medium truncate">{p.label}</div>
+                    <div className="text-zinc-600 text-xs truncate">{p.url}</div>
+                  </div>
+                  <button type="button" onClick={() => setPainelConfig(prev => ({ ...prev, playlists: prev.playlists.filter((_, i) => i !== idx) }))}
+                    className="text-zinc-600 hover:text-red-400 text-sm transition-colors flex-shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 border-t border-zinc-800 pt-3">
+              <div className="text-zinc-500 text-xs">Adicionar playlist</div>
+              <input value={novaPlaylistLabel} onChange={e => setNovaPlaylistLabel(e.target.value)}
+                placeholder="Nome (ex: Lo-fi, Trap, Sertanejo)"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
+              <input value={novaPlaylistUrl} onChange={e => setNovaPlaylistUrl(e.target.value)}
+                placeholder="URL do YouTube (vídeo ou playlist)"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
+              <button type="button"
+                onClick={() => {
+                  if (!novaPlaylistUrl.trim()) return
+                  setPainelConfig(prev => ({ ...prev, playlists: [...prev.playlists, { label: novaPlaylistLabel.trim() || `Playlist ${prev.playlists.length + 1}`, url: novaPlaylistUrl.trim() }] }))
+                  setNovaPlaylistLabel(""); setNovaPlaylistUrl("")
+                }}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2 rounded-lg text-sm border border-zinc-700 transition-colors">
+                + Adicionar
+              </button>
+            </div>
+          </div>
+
+          {/* Painel TV — Slots de Conteúdo */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
+            <div>
+              <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Painel TV — Slots de Conteúdo</div>
+              <p className="text-zinc-600 text-xs mt-1">Configure o que aparece no painel da recepção e por quanto tempo</p>
+            </div>
+            <div className="space-y-2">
+              {painelConfig.slots.map((s, idx) => (
+                <div key={s.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${s.ativo ? "bg-zinc-800 border-zinc-700" : "bg-zinc-800/40 border-zinc-800 opacity-60"}`}>
+                  <button type="button" onClick={() => setPainelConfig(prev => ({ ...prev, slots: prev.slots.map((sl, i) => i === idx ? { ...sl, ativo: !sl.ativo } : sl) }))}
+                    className={`w-8 h-5 rounded-full flex-shrink-0 relative transition-colors ${s.ativo ? "bg-amber-500" : "bg-zinc-700"}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${s.ativo ? "left-4" : "left-0.5"}`} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-xs font-medium">
+                      {s.type === "fila" ? "Fila de espera" : s.titulo || "Sem título"}
+                    </div>
+                    {s.texto && <div className="text-zinc-500 text-xs truncate">{s.texto}</div>}
+                  </div>
+                  <div className="text-zinc-600 text-xs flex-shrink-0">{s.duracao}s</div>
+                  {s.type !== "fila" && (
+                    <button type="button" onClick={() => setPainelConfig(prev => ({ ...prev, slots: prev.slots.filter((_, i) => i !== idx) }))}
+                      className="text-zinc-600 hover:text-red-400 text-sm transition-colors flex-shrink-0">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-zinc-800 pt-3 space-y-2">
+              <div className="text-zinc-500 text-xs">Adicionar slot</div>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={novoSlotTipo} onChange={e => setNovoSlotTipo(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500">
+                  <option value="promocao">Promoção</option>
+                  <option value="aviso">Aviso / Info</option>
+                  <option value="instagram">Instagram post</option>
+                </select>
+                <div className="flex items-center gap-2">
+                  <input type="number" value={novoSlotDuracao} onChange={e => setNovoSlotDuracao(e.target.value)}
+                    className="w-20 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500" />
+                  <span className="text-zinc-500 text-xs">segundos</span>
+                </div>
+              </div>
+              <input value={novoSlotTitulo} onChange={e => setNovoSlotTitulo(e.target.value)}
+                placeholder="Título do slot"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
+              <textarea value={novoSlotTexto} onChange={e => setNovoSlotTexto(e.target.value)} rows={2}
+                placeholder="Texto ou URL (para Instagram)"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 resize-none" />
+              <div className="flex gap-2">
+                {["amber", "green", "blue", "red", "purple"].map(cor => (
+                  <button key={cor} type="button" onClick={() => setNovoSlotCor(cor)}
+                    className={`w-6 h-6 rounded-full border-2 transition-colors ${novoSlotCor === cor ? "border-white" : "border-transparent"} ${
+                      cor === "amber" ? "bg-amber-500" : cor === "green" ? "bg-green-500" : cor === "blue" ? "bg-blue-500" : cor === "red" ? "bg-red-500" : "bg-purple-500"
+                    }`} />
+                ))}
+                <span className="text-zinc-500 text-xs self-center ml-1">Cor</span>
+              </div>
+              <button type="button"
+                onClick={() => {
+                  if (!novoSlotTitulo.trim()) return
+                  const novo = { id: `${novoSlotTipo}-${Date.now()}`, type: novoSlotTipo, titulo: novoSlotTitulo.trim(), texto: novoSlotTexto.trim(), cor: novoSlotCor, duracao: parseInt(novoSlotDuracao) || 15, ativo: true }
+                  setPainelConfig(prev => ({ ...prev, slots: [...prev.slots, novo] }))
+                  setNovoSlotTitulo(""); setNovoSlotTexto("")
+                }}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2 rounded-lg text-sm border border-zinc-700 transition-colors">
+                + Adicionar slot
+              </button>
             </div>
           </div>
 

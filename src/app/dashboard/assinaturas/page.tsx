@@ -359,7 +359,13 @@ export default function AssinaturasPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-zinc-300 text-sm">{a.plan.name}</div>
-                          <div className="text-zinc-600 text-xs">{a.plan.cortesIncluidos} cortes/mês{a.plan.atendedomicilio ? " · domicílio" : ""}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="text-zinc-600 text-xs">{(a as any).cortesUsados ?? 0}/{a.plan.cortesIncluidos} usados</div>
+                            <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden" style={{ maxWidth: 48 }}>
+                              <div className={`h-full rounded-full transition-all ${(a as any).cortesUsados >= a.plan.cortesIncluidos ? "bg-red-500" : "bg-amber-500"}`}
+                                style={{ width: `${Math.min(100, ((a as any).cortesUsados ?? 0) / a.plan.cortesIncluidos * 100)}%` }} />
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-zinc-400 text-sm font-mono">{fmtData(a.nextBillingAt)}</td>
                         <td className="px-4 py-3">

@@ -37,6 +37,7 @@ export async function PUT(request: Request) {
         regimeTributario: body.regimeTributario || null,
         businessHours: body.businessHours ?? undefined,
         cashbackConfig: body.cashbackConfig ?? undefined,
+        painelConfig: body.painelConfig ?? undefined,
         ...(body.logoUrl ? { logoUrl: body.logoUrl } : {}),
       },
     })

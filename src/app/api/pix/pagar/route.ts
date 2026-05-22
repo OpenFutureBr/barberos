@@ -82,6 +82,17 @@ export async function POST(request: Request) {
         // Domicílio: se for home visit, plano precisa aceitar domicílio
         const domicilioCoberto = appt.serviceType !== "HOME_VISIT" || assinatura.plan.atendedomicilio
         cobertoPorAssinatura = !!(categoriaCoberta && domicilioCoberto)
+        // Incrementa uso mensal da assinatura
+        if (cobertoPorAssinatura) {
+          const mesAtual = new Date().toISOString().slice(0, 7)
+          await prisma.subscription.update({
+            where: { clientId: appt.client.id },
+            data: {
+              cortesUsados: { increment: 1 },
+              mesReferencia: mesAtual,
+            },
+          }).catch(() => {})
+        }
       }
     }
 

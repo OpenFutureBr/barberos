@@ -58,9 +58,11 @@ export default function PainelTVPage() {
   const [appts, setAppts] = useState<Appt[]>([])
   const [youtubeUrl, setYoutubeUrl] = useState("")
   const [configModal, setConfigModal] = useState(false)
-  // Múltiplas playlists
   const [playlists, setPlaylists] = useState<{ label: string; url: string }[]>([])
   const [playlistAtiva, setPlaylistAtiva] = useState(0)
+  // Slots de conteúdo
+  const [slots, setSlots] = useState<{ id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]>([])
+  const [slotAtivo, setSlotAtivo] = useState(0)
   const [novaPlaylistLabel, setNovaPlaylistLabel] = useState("")
   const [novaPlaylistUrl, setNovaPlaylistUrl] = useState("")
 
@@ -75,10 +77,18 @@ export default function PainelTVPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Dados do estabelecimento
+  // Dados do estabelecimento + painelConfig
   useEffect(() => {
     fetch("/api/configuracoes").then(r => r.json()).then(d => {
       setEstab({ name: d.name ?? "BarberOS", logoUrl: d.logoUrl ?? null, city: d.city ?? null, state: d.state ?? null })
+      // Carrega playlists e slots da configuração
+      if (d.painelConfig?.playlists?.length) {
+        setPlaylists(d.painelConfig.playlists)
+        setYoutubeUrl(d.painelConfig.playlists[0]?.url ?? "")
+      }
+      if (d.painelConfig?.slots?.length) {
+        setSlots(d.painelConfig.slots.filter((s: any) => s.ativo))
+      }
     }).catch(() => {})
     // Escuta atualização de logo
     function onLogo(e: Event) { setEstab(prev => prev ? { ...prev, logoUrl: (e as CustomEvent).detail } : prev) }
@@ -91,18 +101,14 @@ export default function PainelTVPage() {
     return () => { window.removeEventListener("logoAtualizada", onLogo); window.removeEventListener("estabelecimentoAtualizado", onEstab) }
   }, [])
 
-  // Playlists do localStorage
+  // Rotação dos slots de conteúdo
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("painel_playlists") ?? "[]")
-      if (Array.isArray(saved) && saved.length > 0) {
-        setPlaylists(saved)
-        const idx = parseInt(localStorage.getItem("painel_playlist_ativa") ?? "0")
-        setPlaylistAtiva(Math.min(idx, saved.length - 1))
-        setYoutubeUrl(saved[Math.min(idx, saved.length - 1)]?.url ?? "")
-      }
-    } catch {}
-  }, [])
+    if (slots.length <= 1) return
+    const slot = slots[slotAtivo]
+    const duracao = (slot?.duracao ?? 15) * 1000
+    const t = setTimeout(() => setSlotAtivo(i => (i + 1) % slots.length), duracao)
+    return () => clearTimeout(t)
+  }, [slotAtivo, slots])
 
   // Fila de espera
   const fetchFila = useCallback(() => {
@@ -301,14 +307,43 @@ export default function PainelTVPage() {
         </div>
       </main>
 
-      {/* ── ESPAÇO INFERIOR (20vh) ── */}
-      <div className="flex-shrink-0" style={{ height: "20vh" }}>
-        <div className="h-full flex items-center justify-center px-6">
-          <div className="flex items-center gap-2 opacity-30">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-zinc-600 text-xs">BarberOS · Painel TV · atualiza a cada 30s</span>
+      {/* ── SLOT DE CONTEÚDO (20vh) ── */}
+      <div className="flex-shrink-0 px-6 pb-4" style={{ height: "20vh" }}>
+        {slots.length > 0 && slots[slotAtivo] ? (() => {
+          const s = slots[slotAtivo]
+          const corMap: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
+          const textoMap: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
+          const cls = corMap[s.cor ?? "amber"] ?? corMap.amber
+          const txt = textoMap[s.cor ?? "amber"] ?? textoMap.amber
+          if (s.type === "fila") return (
+            <div className="h-full flex items-center justify-center">
+              <div className="flex items-center gap-2 opacity-30">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
+              </div>
+            </div>
+          )
+          return (
+            <div className={`h-full border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-8 gap-2`}>
+              {s.titulo && <div className={`text-2xl font-bold ${txt}`}>{s.titulo}</div>}
+              {s.texto && <div className="text-zinc-300 text-base leading-relaxed">{s.texto}</div>}
+              {slots.length > 1 && (
+                <div className="flex gap-1 mt-2">
+                  {slots.map((_, i) => (
+                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === slotAtivo ? "bg-white" : "bg-zinc-600"}`} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })() : (
+          <div className="h-full flex items-center justify-center">
+            <div className="flex items-center gap-2 opacity-30">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-zinc-600 text-xs">BarberOS · Painel TV · configure slots em Configurações</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── MODAL CONFIGURAÇÃO DE PLAYLISTS ── */}

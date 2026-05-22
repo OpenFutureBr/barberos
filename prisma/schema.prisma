@@ -28,6 +28,7 @@ model Establishment {
   regimeTributario    String?
   businessHours       Json?
   cashbackConfig      Json?
+  painelConfig        Json?
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -178,7 +179,8 @@ model Service {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   appointments    Appointment[]
-  userServices UserService[]
+  userServices    UserService[]
+  haircuts        Haircut[]
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   @@map("services")
@@ -188,11 +190,14 @@ model Haircut {
   id              String        @id @default(cuid())
   name            String
   description     String?
-  photoUrl        String
+  photoUrl        String?
+  instagramUrl    String?
+  serviceId       String?
   instructions    String?
   durationMin     Int?
   difficulty      String?
   tags            String[]
+  category        String?
   isActive        Boolean       @default(true)
   faceShapeCompat Json?
   establishmentId String
@@ -200,6 +205,7 @@ model Haircut {
   updatedAt       DateTime      @updatedAt
   appointments    Appointment[]
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  service         Service?      @relation(fields: [serviceId], references: [id])
 
   @@map("haircuts")
 }
@@ -412,11 +418,13 @@ model Subscription {
   status        SubscriptionStatus @default(ACTIVE)
   price         Float
   startedAt     DateTime           @default(now())
-  nextBillingAt DateTime
-  pausedAt      DateTime?
-  cancelledAt   DateTime?
-  notes         String?
-  clientId      String             @unique
+  nextBillingAt  DateTime
+  cortesUsados   Int               @default(0)
+  mesReferencia  String?
+  pausedAt       DateTime?
+  cancelledAt    DateTime?
+  notes          String?
+  clientId       String            @unique
   planId        String
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt

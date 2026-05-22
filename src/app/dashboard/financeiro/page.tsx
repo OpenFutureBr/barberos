@@ -53,7 +53,11 @@ function IconEvolucao() {
   )
 }
 
-type DRE = { receitaServicos: number; receitaProdutos: number; totalReceitas: number }
+type DRE = {
+  receitaServicos: number; receitaProdutos: number; totalReceitas: number
+  presencial?: { atendimentos: number; receita: number }
+  domicilio?: { atendimentos: number; receita: number }
+}
 type Repasse = { profissionalId: string; nome: string; tipo: string; commissionPct: number | null; benchFee: number | null; benchFeePct: number | null; atendimentos: number; bruto: number; repasse: number }
 type Evolucao = { mes: number; label: string; valor: number }
 
@@ -204,6 +208,21 @@ export default function FinanceiroPage() {
                   <span className="text-green-400 text-sm font-bold">Total Receitas</span>
                   <span className="text-green-400 font-mono font-bold">{fmtMoeda(dre.totalReceitas)}</span>
                 </div>
+                {/* Split presencial/domicílio */}
+                {(dre.presencial || dre.domicilio) && (
+                  <div className="px-4 py-2 bg-zinc-900 grid grid-cols-2 gap-2 border-t border-zinc-800">
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <div className="text-zinc-500 text-xs mb-1">Presencial</div>
+                      <div className="text-white text-sm font-bold">{fmtMoeda(dre.presencial?.receita ?? 0)}</div>
+                      <div className="text-zinc-600 text-xs">{dre.presencial?.atendimentos ?? 0} atend.</div>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <div className="text-zinc-500 text-xs mb-1">Domicílio</div>
+                      <div className="text-teal-400 text-sm font-bold">{fmtMoeda(dre.domicilio?.receita ?? 0)}</div>
+                      <div className="text-zinc-600 text-xs">{dre.domicilio?.atendimentos ?? 0} atend.</div>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="px-4 py-6 text-center text-zinc-600 text-sm">Nenhuma receita no período</div>

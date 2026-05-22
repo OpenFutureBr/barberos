@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
+    const mesAtual = new Date().toISOString().slice(0, 7) // YYYY-MM
+
     const assinantes = await prisma.subscription.findMany({
       where: {
         plan: { establishmentId: "estab001" },
@@ -14,6 +16,18 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
     })
+
+    // Reseta cortesUsados se mudou o mês
+    for (const a of assinantes) {
+      if (a.mesReferencia !== mesAtual) {
+        await prisma.subscription.update({
+          where: { id: a.id },
+          data: { cortesUsados: 0, mesReferencia: mesAtual },
+        }).catch(() => {})
+        a.cortesUsados = 0
+        a.mesReferencia = mesAtual
+      }
+    }
     return NextResponse.json(assinantes)
   } catch (error) {
     console.error("[GET /api/assinaturas/assinantes]", error)

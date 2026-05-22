@@ -55,6 +55,7 @@ type DashData = {
   faturamento: number; atendimentos: number; ticketMedio: number
   clientesVip: number; pendentes: number; cancelados: number
   mesAtualClientes: number; mesAnteriorClientes: number
+  split?: { presencial: { atendimentos: number; receita: number }; domicilio: { atendimentos: number; receita: number } }
   topServicos: { nome: string; count: number; receita: number }[]
   topProdutos: { nome: string; qtd: number; receita: number }[]
 }
@@ -286,6 +287,32 @@ export default function DashboardPage() {
       </div>{/* fim sticky */}
 
       <div className="mt-4">
+
+      {/* ── SPLIT PRESENCIAL / DOMICÍLIO ── */}
+      {!loading && dados?.split && (dados.split.presencial.atendimentos > 0 || dados.split.domicilio.atendimentos > 0) && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-amber-400 text-sm">✂</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-zinc-500 text-xs">Presencial</div>
+              <div className="text-white text-sm font-bold">{fmtMoeda(dados.split.presencial.receita)}</div>
+            </div>
+            <div className="text-zinc-600 text-xs">{dados.split.presencial.atendimentos} atend.</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-teal-400 text-sm">🚗</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-zinc-500 text-xs">Domicílio</div>
+              <div className="text-teal-400 text-sm font-bold">{fmtMoeda(dados.split.domicilio.receita)}</div>
+            </div>
+            <div className="text-zinc-600 text-xs">{dados.split.domicilio.atendimentos} atend.</div>
+          </div>
+        </div>
+      )}
 
       {/* ── LINHA CENTRAL ── */}
       <div className="grid grid-cols-5 gap-4 mb-4">
