@@ -105,7 +105,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <PagamentoModal
         dados={dadosPagamento}
         onFechar={() => setDadosPagamento(null)}
-        onConfirmado={(id) => window.dispatchEvent(new CustomEvent("pagamentoConfirmado", { detail: id }))}
+        endpointOverride={dadosPagamento?.appointmentId?.startsWith("venda-") ? "/api/venda" : undefined}
+        onConfirmado={(id) => { window.dispatchEvent(new CustomEvent("pagamentoConfirmado", { detail: id })); setDadosPagamento(null) }}
       />
     </div>
   )

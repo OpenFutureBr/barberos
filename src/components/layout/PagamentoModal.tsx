@@ -45,6 +45,7 @@ export type DadosPagamento = {
   scheduledAt?: string
   amount: number
   comandaItens?: ComandaItem[]
+  clientId?: string  // usado em vendas sem agendamento
 }
 
 type MetodoPag = "PIX" | "CASH" | "CARD_CREDITO" | "CARD_DEBITO"
@@ -98,7 +99,7 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
       const method = metodo === "CARD_CREDITO" || metodo === "CARD_DEBITO" ? "CARD" : metodo
       const endpoint = endpointOverride ?? "/api/pix/pagar"
       const body = endpointOverride
-        ? { method, amount: dados.amount }
+        ? { method, amount: dados.amount, clientId: dados.clientId, items: dados.comandaItens }
         : { appointmentId: dados.appointmentId, method, amount: dados.amount }
       const res = await fetch(endpoint, {
         method: "POST",

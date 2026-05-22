@@ -29,6 +29,29 @@ function calcularNivel(totalGasto: number): "BRONZE" | "SILVER" | "GOLD" | "VIP"
   return "BRONZE"
 }
 
+async function calcularSegmento(clientId: string, novoTotalAtend: number): Promise<string> {
+  // VIP: assinante ativo
+  const sub = await prisma.subscription.findUnique({
+    where: { clientId },
+    select: { status: true },
+  })
+  if (sub?.status === "ACTIVE") return "VIP"
+
+  // VIP: 5+ cortes nos últimos 30 dias
+  const trintaDias = new Date()
+  trintaDias.setDate(trintaDias.getDate() - 30)
+  const recentes = await prisma.appointment.count({
+    where: { clientId, status: "DONE" as any, scheduledAt: { gte: trintaDias } },
+  })
+  if (recentes >= 5) return "VIP"
+
+  // Níveis por total de atendimentos
+  if (novoTotalAtend <= 2) return "NEW"       // Novo
+  if (novoTotalAtend <= 9) return "REGULAR"   // Regular
+  if (novoTotalAtend <= 19) return "AT_RISK"  // Frequente
+  return "INACTIVE"                            // Fiel
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -172,6 +195,7 @@ export async function POST(request: Request) {
       const novoTotal = appt.client.totalSpent + valorPago
       const novasVisitas = appt.client.totalAtendimentos + 1
       const novoTicketMedio = Math.round((novoTotal / novasVisitas) * 100) / 100
+      const novoSegmento = await calcularSegmento(clientId, novasVisitas)
 
       await prisma.client.update({
         where: { id: clientId },
@@ -182,6 +206,7 @@ export async function POST(request: Request) {
           ticketMedio: novoTicketMedio,
           lastVisitAt: new Date(),
           loyaltyLevel: calcularNivel(novoTotal) as any,
+          segment: novoSegmento as any,
           favoritoCorte,
           favoritoProduto,
         },

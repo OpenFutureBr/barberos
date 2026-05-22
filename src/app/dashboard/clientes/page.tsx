@@ -17,19 +17,19 @@ function tempoComoCliente(createdAt: string): string {
 }
 
 const segmentoStyle: Record<string, string> = {
-  VIP: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  REGULAR: "bg-green-500/10 text-green-400 border border-green-500/20",
-  AT_RISK: "bg-red-500/10 text-red-400 border border-red-500/20",
-  NEW: "bg-zinc-700 text-zinc-400 border border-zinc-600",
-  INACTIVE: "bg-zinc-700 text-zinc-400 border border-zinc-600",
+  VIP:      "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  INACTIVE: "bg-purple-500/10 text-purple-400 border border-purple-500/20", // Fiel
+  AT_RISK:  "bg-blue-500/10 text-blue-400 border border-blue-500/20",       // Frequente
+  REGULAR:  "bg-green-500/10 text-green-400 border border-green-500/20",
+  NEW:      "bg-zinc-700 text-zinc-400 border border-zinc-600",
 }
 
 const segmentoLabel: Record<string, string> = {
-  VIP: "VIP",
-  REGULAR: "Regular",
-  AT_RISK: "Em risco",
-  NEW: "Novo",
-  INACTIVE: "Inativo",
+  VIP:      "VIP",
+  INACTIVE: "Fiel",       // 20+ cortes
+  AT_RISK:  "Frequente",  // 10-19 cortes
+  REGULAR:  "Regular",    // 3-9 cortes
+  NEW:      "Novo",       // 0-2 cortes
 }
 
 const paises = [

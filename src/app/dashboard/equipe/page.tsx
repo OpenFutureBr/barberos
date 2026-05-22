@@ -461,7 +461,8 @@ export default function EquipePage() {
           const idade = calcularIdade(prof.birthDate)
           const tempoCasa = calcularTempoCasa(prof.admissionDate)
           return (
-            <div key={prof.id} className={`bg-zinc-900 border rounded-xl p-4 flex items-center gap-4 transition-colors ${prof.isActive ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800 opacity-60"}`}>
+            <div key={prof.id} onClick={() => { setProfSelecionado(prof); setErroModal(""); setModalEditar(true) }}
+              className={`bg-zinc-900 border rounded-xl p-4 flex items-center gap-4 transition-colors cursor-pointer ${prof.isActive ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800 opacity-60"}`}>
               <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
                 {prof.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
               </div>
@@ -496,14 +497,10 @@ export default function EquipePage() {
                 </div>
                 {prof.breakBetweenAppts && <div className="text-zinc-600 text-xs">{prof.breakBetweenAppts}min intervalo</div>}
               </div>
-              <div className="flex flex-col gap-2 flex-shrink-0">
-                <button onClick={() => { setProfSelecionado(prof); setErroModal(""); setModalEditar(true) }}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors">
-                  ✏️ Editar
-                </button>
-                <button onClick={() => { setProfSelecionado(prof); setModalExcluir(true) }}
+              <div className="flex-shrink-0">
+                <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
                   className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors">
-                  🗑 Desativar
+                  Desativar
                 </button>
               </div>
             </div>
