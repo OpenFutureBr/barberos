@@ -7,7 +7,9 @@ import DashboardLayout from "@/components/layout/DashboardLayout"
 const statusLabel: Record<string, string> = {
   SCHEDULED: "Pendente",
   CONFIRMED: "Confirmado",
-  COMPLETED: "Concluído",
+  IN_QUEUE: "Aguardando",
+  IN_PROGRESS: "Em andamento",
+  DONE: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Não compareceu",
 }
@@ -15,7 +17,9 @@ const statusLabel: Record<string, string> = {
 const statusCor: Record<string, string> = {
   SCHEDULED: "text-amber-400",
   CONFIRMED: "text-green-400",
-  COMPLETED: "text-blue-400",
+  IN_QUEUE: "text-purple-400",
+  IN_PROGRESS: "text-blue-400",
+  DONE: "text-zinc-400",
   CANCELLED: "text-red-400",
   NO_SHOW: "text-zinc-500",
 }
@@ -23,6 +27,7 @@ const statusCor: Record<string, string> = {
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
   domicilio: "bg-teal-500/15 border-l-2 border-teal-500 text-teal-200",
+  naFila: "bg-purple-500/15 border-l-2 border-purple-500 text-purple-200",
   concluido: "bg-green-500/15 border-l-2 border-green-400 text-green-200 opacity-60",
   cancelado: "bg-red-500/15 border-l-2 border-red-400 text-red-300 opacity-50",
 }
@@ -359,7 +364,6 @@ export default function AgendaPage() {
       if (date.getHours() !== horaNum || a.professionalId !== profId) return false
       const cancelado = isCancelado(a)
       if (filtroStatus === "ativos") return !cancelado
-      if (filtroStatus === "cancelados") return cancelado
       return true
     })
   }
@@ -372,7 +376,6 @@ export default function AgendaPage() {
       if (hh !== h || a.professionalId !== pId) return false
       const cancelado = isCancelado(a)
       if (filtroStatus === "ativos") return !cancelado
-      if (filtroStatus === "cancelados") return cancelado
       return true
     })
     if (appt) {
@@ -423,13 +426,16 @@ export default function AgendaPage() {
           const statusEfetivo = statusOverride[appt.id] ?? appt.status
           const cancelado = statusEfetivo === "CANCELLED" || statusEfetivo === "NO_SHOW"
           const concluido = statusEfetivo === "DONE"
+          const naFila = statusEfetivo === "IN_QUEUE"
           const pendente = isPendente(appt)
           const estaDragando = dragAppt?.id === appt.id
           const cor = cancelado
             ? corAppt.cancelado
             : concluido
               ? corAppt.concluido
-              : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
+              : naFila
+                ? corAppt.naFila
+                : corAppt[appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial"]
           return (
             <div key={appt.id}
               draggable={pendente}
@@ -679,6 +685,10 @@ export default function AgendaPage() {
             return { ...prev, [apptId]: [...curr, { produto: p, qty: 1 }] }
           })
           setBuscaProduto(""); setDropdownProduto(false)
+          // Cliente adicionou produto → chegou na barbearia, muda status automaticamente
+          if (statusAtual === "SCHEDULED" || statusAtual === "CONFIRMED") {
+            mudarStatus("IN_QUEUE")
+          }
         }
 
         function updateQty(idx: number, delta: number) {
@@ -724,6 +734,7 @@ export default function AgendaPage() {
                       className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${statusCor[statusAtual] ?? "text-zinc-400"}`}>
                       <option value="SCHEDULED" className="bg-zinc-800 text-white">Pendente</option>
                       <option value="CONFIRMED" className="bg-zinc-800 text-white">Confirmado</option>
+                      <option value="IN_QUEUE" className="bg-zinc-800 text-white">Aguardando</option>
                       <option value="IN_PROGRESS" className="bg-zinc-800 text-white">Em andamento</option>
                       <option value="DONE" className="bg-zinc-800 text-white">Concluído</option>
                       <option value="CANCELLED" className="bg-zinc-800 text-white">Cancelado</option>
