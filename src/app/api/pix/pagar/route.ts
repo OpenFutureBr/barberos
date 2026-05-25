@@ -169,20 +169,15 @@ export async function POST(request: Request) {
       })
 
       // Calcula corte e produto favorito do cliente (materializa no registro)
-      const [todasAppts, todosMovs] = await Promise.all([
-        prisma.appointment.findMany({
-          where: { clientId, status: { notIn: ["CANCELLED", "NO_SHOW"] as any } },
-          select: { service: { select: { name: true } } },
-        }),
-        prisma.stockMovement.findMany({
-          where: {
-            type: "SAIDA",
-            appointmentId: { not: null },
-            appointment: { clientId } as any,
-          },
-          select: { quantity: true, product: { select: { name: true } } },
-        }),
-      ])
+      const todasAppts = await prisma.appointment.findMany({
+        where: { clientId, status: { notIn: ["CANCELLED", "NO_SHOW"] as any } },
+        select: { id: true, service: { select: { name: true } } },
+      })
+      const apptIds = todasAppts.map(a => a.id)
+      const todosMovs = apptIds.length === 0 ? [] : await prisma.stockMovement.findMany({
+        where: { type: "SAIDA", appointmentId: { in: apptIds } },
+        select: { quantity: true, product: { select: { name: true } } },
+      })
 
       // Corte favorido: serviço mais frequente
       const svcCount: Record<string, number> = {}
