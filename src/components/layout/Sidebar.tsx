@@ -95,6 +95,8 @@ export default function Sidebar() {
   function setTemaValor(novo: "dark" | "light") {
     setTema(novo)
     localStorage.setItem("tema", novo)
+    if (novo === "light") document.documentElement.classList.add("light")
+    else document.documentElement.classList.remove("light")
     window.dispatchEvent(new CustomEvent("temaAlterado", { detail: novo }))
   }
 

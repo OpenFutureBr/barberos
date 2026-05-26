@@ -12,15 +12,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
-  const [isLight, setIsLight] = useState(false)
-
-  useEffect(() => {
-    try { setIsLight(localStorage.getItem("tema") === "light") } catch {}
-    function onTema(e: Event) { setIsLight((e as CustomEvent).detail === "light") }
-    window.addEventListener("temaAlterado", onTema)
-    return () => window.removeEventListener("temaAlterado", onTema)
-  }, [])
-
   // Prefetch silencioso de dados frequentes ao carregar o dashboard
   useEffect(() => {
     // Clientes (primeira página) — maior gargalo atual
@@ -78,10 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   return (
-    <div
-      className="min-h-screen bg-zinc-950"
-      style={{ filter: isLight ? "invert(1) hue-rotate(180deg)" : "none", transition: "filter 0.35s ease" }}
-    >
+    <div className="min-h-screen bg-zinc-950">
       <Sidebar />
       <Topbar
         onAbrirModal={() => setModalAgendaAberto(true)}

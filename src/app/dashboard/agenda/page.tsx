@@ -138,13 +138,12 @@ export default function AgendaPage() {
     return () => clearInterval(interval)
   }, [dataSelecionada, hojeISO])
 
-  // Auto-scroll para a hora atual ao abrir
+  // Auto-scroll para a hora atual ao abrir (visão geral e visão por barbeiro)
   useEffect(() => {
     if (linhaVermelha === null || !gridRef.current) return
-    // Mostra 2 horas antes da hora atual para dar contexto
     const scrollY = Math.max(0, linhaVermelha - SLOT_HEIGHT * 2)
     gridRef.current.scrollTo({ top: scrollY, behavior: "smooth" })
-  }, [linhaVermelha, loadingProfs])
+  }, [linhaVermelha, loadingProfs, profFiltro])
 
   const janela6Dias = gerarJanela6Dias(iniciJanela)
 
@@ -551,7 +550,7 @@ export default function AgendaPage() {
       ) : profFiltro ? (
 
         /* ── VISÃO SEMANAL DO PROFISSIONAL ── */
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div ref={gridRef} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
           {/* Cabeçalho com 6 datas — sticky */}
           <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(6, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
