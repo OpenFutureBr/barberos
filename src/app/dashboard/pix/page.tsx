@@ -127,6 +127,13 @@ export default function PixPage() {
     setModalGerar(false)
   }
 
+  function copiar(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2500)
+    })
+  }
+
   // contadores de filtro
   const counts: Record<string, number> = { TODOS: cobrancas.length }
   cobrancas.forEach(c => {

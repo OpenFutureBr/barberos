@@ -88,9 +88,10 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
   }, [dados?.appointmentId])
 
   if (!dados) return null
+  const d = dados  // captura narrowed para closures
 
   const pixPayload = metodo === "PIX" && config?.pixKey
-    ? gerarPix(config.pixKey, config.name, config.city ?? "", dados.amount)
+    ? gerarPix(config.pixKey, config.name, config.city ?? "", d.amount)
     : null
 
   async function confirmar() {
@@ -99,17 +100,16 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
       const method = metodo === "CARD_CREDITO" || metodo === "CARD_DEBITO" ? "CARD" : metodo
       const endpoint = endpointOverride ?? "/api/pix/pagar"
       const body = endpointOverride
-        ? { method, amount: dados.amount, clientId: dados.clientId, items: dados.comandaItens }
-        : { appointmentId: dados.appointmentId, method, amount: dados.amount }
+        ? { method, amount: d.amount, clientId: d.clientId, items: d.comandaItens }
+        : { appointmentId: d.appointmentId, method, amount: d.amount }
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        // Registra cada produto da comanda como movimento SAIDA
-        if (dados.comandaItens && dados.comandaItens.length > 0) {
-          await Promise.all(dados.comandaItens.map(item =>
+        if (d.comandaItens && d.comandaItens.length > 0) {
+          await Promise.all(d.comandaItens.map(item =>
             fetch("/api/estoque/movimentos", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -118,14 +118,14 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
                 type: "SAIDA",
                 quantity: item.qty,
                 unitPrice: item.unitPrice,
-                appointmentId: dados.appointmentId,
-                reason: `Comanda - ${dados.clientName}`,
+                appointmentId: d.appointmentId,
+                reason: `Comanda - ${d.clientName}`,
               }),
             })
           ))
         }
         onFechar()
-        onConfirmado?.(dados.appointmentId)
+        onConfirmado?.(d.appointmentId)
       }
     } catch (e) { console.error(e) }
     finally { setConfirmando(false) }
@@ -138,8 +138,8 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
     })
   }
 
-  const hora = dados.scheduledAt
-    ? new Date(dados.scheduledAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+  const hora = d.scheduledAt
+    ? new Date(d.scheduledAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
     : null
 
   return (
@@ -154,15 +154,15 @@ export default function PagamentoModal({ dados, onFechar, onConfirmado, endpoint
           {/* Info do agendamento + valor */}
           <div className="bg-zinc-800 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
             <div className="space-y-1 min-w-0">
-              <div className="text-white font-semibold truncate">{dados.clientName}</div>
-              <div className="text-zinc-400 text-sm truncate">{dados.serviceName}</div>
-              {(dados.professionalName || hora) && (
+              <div className="text-white font-semibold truncate">{d.clientName}</div>
+              <div className="text-zinc-400 text-sm truncate">{d.serviceName}</div>
+              {(d.professionalName || hora) && (
                 <div className="text-zinc-500 text-xs">
-                  {[dados.professionalName, hora].filter(Boolean).join(" · ")}
+                  {[d.professionalName, hora].filter(Boolean).join(" · ")}
                 </div>
               )}
             </div>
-            <div className="text-green-400 text-2xl font-bold flex-shrink-0">{fmtMoeda(dados.amount)}</div>
+            <div className="text-green-400 text-2xl font-bold flex-shrink-0">{fmtMoeda(d.amount)}</div>
           </div>
 
           {/* Método de pagamento */}
