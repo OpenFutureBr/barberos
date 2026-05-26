@@ -74,10 +74,6 @@ export default function CashbackPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function updatePercentual(id: string, valor: number) {
-    setPercentuais(prev => prev.map(p => p.id === id ? { ...p, percentual: valor } : p))
-  }
-
   return (
     <DashboardLayout>
       <div className="flex items-center justify-between mb-4">
