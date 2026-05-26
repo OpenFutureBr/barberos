@@ -406,6 +406,8 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [carregando, setCarregando] = useState(false)
   const [businessHours, setBusinessHours] = useState<any[]>([])
   const [regrasPrecificacao, setRegrasPrecificacao] = useState<any[]>([])
+  const [haircuts, setHaircuts] = useState<any[]>([])
+  const [haircutId, setHaircutId] = useState("")
 
   const inicial = getDataHoraInicial()
   const hojeISO = getDataSaoPaulo(new Date())
@@ -535,7 +537,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       setCarregando(true)
       Promise.all([
         fetch("/api/equipe").then(r => r.json()),
-        fetch("/api/clientes").then(r => r.json()),
+        fetch("/api/clientes?modo=simples").then(r => r.json()),
         fetch("/api/servicos").then(r => r.json()),
         fetch(`/api/agendamentos?data=${dataSelecionada}`).then(r => r.json()),
       ]).then(([profs, cls, svcs, appts]) => {
@@ -575,7 +577,18 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     setServicoId("")
+    setHaircutId("")
+    setHaircuts([])
   }, [profId])
+
+  useEffect(() => {
+    setHaircutId("")
+    if (!servicoId) { setHaircuts([]); return }
+    fetch(`/api/galeria?serviceId=${servicoId}`)
+      .then(r => r.json())
+      .then(d => setHaircuts(Array.isArray(d) ? d.filter((h: any) => h.isActive !== false && h.photoUrl) : []))
+      .catch(() => {})
+  }, [servicoId])
 
   useEffect(() => {
     if (horariosDisponiveis.length > 0 && !horariosDisponiveis.includes(hora)) {
@@ -601,9 +614,28 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
         setClienteId(encontrado.id)
         setClienteNome(encontrado.name)
         setClienteObj(encontrado)
-      } else {
-        setMostrarCadastro(true)
+        setBuscandoCliente(false)
+        return
       }
+      // Fallback: busca na API pelo número
+      try {
+        const res = await fetch(`/api/clientes?busca=${nums}&page=1&perPage=5`)
+        const data = await res.json()
+        const lista: any[] = Array.isArray(data.clientes) ? data.clientes : []
+        const achado = lista.find((c: any) =>
+          c.phone?.replace(/\D/g, "") === nums ||
+          c.phone?.replace(/\D/g, "") === "55" + nums
+        )
+        if (achado) {
+          setClientes(prev => prev.some(c => c.id === achado.id) ? prev : [achado, ...prev])
+          setClienteId(achado.id)
+          setClienteNome(achado.name)
+          setClienteObj(achado)
+          setBuscandoCliente(false)
+          return
+        }
+      } catch {}
+      setMostrarCadastro(true)
       setBuscandoCliente(false)
     }
   }
@@ -633,6 +665,8 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     setServicoId("")
     setProfId("")
     setTipoAtendimento("presencial")
+    setHaircutId("")
+    setHaircuts([])
   }
 
   const clienteTemEndereco = !clienteObj || !!clienteObj.homeAddress
@@ -646,6 +680,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
         clientId: clienteId,
         professionalId: profId,
         serviceId: servicoId,
+        haircutId: haircutId || null,
         scheduledAt: scheduledAt.toISOString(),
         serviceType: tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL",
       }
@@ -685,12 +720,6 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
             <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
           ) : (
             <form onSubmit={handleSalvar} className="p-5 space-y-3">
-
-              {profId && hora && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-amber-400 text-sm">
-                  ◈ {hora} · {profissionais.find(p => p.id === profId)?.name}
-                </div>
-              )}
 
               {/* Tipo de atendimento */}
               <div>
@@ -755,6 +784,39 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   <p className="text-zinc-500 text-xs mt-1">Nenhum serviço vinculado a este profissional.</p>
                 )}
               </div>
+
+              {/* Galeria de cortes — aparece quando o serviço tem fotos cadastradas */}
+              {haircuts.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-zinc-400 text-xs">Estilo do corte <span className="text-zinc-600">(opcional)</span></label>
+                    {haircutId && (
+                      <button type="button" onClick={() => setHaircutId("")}
+                        className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">limpar</button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                    {haircuts.map(h => (
+                      <button key={h.id} type="button"
+                        onClick={() => setHaircutId(prev => prev === h.id ? "" : h.id)}
+                        className={`flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                          haircutId === h.id
+                            ? "border-amber-500 ring-1 ring-amber-500/40"
+                            : "border-zinc-700 hover:border-zinc-500"
+                        }`}
+                        style={{ width: 88 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={h.photoUrl} alt={h.name} className="w-full object-cover" style={{ height: 100 }} />
+                        <div className={`px-1.5 py-1.5 text-center ${haircutId === h.id ? "bg-amber-500/20" : "bg-zinc-800"}`}>
+                          <div className={`text-xs font-medium truncate ${haircutId === h.id ? "text-amber-300" : "text-zinc-300"}`}>
+                            {h.name}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Data + Horário lado a lado */}
               <div className="flex gap-3 items-start">

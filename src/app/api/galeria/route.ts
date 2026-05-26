@@ -1,10 +1,14 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const serviceId = searchParams.get("serviceId")
+    const where: Record<string, unknown> = { establishmentId: "estab001" }
+    if (serviceId) where.serviceId = serviceId
     const cortes = await prisma.haircut.findMany({
-      where: { establishmentId: "estab001" },
+      where,
       include: { service: { select: { id: true, name: true, category: true } } },
       orderBy: { createdAt: "desc" },
     })

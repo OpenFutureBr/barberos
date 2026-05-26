@@ -45,7 +45,7 @@ function ClienteCombobox({ onSelect }: { onSelect: (c: Cliente | null) => void }
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch("/api/clientes").then(r => r.json()).then(d => {
+    fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => {
       if (Array.isArray(d)) setTodos(d)
     }).catch(() => {})
   }, [])

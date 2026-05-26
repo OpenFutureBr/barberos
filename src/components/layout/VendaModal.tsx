@@ -45,7 +45,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
     const hoje = getHojeISO()
     Promise.all([
       fetch("/api/estoque").then(r => r.json()),
-      fetch("/api/clientes").then(r => r.json()),
+      fetch("/api/clientes?modo=simples").then(r => r.json()),
       fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()),
     ]).then(([prods, cls, appts]) => {
       setProdutos(Array.isArray(prods) ? prods : [])

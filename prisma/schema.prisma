@@ -215,6 +215,7 @@ model Appointment {
   status          AppointmentStatus @default(SCHEDULED)
   serviceType     ServiceType       @default(PRESENTIAL)
   scheduledAt     DateTime
+  arrivedAt       DateTime?
   startedAt       DateTime?
   finishedAt      DateTime?
   notes           String?

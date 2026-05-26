@@ -292,7 +292,7 @@ export default function EstoquePage() {
     return () => window.removeEventListener("vendaRegistrada", onVendaRegistrada)
   }, [aba, filtroDataVendas])
   useEffect(() => {
-    fetch("/api/clientes").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   async function buscarProdutos() {

@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { clientId, professionalId, serviceId, scheduledAt, serviceType, notes } = body
+    const { clientId, professionalId, serviceId, haircutId, scheduledAt, serviceType, notes } = body
 
     if (!clientId || !professionalId || !serviceId || !scheduledAt) {
       return NextResponse.json({ error: "Dados obrigatórios não informados" }, { status: 400 })
@@ -150,6 +150,7 @@ export async function POST(request: Request) {
         serviceType: normalizedServiceType,
         status: AppointmentStatus.SCHEDULED,
         establishmentId: ESTABLISHMENT_ID,
+        haircutId: haircutId || null,
         notes: notes || null,
       },
       include: {
@@ -176,6 +177,8 @@ export async function PUT(request: Request) {
 
     const data: Record<string, unknown> = {}
     if (body.status !== undefined) data.status = body.status
+    if (body.status === "IN_QUEUE") data.arrivedAt = new Date()
+    if (body.status === "IN_PROGRESS") data.startedAt = new Date()
     if (body.professionalId !== undefined) data.professionalId = body.professionalId
     if (body.scheduledAt !== undefined) data.scheduledAt = new Date(body.scheduledAt)
 
