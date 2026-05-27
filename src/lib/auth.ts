@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import bcrypt from "bcryptjs"
+import { authConfig } from "./auth.config"
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -17,11 +18,8 @@ const prisma = new PrismaClient({ adapter })
 export { prisma as authPrisma }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -62,32 +60,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
-        const u = user as any
-        token.id = u.id
-        token.role = u.role
-        token.username = u.username
-        token.isFirstLogin = u.isFirstLogin
-        token.allowedResources = u.allowedResources
-      }
-      // Atualização de sessão (ex: após troca de senha)
-      if (trigger === "update" && session) {
-        if (session.isFirstLogin !== undefined) token.isFirstLogin = session.isFirstLogin
-        if (session.allowedResources !== undefined) token.allowedResources = session.allowedResources
-      }
-      return token
-    },
-    async session({ session, token }) {
-      session.user.id = token.id as string
-      session.user.role = token.role as string
-      session.user.username = token.username as string
-      session.user.isFirstLogin = token.isFirstLogin as boolean
-      session.user.allowedResources = token.allowedResources as string[]
-      return session
-    },
-  },
 })
 
 export async function gerarUsername(name: string): Promise<string> {
@@ -105,9 +77,9 @@ export async function gerarUsername(name: string): Promise<string> {
 
   const candidatos: string[] = []
   if (resto.length > 0) {
-    candidatos.push(`${primeiro}.${resto[resto.length - 1]}`) // primeiro.ultimo
+    candidatos.push(`${primeiro}.${resto[resto.length - 1]}`)
     for (let i = 0; i < resto.length - 1; i++) {
-      candidatos.push(`${primeiro}.${resto[i]}`) // primeiro.nomeDoMeio
+      candidatos.push(`${primeiro}.${resto[i]}`)
     }
   }
   candidatos.push(primeiro)
@@ -117,7 +89,6 @@ export async function gerarUsername(name: string): Promise<string> {
     if (!existe) return c
   }
 
-  // Todos os nomes tomados — adiciona número
   const base = candidatos[0] ?? primeiro
   for (let n = 2; n < 100; n++) {
     const u = `${base}${n}`

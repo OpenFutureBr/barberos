@@ -1,26 +1,28 @@
-import { auth } from "@/lib/auth"
+import NextAuth from "next-auth"
+import { authConfig } from "@/lib/auth.config"
 import { NextResponse } from "next/server"
+
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
   const { pathname } = req.nextUrl
 
-  // Rotas públicas — sem autenticação
+  // Rotas públicas — sem autenticação necessária
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/auth/setup") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {
     return NextResponse.next()
   }
 
-  // Sem sessão → redireciona para login
+  // Sem sessão → login
   if (!req.auth) {
     return NextResponse.redirect(new URL("/login", req.url))
   }
 
-  // Primeiro acesso → força troca de senha (exceto se já está na página)
+  // Primeiro acesso → troca de senha obrigatória
   if (req.auth.user?.isFirstLogin && pathname !== "/alterar-senha") {
     return NextResponse.redirect(new URL("/alterar-senha", req.url))
   }
