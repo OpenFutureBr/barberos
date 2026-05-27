@@ -1,13 +1,10 @@
-import NextAuth from "next-auth"
-import { authConfig } from "@/lib/auth.config"
+import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
-const { auth } = NextAuth(authConfig)
-
-export default auth((req) => {
+export const proxy = auth((req) => {
   const { pathname } = req.nextUrl
 
-  // Rotas públicas — sem autenticação necessária
+  // Rotas públicas
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
