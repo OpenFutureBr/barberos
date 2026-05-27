@@ -1,9 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-
-
-
+import { gerarUsername } from "@/lib/auth"
+import bcrypt from "bcryptjs"
 
 export async function GET() {
   try {
@@ -26,6 +24,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+
+    const username = await gerarUsername(body.name)
+    const passwordHash = await bcrypt.hash("123456", 10)
+
     const profissional = await prisma.user.create({
       data: {
         name: body.name,
@@ -47,23 +49,25 @@ export async function POST(request: Request) {
         breakBetweenAppts: body.breakBetweenAppts ? parseInt(body.breakBetweenAppts) : 10,
         establishmentId: "estab001",
         isActive: true,
+        username,
+        passwordHash,
+        isFirstLogin: true,
       },
     })
-    // Salva serviços vinculados
+
     if (body.serviceIds?.length) {
       await prisma.userService.createMany({
         data: body.serviceIds.map((sid: string) => ({ userId: profissional.id, serviceId: sid })),
         skipDuplicates: true,
       })
     }
-    // Salva horários
     if (body.schedules?.length) {
       await prisma.userSchedule.createMany({
         data: body.schedules.map((s: any) => ({ userId: profissional.id, ...s })),
         skipDuplicates: true,
       })
     }
-    return NextResponse.json(profissional)
+    return NextResponse.json({ ...profissional, username })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

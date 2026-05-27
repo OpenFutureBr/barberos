@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { SessionProvider } from "next-auth/react"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -50,7 +51,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BarberOS" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   )

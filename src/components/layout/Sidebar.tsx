@@ -3,67 +3,68 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
+import { useSession, signOut } from "next-auth/react"
 
 const menuGroups = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: "◈" },
-      { href: "/dashboard/agenda", label: "Agenda", icon: "◷" },
-      { href: "/dashboard/fila", label: "Fila de Espera", icon: "●" },
-      { href: "/dashboard/painel-tv", label: "Painel TV", icon: "📺", newTab: true },
+      { href: "/dashboard",        label: "Dashboard",        icon: "◈", resource: "dashboard" },
+      { href: "/dashboard/agenda", label: "Agenda",           icon: "◷", resource: "agenda" },
+      { href: "/dashboard/fila",   label: "Fila de Espera",   icon: "●", resource: "fila" },
+      { href: "/dashboard/painel-tv", label: "Painel TV",     icon: "📺", newTab: true, resource: "painel_tv" },
     ],
   },
   {
     label: "Gestão",
     items: [
-      { href: "/dashboard/clientes", label: "Clientes", icon: "◎" },
-      { href: "/dashboard/servicos", label: "Serviços", icon: "◈" },
-      { href: "/dashboard/galeria", label: "Galeria de Cortes", icon: "✂" },
-      { href: "/dashboard/equipe", label: "Equipe", icon: "◉" },
-      { href: "/dashboard/estoque", label: "Estoque", icon: "◈" },
-      { href: "/dashboard/estoque-ia", label: "IA Estoque", icon: "⬡" },
-      { href: "/dashboard/domicilio", label: "Domicílio", icon: "🚗" },
-      { href: "/dashboard/ia-biotipo", label: "IA Biotipo", icon: "🤖" },
+      { href: "/dashboard/clientes",    label: "Clientes",          icon: "◎", resource: "clientes" },
+      { href: "/dashboard/servicos",    label: "Serviços",          icon: "◈", resource: "servicos" },
+      { href: "/dashboard/galeria",     label: "Galeria de Cortes", icon: "✂", resource: "galeria" },
+      { href: "/dashboard/equipe",      label: "Equipe",            icon: "◉", resource: "equipe" },
+      { href: "/dashboard/estoque",     label: "Estoque",           icon: "◈", resource: "estoque" },
+      { href: "/dashboard/estoque-ia",  label: "IA Estoque",        icon: "⬡", resource: "ia_estoque" },
+      { href: "/dashboard/domicilio",   label: "Domicílio",         icon: "🚗", resource: "domicilio" },
+      { href: "/dashboard/ia-biotipo",  label: "IA Biotipo",        icon: "🤖", resource: "ia_biotipo" },
     ],
   },
   {
     label: "Financeiro",
     items: [
-      { href: "/dashboard/pix", label: "PIX & Cobranças", icon: "💸" },
-      { href: "/dashboard/caixa", label: "Caixa", icon: "💰" },
-      { href: "/dashboard/financeiro", label: "Financeiro", icon: "◷" },
-      { href: "/dashboard/fiscal", label: "Fiscal & NF-e", icon: "📄" },
-      { href: "/dashboard/precificacao", label: "Precificação", icon: "🏷" },
+      { href: "/dashboard/pix",          label: "PIX & Cobranças", icon: "💸", resource: "pix" },
+      { href: "/dashboard/caixa",        label: "Caixa",           icon: "💰", resource: "caixa" },
+      { href: "/dashboard/financeiro",   label: "Financeiro",      icon: "◷", resource: "financeiro" },
+      { href: "/dashboard/fiscal",       label: "Fiscal & NF-e",   icon: "📄", resource: "fiscal" },
+      { href: "/dashboard/precificacao", label: "Precificação",    icon: "🏷", resource: "precificacao" },
     ],
   },
   {
     label: "Fidelidade",
     items: [
-      { href: "/dashboard/cashback", label: "Cashback", icon: "✦" },
-      { href: "/dashboard/assinaturas", label: "Assinaturas", icon: "◎" },
-      { href: "/dashboard/clientes-ia", label: "Central IA", icon: "⬡" },
+      { href: "/dashboard/cashback",    label: "Cashback",   icon: "✦", resource: "cashback" },
+      { href: "/dashboard/assinaturas", label: "Assinaturas", icon: "◎", resource: "assinaturas" },
+      { href: "/dashboard/clientes-ia", label: "Central IA", icon: "⬡", resource: "clientes_ia" },
     ],
   },
   {
     label: "Comunicação",
     items: [
-      { href: "/dashboard/whatsapp", label: "WhatsApp", icon: "💬" },
+      { href: "/dashboard/whatsapp", label: "WhatsApp", icon: "💬", resource: "whatsapp" },
     ],
   },
   {
     label: "Escala",
     items: [
-      { href: "/dashboard/unidades", label: "Multi-unidades", icon: "🏢" },
-      { href: "/dashboard/white-label", label: "White-label", icon: "🎨" },
-      { href: "/dashboard/media", label: "BarberOS Media", icon: "📡" },
+      { href: "/dashboard/unidades",    label: "Multi-unidades", icon: "🏢", resource: "unidades" },
+      { href: "/dashboard/white-label", label: "White-label",   icon: "🎨", resource: "white_label" },
+      { href: "/dashboard/media",       label: "BarberOS Media", icon: "📡", resource: "media" },
     ],
   },
   {
     label: "Sistema",
     items: [
-      { href: "/dashboard/configuracoes", label: "Configurações", icon: "⚙" },
-      { href: "/dashboard/api-docs", label: "API Docs", icon: "📡" },
+      { href: "/dashboard/configuracoes", label: "Configurações", icon: "⚙", resource: "configuracoes" },
+      { href: "/dashboard/api-docs",      label: "API Docs",      icon: "📡", resource: "api_docs" },
     ],
   },
 ]
@@ -74,10 +75,20 @@ const COLLAPSED_KEY = "sidebar-collapsed"
 export default function Sidebar() {
   const pathname = usePathname()
   const navRef = useRef<HTMLElement>(null)
+  const { data: session } = useSession()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [estabNome, setEstabNome] = useState("BarberOS")
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [tema, setTema] = useState<"dark" | "light">("dark")
+
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.allowedResources?.includes("*")
+  const allowedResources = session?.user?.allowedResources ?? []
+
+  function podeVer(resource: string) {
+    if (!session) return true // antes de carregar a sessão, não filtra
+    if (isAdmin) return true
+    return allowedResources.includes(resource)
+  }
 
   useEffect(() => {
     try {
@@ -100,7 +111,6 @@ export default function Sidebar() {
     window.dispatchEvent(new CustomEvent("temaAlterado", { detail: novo }))
   }
 
-  // Restore scroll position after navigation
   useEffect(() => {
     const saved = sessionStorage.getItem(SCROLL_KEY)
     if (saved && navRef.current) {
@@ -147,6 +157,15 @@ export default function Sidebar() {
     }
   }, [])
 
+  const nomeUsuario = session?.user?.name ?? "Usuário"
+  const inicialUsuario = nomeUsuario.charAt(0).toUpperCase()
+  const usernameUsuario = session?.user?.username ?? ""
+  const roleLabel: Record<string, string> = {
+    ADMIN: "Admin", MANAGER: "Gerente", BARBER_CLT: "Barbeiro",
+    BARBER_MEI: "Barbeiro MEI", AUTONOMO: "Autônomo", CLIENT: "Cliente",
+  }
+  const papelUsuario = roleLabel[session?.user?.role ?? ""] ?? session?.user?.role ?? "—"
+
   return (
     <aside className="w-48 bg-zinc-900 border-r border-zinc-800 flex flex-col h-screen fixed left-0 top-0 z-30">
 
@@ -164,20 +183,23 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Usuário logado */}
       <div className="mx-2 mt-2 bg-zinc-800 rounded-lg p-2 flex items-center gap-2 border border-zinc-700">
         <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-xs font-bold text-black flex-shrink-0">
-          A
+          {inicialUsuario}
         </div>
-        <div>
-          <div className="text-white text-xs font-medium">Admin</div>
-          <div className="text-zinc-500 text-xs">Dono</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-white text-xs font-medium truncate">{nomeUsuario.split(" ")[0]}</div>
+          <div className="text-zinc-500 text-xs truncate">{papelUsuario}</div>
         </div>
       </div>
 
       <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-2">
         {menuGroups.map((group) => {
+          const itensFiltrados = group.items.filter(i => podeVer(i.resource))
+          if (itensFiltrados.length === 0) return null
           const isCollapsed = collapsed.has(group.label)
-          const hasActive = group.items.some(i => i.href === pathname)
+          const hasActive = itensFiltrados.some(i => i.href === pathname)
           return (
             <div key={group.label}>
               <button
@@ -193,7 +215,7 @@ export default function Sidebar() {
                   ›
                 </span>
               </button>
-              {!isCollapsed && group.items.map((item) => {
+              {!isCollapsed && itensFiltrados.map((item) => {
                 const isActive = pathname === item.href
                 return (
                   <Link
@@ -220,12 +242,10 @@ export default function Sidebar() {
       {/* Toggle de tema */}
       <div className="px-2 pb-1">
         <div className="relative flex bg-zinc-800 rounded-lg p-0.5 border border-zinc-700/50">
-          {/* Pill deslizante */}
           <div
             className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-md bg-zinc-700 transition-transform duration-300 ease-in-out"
             style={{ transform: tema === "dark" ? "translateX(calc(100% + 4px))" : "translateX(0)" }}
           />
-          {/* Sol — claro */}
           <button
             type="button"
             onClick={() => setTemaValor("light")}
@@ -244,7 +264,6 @@ export default function Sidebar() {
               <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
             </svg>
           </button>
-          {/* Lua — escuro */}
           <button
             type="button"
             onClick={() => setTemaValor("dark")}
@@ -258,14 +277,16 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Sair */}
       <div className="p-2 border-t border-zinc-800">
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 cursor-pointer">
-          <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
-          <div>
-            <div className="text-zinc-300 text-xs">Barbearia Costa</div>
-            <div className="text-zinc-600 text-xs">Vila Madalena · SP</div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-400 text-xs transition-colors"
+        >
+          <span className="text-sm">↩</span>
+          <span>Sair ({usernameUsuario})</span>
+        </button>
       </div>
 
     </aside>

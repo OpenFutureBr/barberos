@@ -2,6 +2,116 @@
 
 import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { RESOURCES } from "@/lib/resources"
+
+// ── Modal de Permissões ────────────────────────────────────────────────────
+
+type Perm = { resource: string; canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }
+
+function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }) {
+  const [perms, setPerms] = useState<Record<string, Perm>>({})
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/equipe/${prof.id}/permissoes`)
+      .then(r => r.json())
+      .then((data: Perm[]) => {
+        const map: Record<string, Perm> = {}
+        RESOURCES.forEach(r => {
+          const existing = data.find(p => p.resource === r.slug)
+          map[r.slug] = existing ?? { resource: r.slug, canView: false, canCreate: false, canEdit: false, canDelete: false }
+        })
+        setPerms(map)
+      })
+      .finally(() => setLoading(false))
+  }, [prof.id])
+
+  function toggle(slug: string, field: keyof Omit<Perm, "resource">) {
+    setPerms(prev => ({ ...prev, [slug]: { ...prev[slug], [field]: !prev[slug][field] } }))
+  }
+
+  function toggleTudo(slug: string, ativo: boolean) {
+    setPerms(prev => ({ ...prev, [slug]: { resource: slug, canView: ativo, canCreate: ativo, canEdit: ativo, canDelete: ativo } }))
+  }
+
+  async function salvar() {
+    setSalvando(true)
+    await fetch(`/api/equipe/${prof.id}/permissoes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.values(perms)),
+    })
+    setSalvando(false)
+    onFechar()
+  }
+
+  const grupos = Array.from(new Set(RESOURCES.map(r => r.group)))
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h2 className="text-white font-bold">Permissões de acesso</h2>
+            <p className="text-zinc-500 text-xs mt-0.5">{prof.name} · @{prof.username ?? "sem usuário"}</p>
+          </div>
+          <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl">✕</button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center text-zinc-600 text-sm">Carregando...</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {grupos.map(grupo => (
+              <div key={grupo}>
+                <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest mb-2">{grupo}</div>
+                <div className="space-y-1">
+                  {RESOURCES.filter(r => r.group === grupo).map(r => {
+                    const p = perms[r.slug]
+                    const tudoAtivo = p?.canView && p?.canCreate && p?.canEdit && p?.canDelete
+                    return (
+                      <div key={r.slug} className="bg-zinc-800 rounded-lg px-3 py-2 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-white text-sm">{r.label}</span>
+                        </div>
+                        {(["canView", "canCreate", "canEdit", "canDelete"] as const).map(f => (
+                          <label key={f} className="flex flex-col items-center gap-0.5 cursor-pointer">
+                            <input type="checkbox" checked={p?.[f] ?? false}
+                              onChange={() => toggle(r.slug, f)}
+                              className="accent-amber-500 w-3.5 h-3.5" />
+                            <span className="text-zinc-600 text-[10px]">
+                              {f === "canView" ? "Ver" : f === "canCreate" ? "Criar" : f === "canEdit" ? "Editar" : "Excluir"}
+                            </span>
+                          </label>
+                        ))}
+                        <button type="button" onClick={() => toggleTudo(r.slug, !tudoAtivo)}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${tudoAtivo ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-zinc-700 text-zinc-500 border-zinc-600 hover:text-zinc-300"}`}>
+                          {tudoAtivo ? "Tudo" : "Nada"}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="p-5 border-t border-zinc-800 flex gap-3">
+          <button onClick={onFechar}
+            className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+            Cancelar
+          </button>
+          <button onClick={salvar} disabled={salvando || loading}
+            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold px-4 py-2.5 rounded-lg text-sm transition-colors">
+            {salvando ? "Salvando..." : "Salvar permissões"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const vinculoStyle: Record<string, string> = {
   CLT: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
@@ -370,6 +480,7 @@ export default function EquipePage() {
   const [profSelecionado, setProfSelecionado] = useState<any | null>(null)
   const [excluindo, setExcluindo] = useState(false)
   const [erroModal, setErroModal] = useState("")
+  const [modalPermissoes, setModalPermissoes] = useState(false)
 
   useEffect(() => {
     buscarEquipe()
@@ -476,6 +587,7 @@ export default function EquipePage() {
                   {!prof.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-500 border border-zinc-600">Inativo</span>}
                 </div>
                 <div className="text-zinc-500 text-xs">
+                  {prof.username && <span className="text-amber-500/70 font-mono">@{prof.username} · </span>}
                   {prof.email}{prof.phone ? ` · ${prof.phone}` : ""}{idade ? ` · ${idade} anos` : ""}
                 </div>
                 {tempoCasa && (
@@ -497,7 +609,11 @@ export default function EquipePage() {
                 </div>
                 {prof.breakBetweenAppts && <div className="text-zinc-600 text-xs">{prof.breakBetweenAppts}min intervalo</div>}
               </div>
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 flex flex-col gap-1.5">
+                <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalPermissoes(true) }}
+                  className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs px-3 py-1.5 rounded-lg border border-blue-500/20 transition-colors whitespace-nowrap">
+                  🔐 Acesso
+                </button>
                 <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
                   className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors">
                   Desativar
@@ -515,6 +631,7 @@ export default function EquipePage() {
 
       {modalNovo && <FormularioProfissional titulo="Novo Profissional" servicos={servicos} onSalvar={handleCriar} onCancelar={() => setModalNovo(false)} salvando={salvando} erro={erroModal} />}
       {modalEditar && profSelecionado && <FormularioProfissional titulo="Editar Profissional" inicial={profSelecionado} servicos={servicos} onSalvar={handleEditar} onCancelar={() => { setModalEditar(false); setProfSelecionado(null) }} salvando={salvando} erro={erroModal} />}
+      {modalPermissoes && profSelecionado && <PermissoesModal prof={profSelecionado} onFechar={() => { setModalPermissoes(false); setProfSelecionado(null) }} />}
 
       {modalExcluir && profSelecionado && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">

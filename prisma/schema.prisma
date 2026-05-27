@@ -79,11 +79,29 @@ model User {
   schedules         UserSchedule[]
   userServices      UserService[]
   attendsHome      Boolean   @default(false)
+  username         String?        @unique
+  passwordHash     String?
+  isFirstLogin     Boolean        @default(true)
   kitItems         KitItem[]
   sessions         Session[]
   establishment    Establishment? @relation(fields: [establishmentId], references: [id])
+  permissions      UserPermission[]
 
   @@map("users")
+}
+
+model UserPermission {
+  id        String  @id @default(cuid())
+  userId    String
+  resource  String
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource])
+  @@map("user_permissions")
 }
 
 model Account {
