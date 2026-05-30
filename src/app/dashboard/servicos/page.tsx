@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
-const categoriaStyle: Record<string, string> = {
-  Corte: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  Combo: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  Barba: "bg-green-500/10 text-green-400 border border-green-500/20",
-  Química: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
-  Tratamento: "bg-teal-500/10 text-teal-400 border border-teal-500/20",
-  Premium: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+const categoriaGradient: Record<string, string> = {
+  Corte: "from-blue-700 to-blue-950",
+  Combo: "from-amber-600 to-amber-950",
+  Barba: "from-emerald-700 to-emerald-950",
+  Química: "from-purple-700 to-purple-950",
+  Tratamento: "from-teal-700 to-teal-950",
+  Premium: "from-yellow-600 to-amber-950",
 }
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
@@ -120,38 +120,83 @@ export default function ServicosPage() {
   }
 
   function ServiceCard({ servico, dim = false }: { servico: any; dim?: boolean }) {
+    const gradient = categoriaGradient[servico.category] ?? "from-zinc-600 to-zinc-900"
+
     return (
-      <div className={`bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-colors ${dim ? "opacity-50" : ""}`}>
-        {/* Foto do serviço */}
-        {servico.photoUrl ? (
-          <div className="h-32 overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={servico.photoUrl} alt={servico.name} className="w-full h-full object-cover" />
-          </div>
-        ) : (
-          <div className="h-20 bg-zinc-800 flex items-center justify-center">
-            <span className="text-zinc-600 text-xs">Sem foto</span>
-          </div>
-        )}
-        <div className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${categoriaStyle[servico.category] ?? "bg-zinc-700 text-zinc-400"}`}>
-              {servico.category || "Geral"}
-            </span>
-            {servico.availableHome && (
-              <span className="text-xs text-teal-400">🚗</span>
-            )}
-          </div>
-          <div className={`font-semibold mb-1 ${dim ? "text-zinc-400" : "text-white"}`}>{servico.name}</div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
-            <div className={`font-bold ${dim ? "text-zinc-500" : "text-amber-400"}`}>R$ {servico.price}</div>
-            <div className="text-zinc-500 text-xs">{servico.durationMin} min</div>
-          </div>
-          <button onClick={() => handleEditar(servico)}
-            className="w-full mt-3 text-xs text-zinc-500 hover:text-zinc-300 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors">
-            ✏️ Editar
-          </button>
+      <div
+        onClick={() => handleEditar(servico)}
+        className={`relative rounded-xl overflow-hidden border border-zinc-700/60 cursor-pointer group transition-all hover:border-zinc-500 hover:shadow-xl hover:shadow-black/50 select-none ${dim ? "opacity-40 grayscale" : ""}`}
+        style={{ aspectRatio: "1.7 / 1" }}
+      >
+        {/* Base */}
+        <div className="absolute inset-0 bg-zinc-900" />
+        {/* Diagonal texture */}
+        <div className="absolute inset-0 opacity-[0.035]"
+          style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "7px 7px" }} />
+
+        {/* Left accent stripe */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${gradient}`} />
+
+        {/* Header strip */}
+        <div className={`absolute top-0 left-1.5 right-0 h-7 bg-gradient-to-r ${gradient} flex items-center px-3 justify-between`}>
+          <span className="text-white/80 text-[9px] tracking-[0.2em] uppercase font-medium">Barberos · Serviços</span>
+          <span className="text-white/60 text-[9px] tracking-widest uppercase">{servico.category || "Geral"}</span>
         </div>
+
+        {/* Body */}
+        <div className="absolute top-7 left-1.5 right-0 bottom-0 flex">
+          {/* Photo */}
+          <div className="w-[30%] flex-shrink-0 p-2.5">
+            <div className="w-full h-full rounded-md overflow-hidden border border-zinc-700 bg-zinc-800">
+              {servico.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={servico.photoUrl} alt={servico.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-3xl opacity-30">✂</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Vertical divider */}
+          <div className="w-px bg-zinc-800 my-3 flex-shrink-0" />
+
+          {/* Fields */}
+          <div className="flex-1 px-3 py-2.5 flex flex-col justify-between">
+            <div>
+              <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Nome do Serviço</div>
+              <div className={`font-bold leading-tight ${dim ? "text-zinc-400" : "text-white"}`} style={{ fontSize: "clamp(0.7rem, 1.2vw, 0.95rem)" }}>
+                {servico.name}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-3">
+              <div>
+                <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Valor</div>
+                <div className={`font-bold leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`} style={{ fontSize: "clamp(0.9rem, 1.5vw, 1.2rem)" }}>
+                  R$&nbsp;{Number(servico.price).toFixed(0)}
+                </div>
+              </div>
+              <div>
+                <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Duração</div>
+                <div className="text-white font-semibold text-sm leading-none">
+                  {servico.durationMin}<span className="text-zinc-500 text-xs"> min</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className={`text-[9px] uppercase tracking-wider ${servico.availableHome ? "text-teal-500" : "opacity-0"}`}>
+                ✦ Domicílio
+              </span>
+              <span className="text-[9px] text-zinc-700 group-hover:text-zinc-500 transition-colors">editar →</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom line */}
+        <div className="absolute bottom-0 left-1.5 right-0 h-px bg-zinc-800" />
       </div>
     )
   }
@@ -183,13 +228,13 @@ export default function ServicosPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             {ativos.map(s => <ServiceCard key={s.id} servico={s} />)}
           </div>
           {inativos.length > 0 && (
             <div>
               <p className="text-zinc-600 text-xs uppercase tracking-wider mb-3">Desabilitados</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 {inativos.map(s => <ServiceCard key={s.id} servico={s} dim />)}
               </div>
             </div>
