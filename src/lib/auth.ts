@@ -1,19 +1,9 @@
 import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { PrismaClient } from "@prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
-import { Pool } from "pg"
 import bcrypt from "bcryptjs"
+import prisma from "@/lib/prisma"
 import { authConfig } from "./auth.config"
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
 
 export { prisma as authPrisma }
 
@@ -28,34 +18,77 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) return null
+        try {
+          const username = String(credentials?.username ?? "").trim()
+          const password = String(credentials?.password ?? "")
 
-        const user = await prisma.user.findUnique({
-          where: { username: credentials.username as string },
-          include: { permissions: true },
-        })
+          if (!username || !password) {
+            console.log("[AUTH] Usuário ou senha não informado")
+            return null
+          }
 
-        if (!user?.passwordHash) return null
+          console.log("[AUTH] Tentando login:", username)
 
-        const senhaCorreta = await bcrypt.compare(
-          credentials.password as string,
-          user.passwordHash,
-        )
-        if (!senhaCorreta) return null
+          const user = await prisma.user.findUnique({
+            where: {
+              username,
+            },
+          })
 
-        const allowedResources =
-          user.role === "ADMIN"
-            ? ["*"]
-            : user.permissions.filter(p => p.canView).map(p => p.resource)
+          if (!user) {
+            console.log("[AUTH] Usuário não encontrado:", username)
+            return null
+          }
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          username: user.username!,
-          isFirstLogin: user.isFirstLogin,
-          allowedResources,
+          if (!user.isActive) {
+            console.log("[AUTH] Usuário inativo:", username)
+            return null
+          }
+
+          if (!user.passwordHash) {
+            console.log("[AUTH] Usuário sem passwordHash:", username)
+            return null
+          }
+
+          const senhaCorreta = await bcrypt.compare(password, user.passwordHash)
+
+          if (!senhaCorreta) {
+            console.log("[AUTH] Senha incorreta para:", username)
+            return null
+          }
+
+          let allowedResources: string[] = []
+
+          if (user.role === "ADMIN") {
+            allowedResources = ["*"]
+          } else {
+            const permissions = await prisma.userPermission.findMany({
+              where: {
+                userId: user.id,
+                canView: true,
+              },
+              select: {
+                resource: true,
+              },
+            })
+
+            allowedResources = permissions.map((p) => p.resource)
+          }
+
+          console.log("[AUTH] Login autorizado:", username)
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            username: user.username ?? username,
+            isFirstLogin: user.isFirstLogin,
+            allowedResources,
+          }
+        } catch (error) {
+          console.error("[AUTH] Erro no authorize:", error)
+          return null
         }
       },
     }),
@@ -65,7 +98,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 export async function gerarUsername(name: string): Promise<string> {
   const partes = name
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z\s]/g, "")
     .trim()
@@ -76,24 +109,40 @@ export async function gerarUsername(name: string): Promise<string> {
   const resto = partes.slice(1)
 
   const candidatos: string[] = []
+
   if (resto.length > 0) {
     candidatos.push(`${primeiro}.${resto[resto.length - 1]}`)
+
     for (let i = 0; i < resto.length - 1; i++) {
       candidatos.push(`${primeiro}.${resto[i]}`)
     }
   }
+
   candidatos.push(primeiro)
 
   for (const c of candidatos) {
-    const existe = await prisma.user.findUnique({ where: { username: c } })
+    const existe = await prisma.user.findUnique({
+      where: {
+        username: c,
+      },
+    })
+
     if (!existe) return c
   }
 
   const base = candidatos[0] ?? primeiro
+
   for (let n = 2; n < 100; n++) {
     const u = `${base}${n}`
-    const existe = await prisma.user.findUnique({ where: { username: u } })
+
+    const existe = await prisma.user.findUnique({
+      where: {
+        username: u,
+      },
+    })
+
     if (!existe) return u
   }
+
   return `${primeiro}_${Date.now()}`
 }
