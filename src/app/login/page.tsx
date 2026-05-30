@@ -106,6 +106,9 @@ export default function LoginPage() {
         <p className="text-center text-zinc-600 text-xs mt-6">
           Acesso restrito a colaboradores autorizados
         </p>
+        <p className="text-center text-zinc-700 text-xs mt-2">
+          Desenvolvido por <span className="text-zinc-600">OpenFuture</span> · ® Marca Registrada
+        </p>
       </div>
     </div>
   )
