@@ -263,16 +263,21 @@ model Appointment {
 model Payment {
   id                String        @id @default(cuid())
   method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
   amount            Float
+  dueDate           DateTime?
+
   pixQrCode         String?
   pixCopyPaste      String?
   pixTxId           String?       @unique
   pixStatus         PixStatus     @default(PENDING)
   pixPaidAt         DateTime?
+
   splitType         SplitType     @default(SPLIT_ESTABLISHMENT)
   splitEstabAmount  Float?
   splitProfAmount   Float?
   cashbackGenerated Float         @default(0)
+
   appointmentId     String        @unique
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -566,6 +571,14 @@ enum PaymentMethod {
   CARD
   CASHBACK
   SUBSCRIPTION
+  PAY_LATER // ✅ NOVO
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELLED
+  OVERDUE
 }
 
 enum PixStatus {

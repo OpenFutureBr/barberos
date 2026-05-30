@@ -1,13 +1,54 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
+type MetodoEntrada =
+  | "PIX"
+  | "CASH"
+  | "CARD"
+  | "CARD_CREDITO"
+  | "CARD_DEBITO"
+  | "DINHEIRO"
+  | "CREDITO"
+  | "DEBITO"
+  | "PAY_LATER"
 
+function normalizarMetodo(method: MetodoEntrada | string | undefined) {
+  if (!method) return "PIX"
 
+  const m = String(method).toUpperCase()
 
+  if (m === "DINHEIRO") return "CASH"
+  if (m === "CREDITO") return "CARD"
+  if (m === "DEBITO") return "CARD"
+  if (m === "CARD_CREDITO") return "CARD"
+  if (m === "CARD_DEBITO") return "CARD"
 
-export async function GET(_: Request, { params }: { params: Promise<{ apptId: string }> }) {
+  if (m === "PAY_LATER") return "PAY_LATER"
+  if (m === "CASH") return "CASH"
+  if (m === "CARD") return "CARD"
+  if (m === "PIX") return "PIX"
+
+  return "PIX"
+}
+
+function parseValor(valor: unknown) {
+  if (typeof valor === "number") return valor
+
+  if (typeof valor === "string") {
+    const n = Number(valor.replace(",", "."))
+    return Number.isFinite(n) ? n : 0
+  }
+
+  return 0
+}
+
+export async function GET(
+  _: Request,
+  { params }: { params: Promise<{ apptId: string }> },
+) {
   try {
     const { apptId } = await params
+
     const [appt, movimentos] = await Promise.all([
       prisma.appointment.findUnique({
         where: { id: apptId },
@@ -15,15 +56,35 @@ export async function GET(_: Request, { params }: { params: Promise<{ apptId: st
           client: { select: { name: true, phone: true } },
           service: { select: { name: true, price: true, durationMin: true } },
           professional: { select: { name: true } },
+          payment: {
+            select: {
+              id: true,
+              method: true,
+              status: true,
+              amount: true,
+              dueDate: true,
+              pixStatus: true,
+              pixPaidAt: true,
+              createdAt: true,
+            },
+          },
         },
       }),
+
       prisma.stockMovement.findMany({
         where: { appointmentId: apptId, type: "SAIDA" },
         include: { product: { select: { name: true, salePrice: true } } },
         orderBy: { createdAt: "asc" },
       }),
     ])
-    if (!appt) return NextResponse.json({ error: "Agendamento não encontrado" }, { status: 404 })
+
+    if (!appt) {
+      return NextResponse.json(
+        { error: "Agendamento não encontrado" },
+        { status: 404 },
+      )
+    }
+
     return NextResponse.json({ appt, movimentos })
   } catch (error) {
     console.error("[GET /api/agenda/comanda]", error)
@@ -31,14 +92,82 @@ export async function GET(_: Request, { params }: { params: Promise<{ apptId: st
   }
 }
 
-export async function PUT(_: Request, { params }: { params: Promise<{ apptId: string }> }) {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ apptId: string }> },
+) {
   try {
     const { apptId } = await params
-    await prisma.appointment.update({
+    const body = await request.json().catch(() => ({}))
+
+    const appt = await prisma.appointment.findUnique({
       where: { id: apptId },
-      data: { status: "DONE" },
+      include: {
+        service: { select: { price: true } },
+      },
     })
-    return NextResponse.json({ ok: true })
+
+    if (!appt) {
+      return NextResponse.json(
+        { error: "Agendamento não encontrado" },
+        { status: 404 },
+      )
+    }
+
+    const method = normalizarMetodo(body.method)
+    const amountInformado = parseValor(body.amount)
+    const amount = amountInformado > 0 ? amountInformado : appt.service.price
+
+    const isPagarDepois = method === "PAY_LATER"
+    const dueDate = body.dueDate ? new Date(body.dueDate) : null
+
+    if (isPagarDepois && !dueDate) {
+      return NextResponse.json(
+        { error: "Informe a data de vencimento para pagamento posterior." },
+        { status: 400 },
+      )
+    }
+
+    const status =
+      method === "PAY_LATER" || method === "PIX" ? "PENDING" : "PAID"
+
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: apptId },
+        data: { status: "DONE" },
+      })
+
+      await tx.payment.upsert({
+        where: { appointmentId: apptId },
+        update: {
+          method,
+          status,
+          amount,
+          dueDate: isPagarDepois ? dueDate : null,
+          pixStatus: method === "PIX" ? "PENDING" : "PAID",
+          pixPaidAt: status === "PAID" ? new Date() : null,
+        },
+        create: {
+          appointmentId: apptId,
+          method,
+          status,
+          amount,
+          dueDate: isPagarDepois ? dueDate : null,
+          pixStatus: method === "PIX" ? "PENDING" : "PAID",
+          pixPaidAt: status === "PAID" ? new Date() : null,
+        },
+      })
+    })
+
+    return NextResponse.json({
+      ok: true,
+      payment: {
+        method,
+        status,
+        amount,
+        dueDate: isPagarDepois ? dueDate : null,
+      },
+    })
   } catch (error) {
     console.error("[PUT /api/agenda/comanda]", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
