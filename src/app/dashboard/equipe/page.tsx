@@ -12,6 +12,8 @@ function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }
   const [perms, setPerms] = useState<Record<string, Perm>>({})
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
+  const [gerandoAcesso, setGerandoAcesso] = useState(false)
+  const [usernameGerado, setUsernameGerado] = useState<string | null>(prof.username ?? null)
 
   useEffect(() => {
     fetch(`/api/equipe/${prof.id}/permissoes`)
@@ -54,10 +56,33 @@ function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <div>
             <h2 className="text-white font-bold">Permissões de acesso</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">{prof.name} · @{prof.username ?? "sem usuário"}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              {prof.name} · {usernameGerado ? <span className="text-amber-400 font-mono">@{usernameGerado}</span> : <span className="text-red-400">sem usuário</span>}
+            </p>
           </div>
           <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl">✕</button>
         </div>
+
+        {!usernameGerado && (
+          <div className="mx-5 mt-4 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-amber-400 text-sm font-medium">Sem acesso ao sistema</div>
+              <div className="text-zinc-500 text-xs mt-0.5">Gere um login para que este profissional possa entrar no sistema. A senha inicial será <span className="font-mono text-zinc-400">123456</span>.</div>
+            </div>
+            <button
+              onClick={async () => {
+                setGerandoAcesso(true)
+                const res = await fetch(`/api/equipe/${prof.id}/gerar-acesso`, { method: "POST" })
+                const data = await res.json()
+                if (res.ok) setUsernameGerado(data.username)
+                setGerandoAcesso(false)
+              }}
+              disabled={gerandoAcesso}
+              className="flex-shrink-0 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+              {gerandoAcesso ? "Gerando..." : "Gerar acesso"}
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-zinc-600 text-sm">Carregando...</div>
