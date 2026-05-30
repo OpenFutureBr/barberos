@@ -525,6 +525,9 @@ export async function GET(request: Request) {
         repasse = (p.bruto * p.commissionPct) / 100
       } else if (p.benchFeePct) {
         repasse = p.bruto * (1 - p.benchFeePct / 100)
+      } else if (p.benchFee) {
+        // Taxa fixa: o profissional fica com o bruto menos a bancada fixa
+        repasse = Math.max(0, p.bruto - p.benchFee * p.atendimentos)
       }
 
       return {
@@ -742,8 +745,14 @@ export async function POST(request: Request) {
       })
     }
 
-    const methodFinal =
-      method === "PIX" || method === "CARD" || method === "CASH" ? method : "CASH"
+    const METODOS_VALIDOS = ["PIX", "CARD", "CASH", "CASHBACK", "SUBSCRIPTION"]
+    if (!METODOS_VALIDOS.includes(method)) {
+      return NextResponse.json(
+        { error: `Método de pagamento inválido: ${method}` },
+        { status: 400 },
+      )
+    }
+    const methodFinal = method
 
     const caixa = await getOuCriarCaixaHoje()
 
@@ -756,7 +765,7 @@ export async function POST(request: Request) {
           status: "PAID",
           method: methodFinal as any,
           pixStatus: methodFinal === "PIX" ? "PAID" : pagamento.pixStatus,
-          pixPaidAt: new Date(),
+          pixPaidAt: methodFinal === "PIX" ? new Date() : pagamento.pixPaidAt,
         },
       })
 
