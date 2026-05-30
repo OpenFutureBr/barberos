@@ -62,19 +62,7 @@ type DashData = {
 
 type CaixaData = { caixa: { id: string; closedAt: string | null } | null; lancamentos: any[] }
 
-const SAUDACAO = () => {
-  const h = new Date().getHours()
-  if (h < 12) return "Bom dia"
-  if (h < 18) return "Boa tarde"
-  return "Boa noite"
-}
-
-const DIAS = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"]
-const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
-
 export default function DashboardPage() {
-  const [hora, setHora] = useState("")
-  const [dataStr, setDataStr] = useState("")
   const [dados, setDados] = useState<DashData | null>(null)
   const [appts, setAppts] = useState<Appt[]>([])
   const [caixa, setCaixa] = useState<CaixaData | null>(null)
@@ -84,19 +72,6 @@ export default function DashboardPage() {
   const [periodo, setPeriodo] = useState<Periodo>("hoje")
   const [customFrom, setCustomFrom] = useState(hojeStr())
   const [customTo, setCustomTo] = useState(hojeStr())
-
-  // Relógio ao vivo
-  useEffect(() => {
-    const tick = () => {
-      const n = new Date()
-      setHora(n.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
-      const d = n
-      setDataStr(`${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`)
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
-  }, [])
 
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
 
@@ -174,57 +149,11 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
 
-      {/* ── STICKY: CABEÇALHO + FILTRO + KPIs ── */}
+      {/* ── STICKY: KPIs + FILTRO + CAIXA ── */}
       <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
 
-      {/* ── CABEÇALHO ── */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="text-zinc-500 text-sm">{SAUDACAO()}</div>
-          <h1 className="text-white text-2xl font-bold tracking-tight mt-0.5">
-            {estab?.name ?? "Barbearia"}
-          </h1>
-          <div className="text-zinc-500 text-sm mt-0.5 capitalize">{dataStr}</div>
-        </div>
-        <div className="text-right">
-          <div className="text-white text-3xl font-bold font-mono tabular-nums">{hora}</div>
-          <div className={`flex items-center justify-end gap-1.5 mt-1 text-xs ${caixaAberto ? "text-green-400" : "text-zinc-600"}`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
-            {caixaAberto ? "Caixa aberto" : "Caixa fechado"}
-          </div>
-        </div>
-      </div>
-
-      {/* ── FILTRO DE PERÍODO ── */}
-      <div className="flex items-center gap-2 mb-5 flex-wrap">
-        <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5">
-          {PERIODOS.map(p => (
-            <button key={p.key} onClick={() => setPeriodo(p.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                periodo === p.key ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-zinc-200"
-              }`}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {periodo === "custom" && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
-            <span className="text-zinc-600 text-xs">até</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
-          </div>
-        )}
-        {periodo !== "hoje" && (
-          <div className="text-zinc-600 text-xs ml-1">
-            {range.from === range.to ? range.from : `${range.from} → ${range.to}`}
-          </div>
-        )}
-      </div>
-
       {/* ── KPIs PRINCIPAIS ── */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 mb-3">
 
         {/* Faturamento */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
@@ -282,6 +211,40 @@ export default function DashboardPage() {
           <div className="text-zinc-600 text-xs mt-1">saldo atual · {lancamentos.length} lançamentos</div>
         </div>
 
+      </div>
+
+      {/* ── FILTRO + STATUS CAIXA ── */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex-1 flex items-center gap-2 flex-wrap">
+          <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5">
+            {PERIODOS.map(p => (
+              <button key={p.key} onClick={() => setPeriodo(p.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  periodo === p.key ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-zinc-200"
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {periodo === "custom" && (
+            <div className="flex items-center gap-2">
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
+              <span className="text-zinc-600 text-xs">até</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs px-3 py-1.5 rounded-xl outline-none focus:border-amber-500 [color-scheme:dark]" />
+            </div>
+          )}
+          {periodo !== "hoje" && (
+            <span className="text-zinc-600 text-xs">
+              {range.from === range.to ? range.from : `${range.from} → ${range.to}`}
+            </span>
+          )}
+        </div>
+        <div className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${caixaAberto ? "text-green-400" : "text-zinc-600"}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
+          {caixaAberto ? "Caixa aberto" : "Caixa fechado"}
+        </div>
       </div>
 
       </div>{/* fim sticky */}
