@@ -506,6 +506,14 @@ export default function EquipePage() {
   const [excluindo, setExcluindo] = useState(false)
   const [erroModal, setErroModal] = useState("")
   const [modalPermissoes, setModalPermissoes] = useState(false)
+  const [resetandoSenha, setResetandoSenha] = useState<string | null>(null)
+
+  async function handleResetarSenha(prof: any) {
+    if (!confirm(`Resetar a senha de ${prof.name} para 123456?`)) return
+    setResetandoSenha(prof.id)
+    await fetch(`/api/equipe/${prof.id}/resetar-senha`, { method: "POST" })
+    setResetandoSenha(null)
+  }
 
   useEffect(() => {
     buscarEquipe()
@@ -639,6 +647,14 @@ export default function EquipePage() {
                   className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs px-3 py-1.5 rounded-lg border border-blue-500/20 transition-colors whitespace-nowrap">
                   🔐 Acesso
                 </button>
+                {prof.username && (
+                  <button
+                    onClick={e => { e.stopPropagation(); handleResetarSenha(prof) }}
+                    disabled={resetandoSenha === prof.id}
+                    className="bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors disabled:opacity-50 whitespace-nowrap">
+                    {resetandoSenha === prof.id ? "..." : "🔑 Resetar"}
+                  </button>
+                )}
                 <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
                   className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors">
                   Desativar
