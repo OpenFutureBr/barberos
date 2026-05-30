@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 function calcularForca(senha: string): { nivel: number; label: string; cor: string } {
@@ -182,6 +182,14 @@ export default function AlterarSenhaPage() {
             className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold py-2.5 rounded-lg text-sm transition-colors"
           >
             {salvando ? "Salvando..." : "Salvar e entrar"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full text-zinc-500 hover:text-zinc-300 text-sm py-1 transition-colors"
+          >
+            ← Voltar ao login
           </button>
         </form>
       </div>
