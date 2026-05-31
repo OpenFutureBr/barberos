@@ -239,12 +239,19 @@ export default function EstoquePage() {
 
   // Entrada de mercadoria
   const [modalEntrada, setModalEntrada] = useState(false)
-  const [buscaEntrada, setBuscaEntrada] = useState("")
-  const [produtoEntrada, setProdutoEntrada] = useState<any | null>(null)
-  const [qtdEntrada, setQtdEntrada] = useState("1")
-  const [custoEntrada, setCustoEntrada] = useState("")
+  const [tipoEntrada, setTipoEntrada] = useState<"simples" | "estratificada">("simples")
   const [motivoEntrada, setMotivoEntrada] = useState("")
   const [salvandoEntrada, setSalvandoEntrada] = useState(false)
+  // Simples — multi-produto
+  const [itensEntrada, setItensEntrada] = useState<{ id: string; produto: any; qty: string; custo: string }[]>([])
+  const [buscaEntrada, setBuscaEntrada] = useState("")
+  const [dropdownEntrada, setDropdownEntrada] = useState(false)
+  // Estratificada — NF-e
+  const [chaveNfe, setChaveNfe] = useState("")
+  const [dadosNfe, setDadosNfe] = useState<any>(null)
+  const [buscandoNfe, setBuscandoNfe] = useState(false)
+  const [erroNfe, setErroNfe] = useState("")
+  const [itensNfe, setItensNfe] = useState<{ desc: string; qty: string; custo: string; produto: any | null }[]>([])
 
   // Venda — carrinho multi-produto
   const [modalVenda, setModalVenda] = useState(false)
@@ -335,26 +342,56 @@ export default function EstoquePage() {
     finally { setLoadingMovimentos(false) }
   }
 
+  function fecharModalEntrada() {
+    setModalEntrada(false)
+    setTipoEntrada("simples")
+    setItensEntrada([]); setBuscaEntrada(""); setDropdownEntrada(false); setMotivoEntrada("")
+    setChaveNfe(""); setDadosNfe(null); setErroNfe(""); setItensNfe([])
+  }
+
+  async function buscarNfe() {
+    if (chaveNfe.replace(/\D/g,"").length !== 44) { setErroNfe("Chave deve ter 44 dígitos."); return }
+    setBuscandoNfe(true); setErroNfe(""); setDadosNfe(null); setItensNfe([])
+    try {
+      const res = await fetch(`/api/estoque/nfe?chave=${chaveNfe.replace(/\D/g,"")}`)
+      const data = await res.json()
+      if (!res.ok) { setErroNfe(data.error || "Erro ao consultar NF-e"); return }
+      setDadosNfe(data)
+      setItensNfe((data.itens ?? []).map((it: any) => ({
+        desc: it.descricao ?? "",
+        qty: String(it.quantidade ?? 1),
+        custo: String(it.valorUnitario ?? ""),
+        produto: null,
+      })))
+    } catch (err) { setErroNfe(String(err)) }
+    finally { setBuscandoNfe(false) }
+  }
+
   async function confirmarEntrada(e: { preventDefault: () => void }) {
     e.preventDefault()
+    const itens = tipoEntrada === "simples"
+      ? itensEntrada.filter(i => i.produto && Number(i.qty) > 0)
+      : itensNfe.filter(i => i.produto && Number(i.qty) > 0)
+
+    if (itens.length === 0) { alert("Adicione ao menos um produto."); return }
     setSalvandoEntrada(true)
     try {
-      const res = await fetch("/api/estoque/movimentos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: produtoEntrada.id,
-          type: "ENTRADA",
-          quantity: qtdEntrada,
-          reason: motivoEntrada || "Entrada de mercadoria",
-          costPrice: custoEntrada || undefined,
-        }),
-      })
-      if (!res.ok) { const d = await res.json(); alert(d.error || "Erro"); return }
+      await Promise.all(itens.map(item =>
+        fetch("/api/estoque/movimentos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: item.produto.id,
+            type: "ENTRADA",
+            quantity: Number(item.qty),
+            reason: motivoEntrada || (tipoEntrada === "estratificada" && dadosNfe ? `NF-e ${dadosNfe.numero}` : "Entrada de mercadoria"),
+            costPrice: Number(item.custo) || undefined,
+          }),
+        })
+      ))
       await buscarProdutos()
       await buscarMovimentos()
-      setModalEntrada(false)
-      setProdutoEntrada(null); setBuscaEntrada(""); setQtdEntrada("1"); setCustoEntrada(""); setMotivoEntrada("")
+      fecharModalEntrada()
     } catch (err) { alert(String(err)) }
     finally { setSalvandoEntrada(false) }
   }
@@ -1268,79 +1305,224 @@ export default function EstoquePage() {
       {/* MODAL ENTRADA DE MERCADORIA */}
       {modalEntrada && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800 flex-shrink-0">
               <h2 className="text-white font-bold">Entrada de Mercadoria</h2>
-              <button onClick={() => setModalEntrada(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
+              <button onClick={fecharModalEntrada} className="text-zinc-500 hover:text-white text-xl">✕</button>
             </div>
-            <div className="p-5 space-y-3">
-              {!produtoEntrada ? (
+
+            {/* Abas */}
+            <div className="flex border-b border-zinc-800 flex-shrink-0">
+              {(["simples","estratificada"] as const).map(t => (
+                <button key={t} onClick={() => setTipoEntrada(t)}
+                  className={`flex-1 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${
+                    tipoEntrada === t ? "text-amber-400 border-b-2 border-amber-500" : "text-zinc-500 hover:text-zinc-300"
+                  }`}>
+                  {t === "simples" ? "Simples" : "Estratificada (NF-e)"}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={confirmarEntrada} className="flex-1 overflow-y-auto p-5 space-y-4">
+
+              {/* ── ABA SIMPLES ── */}
+              {tipoEntrada === "simples" && (
                 <>
-                  <div>
-                    <label className="text-zinc-400 text-xs mb-1 block">Buscar produto no catálogo</label>
-                    <input value={buscaEntrada} onChange={(e) => setBuscaEntrada(e.target.value)}
-                      placeholder="Digite o nome do produto..." autoFocus className={inputCls} />
+                  {/* Busca de produto */}
+                  <div className="relative">
+                    <label className="text-zinc-400 text-xs mb-1 block">Adicionar produto</label>
+                    <input value={buscaEntrada}
+                      onChange={e => { setBuscaEntrada(e.target.value); setDropdownEntrada(true) }}
+                      onFocus={() => setDropdownEntrada(true)}
+                      placeholder="Buscar no catálogo..." className={inputCls} />
+                    {dropdownEntrada && buscaEntrada.trim().length > 1 && (() => {
+                      const res = produtos.filter(p => p.name.toLowerCase().includes(buscaEntrada.toLowerCase()))
+                      return (
+                        <div className="absolute top-full mt-1 left-0 right-0 z-10 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden shadow-xl max-h-48 overflow-y-auto">
+                          {res.length > 0 ? res.map(p => (
+                            <button key={p.id} type="button"
+                              onClick={() => {
+                                const novo = { id: crypto.randomUUID(), produto: p, qty: "1", custo: String(p.costPrice ?? "") }
+                                setItensEntrada(prev => [...prev, novo])
+                                setBuscaEntrada(""); setDropdownEntrada(false)
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700/50 last:border-0 transition-colors">
+                              <div className="text-white text-sm">{p.name}</div>
+                              <div className="text-zinc-500 text-xs">Estoque: {p.stock} · Custo: R$ {p.costPrice?.toFixed(2)}</div>
+                            </button>
+                          )) : (
+                            <div className="px-3 py-2 text-zinc-500 text-sm">Nenhum produto encontrado</div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
-                  {buscaEntrada.trim().length > 1 && (() => {
-                    const resultados = produtos.filter(p => p.name.toLowerCase().includes(buscaEntrada.toLowerCase()))
-                    return resultados.length > 0 ? (
-                      <div className="bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
-                        {resultados.map(p => (
-                          <button key={p.id} onClick={() => { setProdutoEntrada(p); setCustoEntrada(String(p.costPrice)) }}
-                            className="w-full text-left px-3 py-2.5 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
-                            <div className="text-white text-sm font-medium">{p.name}</div>
-                            <div className="text-zinc-500 text-xs">Estoque atual: {p.stock} · R$ {p.costPrice?.toFixed(2)}</div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                        <p className="text-zinc-500 text-sm mb-2">Produto não encontrado no catálogo</p>
-                        <button onClick={() => { setModalEntrada(false); resetarForm(); setNome(buscaEntrada); setModalNovo(true) }}
-                          className="text-amber-400 text-sm hover:text-amber-300 font-medium">
-                          + Cadastrar "{buscaEntrada}"
-                        </button>
-                      </div>
-                    )
-                  })()}
+
+                  {/* Lista de itens adicionados */}
+                  {itensEntrada.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-zinc-500 text-xs uppercase tracking-wider">Itens da entrada</div>
+                      {itensEntrada.map((item, i) => (
+                        <div key={item.id} className="bg-zinc-800 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-white text-sm font-medium">{item.produto.name}</span>
+                            <button type="button" onClick={() => setItensEntrada(prev => prev.filter(x => x.id !== item.id))}
+                              className="text-zinc-600 hover:text-red-400 text-xs transition-colors">remover</button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-zinc-500 text-xs mb-0.5 block">Qtd *</label>
+                              <input type="number" min="1" value={item.qty}
+                                onChange={e => setItensEntrada(prev => prev.map((x,j) => j===i ? {...x, qty: e.target.value} : x))}
+                                className={inputCls} />
+                            </div>
+                            <div>
+                              <label className="text-zinc-500 text-xs mb-0.5 block">Preço de custo (R$)</label>
+                              <input type="number" min="0" step="0.01" value={item.custo}
+                                placeholder={item.produto.costPrice?.toFixed(2)}
+                                onChange={e => setItensEntrada(prev => prev.map((x,j) => j===i ? {...x, custo: e.target.value} : x))}
+                                className={inputCls} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {itensEntrada.length === 0 && (
+                    <div className="bg-zinc-800/50 border border-dashed border-zinc-700 rounded-lg p-6 text-center text-zinc-600 text-sm">
+                      Busque e adicione produtos acima
+                    </div>
+                  )}
                 </>
-              ) : (
-                <form onSubmit={confirmarEntrada} className="space-y-3">
-                  <div className="bg-zinc-800 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white text-sm font-medium">{produtoEntrada.name}</div>
-                      <div className="text-zinc-500 text-xs">Estoque atual: {produtoEntrada.stock}</div>
-                    </div>
-                    <button type="button" onClick={() => setProdutoEntrada(null)} className="text-zinc-600 hover:text-zinc-400 text-xs">trocar</button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-zinc-400 text-xs mb-1 block">Quantidade *</label>
-                      <input value={qtdEntrada} onChange={(e) => setQtdEntrada(e.target.value)}
-                        required type="number" min="1" className={inputCls} />
-                    </div>
-                    <div>
-                      <label className="text-zinc-400 text-xs mb-1 block">Preço de custo</label>
-                      <input value={custoEntrada} onChange={(e) => setCustoEntrada(e.target.value)}
-                        type="number" min="0" step="0.01" placeholder={String(produtoEntrada.costPrice)} className={inputCls} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 text-xs mb-1 block">Motivo / Observação</label>
-                    <input value={motivoEntrada} onChange={(e) => setMotivoEntrada(e.target.value)}
-                      placeholder="Ex: Compra do fornecedor, devolução..." className={inputCls} />
-                  </div>
-                  <div className="flex gap-3 pt-1">
-                    <button type="button" onClick={() => setModalEntrada(false)}
-                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                    <button type="submit" disabled={salvandoEntrada}
-                      className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                      {salvandoEntrada ? "Salvando..." : "Confirmar entrada"}
-                    </button>
-                  </div>
-                </form>
               )}
-            </div>
+
+              {/* ── ABA ESTRATIFICADA ── */}
+              {tipoEntrada === "estratificada" && (
+                <>
+                  {/* Chave de acesso */}
+                  <div>
+                    <label className="text-zinc-400 text-xs mb-1 block">Chave de Acesso NF-e (44 dígitos)</label>
+                    <div className="flex gap-2">
+                      <input value={chaveNfe}
+                        onChange={e => setChaveNfe(e.target.value.replace(/\D/g,"").slice(0,44))}
+                        placeholder="00000000000000000000000000000000000000000000"
+                        maxLength={44}
+                        className={`${inputCls} font-mono text-xs tracking-wider flex-1`} />
+                      <button type="button" onClick={buscarNfe} disabled={buscandoNfe || chaveNfe.length < 44}
+                        className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-semibold px-4 rounded-lg text-sm transition-colors flex-shrink-0">
+                        {buscandoNfe ? "..." : "Consultar"}
+                      </button>
+                    </div>
+                    <div className="text-zinc-600 text-xs mt-1">{chaveNfe.length}/44 dígitos</div>
+                  </div>
+
+                  {erroNfe && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroNfe}</div>
+                  )}
+
+                  {/* Dados da NF-e */}
+                  {dadosNfe && (
+                    <>
+                      <div className="bg-zinc-800 rounded-lg p-3 space-y-1">
+                        <div className="text-zinc-400 text-xs font-mono uppercase tracking-widest mb-2">{dadosNfe.modelo} · {dadosNfe.estado}</div>
+                        <div className="grid grid-cols-2 gap-x-4 text-xs">
+                          <div><span className="text-zinc-500">Emitente:</span> <span className="text-white font-mono">{dadosNfe.cnpjEmitente}</span></div>
+                          <div><span className="text-zinc-500">Emissão:</span> <span className="text-white">{dadosNfe.emissao}</span></div>
+                          <div><span className="text-zinc-500">Número:</span> <span className="text-white">{dadosNfe.numero}</span></div>
+                          <div><span className="text-zinc-500">Série:</span> <span className="text-white">{dadosNfe.serie}</span></div>
+                        </div>
+                        {dadosNfe.aviso && (
+                          <div className="text-amber-500/70 text-[10px] mt-2 leading-relaxed">{dadosNfe.aviso}</div>
+                        )}
+                      </div>
+
+                      {/* Itens da NF-e */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-zinc-400 text-xs uppercase tracking-wider">Itens da nota</div>
+                          <button type="button" onClick={() => setItensNfe(prev => [...prev, { desc: "", qty: "1", custo: "", produto: null }])}
+                            className="text-amber-400 hover:text-amber-300 text-xs transition-colors">+ Adicionar item</button>
+                        </div>
+
+                        {itensNfe.length === 0 && (
+                          <div className="bg-zinc-800/50 border border-dashed border-zinc-700 rounded-lg p-4 text-center text-zinc-600 text-xs">
+                            Nenhum item retornado automaticamente — adicione manualmente
+                          </div>
+                        )}
+
+                        <div className="space-y-3">
+                          {itensNfe.map((item, i) => (
+                            <div key={i} className="bg-zinc-800 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-zinc-400 text-xs">Item {i + 1}</span>
+                                <button type="button" onClick={() => setItensNfe(prev => prev.filter((_,j) => j !== i))}
+                                  className="text-zinc-600 hover:text-red-400 text-xs transition-colors">remover</button>
+                              </div>
+                              {item.desc && <div className="text-white text-xs font-medium">{item.desc}</div>}
+                              {/* Vincular ao catálogo */}
+                              <div>
+                                <label className="text-zinc-500 text-xs mb-0.5 block">Produto no catálogo *</label>
+                                <select value={item.produto?.id ?? ""}
+                                  onChange={e => {
+                                    const p = produtos.find(x => x.id === e.target.value) ?? null
+                                    setItensNfe(prev => prev.map((x,j) => j===i ? {...x, produto: p} : x))
+                                  }}
+                                  className={inputCls}>
+                                  <option value="">— selecione —</option>
+                                  {produtos.filter(p => p.isActive).map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-zinc-500 text-xs mb-0.5 block">Qtd *</label>
+                                  <input type="number" min="1" value={item.qty}
+                                    onChange={e => setItensNfe(prev => prev.map((x,j) => j===i ? {...x, qty: e.target.value} : x))}
+                                    className={inputCls} />
+                                </div>
+                                <div>
+                                  <label className="text-zinc-500 text-xs mb-0.5 block">Preço de custo NF-e (R$)</label>
+                                  <input type="number" min="0" step="0.01" value={item.custo}
+                                    onChange={e => setItensNfe(prev => prev.map((x,j) => j===i ? {...x, custo: e.target.value} : x))}
+                                    className={inputCls} />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Motivo — comum às duas abas */}
+              {(tipoEntrada === "simples" ? itensEntrada.length > 0 : dadosNfe !== null) && (
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Motivo / Observação</label>
+                  <input value={motivoEntrada} onChange={e => setMotivoEntrada(e.target.value)}
+                    placeholder={tipoEntrada === "estratificada" && dadosNfe ? `NF-e ${dadosNfe.numero}` : "Ex: Compra do fornecedor..."}
+                    className={inputCls} />
+                </div>
+              )}
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-1 flex-shrink-0">
+                <button type="button" onClick={fecharModalEntrada}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={salvandoEntrada ||
+                  (tipoEntrada === "simples" && itensEntrada.length === 0) ||
+                  (tipoEntrada === "estratificada" && (!dadosNfe || itensNfe.filter(i => i.produto).length === 0))}
+                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-40 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
+                  {salvandoEntrada ? "Salvando..." : `Confirmar ${tipoEntrada === "simples" ? itensEntrada.length : itensNfe.filter(i=>i.produto).length} item(ns)`}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
