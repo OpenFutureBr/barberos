@@ -52,6 +52,15 @@ export async function GET() {
     }),
   ])
 
+  // Atualiza para OVERDUE qualquer assinatura ACTIVE que já venceu
+  const idsParaAtualizar = assinaturas.filter((s) => s.status === "ACTIVE").map((s) => s.id)
+  if (idsParaAtualizar.length > 0) {
+    await prisma.subscription.updateMany({
+      where: { id: { in: idsParaAtualizar } },
+      data: { status: "OVERDUE" as any },
+    })
+  }
+
   const itens = [
     ...pagamentos.map((p) => ({
       id: p.id,

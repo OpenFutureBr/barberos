@@ -17,15 +17,26 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     })
 
-    // Reseta cortesUsados se mudou o mês
+    const agora = new Date()
+
+    // Reseta cortesUsados se mudou o mês; marca OVERDUE se venceu sem renovação
     for (const a of assinantes) {
+      const updates: Record<string, any> = {}
+
       if (a.mesReferencia !== mesAtual) {
-        await prisma.subscription.update({
-          where: { id: a.id },
-          data: { cortesUsados: 0, mesReferencia: mesAtual },
-        }).catch(() => {})
+        updates.cortesUsados = 0
+        updates.mesReferencia = mesAtual
         a.cortesUsados = 0
         a.mesReferencia = mesAtual
+      }
+
+      if (a.status === "ACTIVE" && new Date(a.nextBillingAt) <= agora) {
+        updates.status = "OVERDUE"
+        ;(a as any).status = "OVERDUE"
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.subscription.update({ where: { id: a.id }, data: updates }).catch(() => {})
       }
     }
     return NextResponse.json(assinantes)

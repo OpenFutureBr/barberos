@@ -64,6 +64,7 @@ export async function GET(request: Request) {
       apptsMesAtual,
       apptsMesAnterior,
       pagamentosPendentes,
+      assinaturasVencidas,
     ] = await Promise.all([
       prisma.appointment.findMany({
         where: {
@@ -178,10 +179,21 @@ export async function GET(request: Request) {
         _count: { id: true },
         _sum: { amount: true },
       }),
+
+      // Assinaturas vencidas (nextBillingAt <= hoje, status ACTIVE ou OVERDUE)
+      prisma.subscription.aggregate({
+        where: {
+          status: { in: ["ACTIVE", "OVERDUE"] as any },
+          nextBillingAt: { lte: now },
+          client: { establishmentId: ESTAB_ID },
+        },
+        _count: { id: true },
+        _sum: { price: true },
+      }),
     ])
 
-    const pagamentosPendentesCount = pagamentosPendentes._count.id
-    const valorPendente = pagamentosPendentes._sum.amount ?? 0
+    const pagamentosPendentesCount = pagamentosPendentes._count.id + assinaturasVencidas._count.id
+    const valorPendente = (pagamentosPendentes._sum.amount ?? 0) + (assinaturasVencidas._sum.price ?? 0)
 
     const doneAppts = appointments.filter((a) => a.status === "DONE")
 
