@@ -168,6 +168,7 @@ type Evolucao = {
 
 type Pendencia = {
   id: string
+  tipo?: "payment" | "subscription"
   appointmentId: string
   method: string
   status: "PENDING" | "OVERDUE"
@@ -198,6 +199,115 @@ type ResumoPendencias = {
 }
 
 type AbaFinanceiro = "dre" | "pendentes" | "repasses" | "evolucao"
+
+function calcularStatusPendencia(dueDate?: string | null): "PENDING" | "OVERDUE" {
+  if (!dueDate) return "PENDING"
+
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+
+  const vencimento = new Date(dueDate)
+  vencimento.setHours(0, 0, 0, 0)
+
+  return vencimento < hoje ? "OVERDUE" : "PENDING"
+}
+
+function normalizarDre(resumo: any): DRE {
+  return {
+    receitaServicos: Number(resumo?.receitaServicos ?? resumo?.total ?? 0),
+    receitaProdutos: Number(resumo?.receitaProdutos ?? 0),
+    totalReceitas: Number(
+      resumo?.totalReceitas ??
+        resumo?.total ??
+        resumo?.receitaServicos ??
+        0,
+    ),
+    presencial: resumo?.presencial ?? {
+      atendimentos: 0,
+      receita: 0,
+    },
+    domicilio: resumo?.domicilio ?? {
+      atendimentos: 0,
+      receita: 0,
+    },
+  }
+}
+
+function normalizarPendencias(data: any[]): Pendencia[] {
+  return data.map((p) => {
+    const appointment = p.appointment ?? {}
+
+    return {
+      id: p.id,
+      tipo: p.tipo ?? "payment",
+      appointmentId: p.appointmentId ?? appointment.id ?? "",
+      method: p.method ?? "PAY_LATER",
+      status: p.status ?? calcularStatusPendencia(p.dueDate),
+      paymentStatus: p.paymentStatus ?? "PENDING",
+      amount: Number(p.amount ?? 0),
+      dueDate: p.dueDate ?? null,
+      createdAt: p.createdAt ?? new Date().toISOString(),
+      scheduledAt: p.scheduledAt ?? appointment.scheduledAt ?? new Date().toISOString(),
+      client: {
+        id: p.client?.id ?? appointment.client?.id ?? "",
+        name: p.client?.name ?? appointment.client?.name ?? "Cliente",
+        phone: p.client?.phone ?? appointment.client?.phone ?? "",
+      },
+      service: {
+        name: p.service?.name ?? appointment.service?.name ?? "Serviço",
+        price: Number(p.service?.price ?? appointment.service?.price ?? 0),
+      },
+      professional: {
+        name: p.professional?.name ?? appointment.professional?.name ?? "Profissional",
+      },
+    }
+  })
+}
+
+function calcularResumoPendencias(pendencias: Pendencia[]): ResumoPendencias {
+  const totalPendente = pendencias.reduce((s, p) => s + p.amount, 0)
+  const totalVencido = pendencias
+    .filter((p) => p.status === "OVERDUE")
+    .reduce((s, p) => s + p.amount, 0)
+
+  const totalAVencer = pendencias
+    .filter((p) => p.status !== "OVERDUE")
+    .reduce((s, p) => s + p.amount, 0)
+
+  return {
+    quantidade: pendencias.length,
+    totalPendente,
+    totalVencido,
+    totalAVencer,
+  }
+}
+
+function normalizarRepasses(data: any): Repasse[] {
+  if (Array.isArray(data)) return data
+
+  /**
+   * Fallback caso o endpoint /api/financeiro/repasses ainda esteja retornando
+   * um mapa simples { profissionalId: valor }.
+   *
+   * O ideal é depois ajustarmos esse endpoint para retornar nome, tipo,
+   * comissão, bruto e repasse completos.
+   */
+  if (data && typeof data === "object") {
+    return Object.entries(data).map(([profissionalId, bruto]) => ({
+      profissionalId,
+      nome: profissionalId,
+      tipo: "—",
+      commissionPct: null,
+      benchFee: null,
+      benchFeePct: null,
+      atendimentos: 0,
+      bruto: Number(bruto ?? 0),
+      repasse: Number(bruto ?? 0),
+    }))
+  }
+
+  return []
+}
 
 export default function FinanceiroPage() {
   const opcoes = useMemo(() => gerarOpcoesPeriodo(), [])
@@ -230,21 +340,42 @@ export default function FinanceiroPage() {
 
   const periodo = opcoes[periodoIdx]
 
+
   const fetchDados = useCallback(() => {
     if (!periodo) return
 
     setLoading(true)
 
-    fetch(`/api/financeiro?mes=${periodo.mes}&ano=${periodo.ano}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.dre) setDre(d.dre)
-        if (Array.isArray(d.repasses)) setRepasses(d.repasses)
-        if (Array.isArray(d.evolucao)) setEvolucao(d.evolucao)
-        if (Array.isArray(d.pendentes)) setPendentes(d.pendentes)
+    Promise.allSettled([
+      fetch(`/api/financeiro/resumo?mes=${periodo.mes}&ano=${periodo.ano}`).then((r) =>
+        r.json(),
+      ),
+      fetch("/api/financeiro/pendentes").then((r) => r.json()),
+      fetch(`/api/financeiro/repasses?mes=${periodo.mes}&ano=${periodo.ano}`).then((r) =>
+        r.json(),
+      ),
+      fetch(`/api/financeiro/evolucao?ano=${periodo.ano}`).then((r) => r.json()),
+    ])
+      .then(([resumoRes, pendentesRes, repassesRes, evolucaoRes]) => {
+        if (resumoRes.status === "fulfilled") {
+          setDre(normalizarDre(resumoRes.value))
+        }
 
-        if (d.resumoPendencias) {
-          setResumoPendencias(d.resumoPendencias)
+        if (pendentesRes.status === "fulfilled") {
+          const pendenciasNormalizadas = normalizarPendencias(
+            Array.isArray(pendentesRes.value) ? pendentesRes.value : [],
+          )
+
+          setPendentes(pendenciasNormalizadas)
+          setResumoPendencias(calcularResumoPendencias(pendenciasNormalizadas))
+        }
+
+        if (repassesRes.status === "fulfilled") {
+          setRepasses(normalizarRepasses(repassesRes.value))
+        }
+
+        if (evolucaoRes.status === "fulfilled") {
+          setEvolucao(Array.isArray(evolucaoRes.value) ? evolucaoRes.value : [])
         }
       })
       .catch(console.error)
@@ -640,17 +771,22 @@ export default function FinanceiroPage() {
                       }`}
                     >
                       <td className="px-4 py-3">
-                        <div className="text-white text-sm font-medium">
-                          {p.client.name}
+                        <div className="flex items-center gap-2">
+                          <div className="text-white text-sm font-medium">{p.client.name}</div>
+                          {p.tipo === "subscription" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 leading-none">assinatura</span>
+                          )}
                         </div>
                         <div className="text-zinc-600 text-xs">{p.client.phone}</div>
                       </td>
 
                       <td className="px-4 py-3">
                         <div className="text-zinc-300 text-sm">{p.service.name}</div>
-                        <div className="text-zinc-600 text-xs">
-                          {p.professional.name} · {fmtDataHora(p.scheduledAt)}
-                        </div>
+                        {p.tipo !== "subscription" && (
+                          <div className="text-zinc-600 text-xs">
+                            {p.professional.name} · {fmtDataHora(p.scheduledAt)}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3">
