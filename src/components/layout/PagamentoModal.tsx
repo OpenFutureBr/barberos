@@ -104,8 +104,9 @@ type Props = {
   dados: DadosPagamento | null
   onFechar: () => void
   onConfirmado?: (appointmentId: string) => void
-  // Substitui o endpoint padrão /api/pix/pagar
   endpointOverride?: string
+  bodyExtra?: Record<string, unknown>
+  ocultarPayLater?: boolean
 }
 
 export default function PagamentoModal({
@@ -113,6 +114,8 @@ export default function PagamentoModal({
   onFechar,
   onConfirmado,
   endpointOverride,
+  bodyExtra,
+  ocultarPayLater = false,
 }: Props) {
   const [metodo, setMetodo] = useState<MetodoPag>("PIX")
   const [dueDate, setDueDate] = useState("")
@@ -207,6 +210,7 @@ export default function PagamentoModal({
             clientId: d.clientId,
             items: d.comandaItens,
             dueDate: isPagarDepois ? dueDate : null,
+            ...bodyExtra,
           }
         : {
             appointmentId: d.appointmentId,
@@ -300,7 +304,7 @@ export default function PagamentoModal({
             <div className="text-zinc-400 text-xs mb-2">Forma de pagamento</div>
 
             <div className="grid grid-cols-5 gap-1.5">
-              {METODOS.map((m) => (
+              {METODOS.filter(m => !(ocultarPayLater && m.key === "PAY_LATER")).map((m) => (
                 <button
                   key={m.key}
                   type="button"

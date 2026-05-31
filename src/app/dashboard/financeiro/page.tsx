@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import PagamentoModal from "@/components/layout/PagamentoModal"
 
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -333,13 +334,7 @@ export default function FinanceiroPage() {
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState<Pendencia | null>(
     null,
   )
-  const [metodoRecebimento, setMetodoRecebimento] = useState<"PIX" | "CASH" | "CARD">(
-    "PIX",
-  )
-  const [quitando, setQuitando] = useState(false)
-
   const periodo = opcoes[periodoIdx]
-
 
   const fetchDados = useCallback(() => {
     if (!periodo) return
@@ -386,43 +381,6 @@ export default function FinanceiroPage() {
     fetchDados()
   }, [fetchDados])
 
-  async function marcarComoPago() {
-    if (!pagamentoSelecionado) return
-
-    setQuitando(true)
-
-    try {
-      const res = await fetch("/api/financeiro", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "marcar-pago",
-          paymentId: pagamentoSelecionado.id,
-          method: metodoRecebimento,
-        }),
-      })
-
-      if (!res.ok) {
-        const d = await res.json().catch(() => null)
-        alert(d?.error || "Erro ao marcar como pago.")
-        return
-      }
-
-      setPagamentoSelecionado(null)
-      setMetodoRecebimento("PIX")
-
-      window.dispatchEvent(new CustomEvent("pagamentoConfirmado"))
-
-      fetchDados()
-    } catch (error) {
-      console.error(error)
-      alert("Erro ao marcar como pago.")
-    } finally {
-      setQuitando(false)
-    }
-  }
 
   const repassesOrdenados = [...repasses].sort((a, b) =>
     sortRepasses === "desc" ? b.repasse - a.repasse : a.repasse - b.repasse,
@@ -808,10 +766,7 @@ export default function FinanceiroPage() {
 
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => {
-                            setPagamentoSelecionado(p)
-                            setMetodoRecebimento("PIX")
-                          }}
+                          onClick={() => setPagamentoSelecionado(p)}
                           className="bg-green-500/15 hover:bg-green-500/25 text-green-400 border border-green-500/20 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
                         >
                           Marcar pago
@@ -1028,90 +983,24 @@ export default function FinanceiroPage() {
       )}
 
       {/* Modal marcar pago */}
-      {pagamentoSelecionado && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Marcar como pago</h2>
-
-              <button
-                onClick={() => setPagamentoSelecionado(null)}
-                className="text-zinc-500 hover:text-white text-xl transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="bg-zinc-800 rounded-xl p-4">
-                <div className="text-white font-bold">
-                  {pagamentoSelecionado.client.name}
-                </div>
-
-                <div className="text-zinc-400 text-sm mt-1">
-                  {pagamentoSelecionado.service.name}
-                </div>
-
-                <div className="text-zinc-500 text-xs mt-1">
-                  Vencimento: {fmtData(pagamentoSelecionado.dueDate)}
-                </div>
-
-                <div className="text-green-400 text-2xl font-bold mt-3">
-                  {fmtMoeda(pagamentoSelecionado.amount)}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 text-xs mb-2 block">
-                  Método recebido
-                </label>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    [
-                      { key: "PIX", label: "PIX" },
-                      { key: "CASH", label: "Dinheiro" },
-                      { key: "CARD", label: "Cartão" },
-                    ] as const
-                  ).map((m) => (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => setMetodoRecebimento(m.key)}
-                      className={`py-2 rounded-lg text-xs font-medium border transition-all ${
-                        metodoRecebimento === m.key
-                          ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                          : "bg-zinc-800 text-zinc-400 border-zinc-700"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setPagamentoSelecionado(null)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={marcarComoPago}
-                  disabled={quitando}
-                  className="flex-1 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  {quitando ? "Confirmando..." : "Confirmar"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PagamentoModal
+        ocultarPayLater
+        dados={pagamentoSelecionado ? {
+          appointmentId: pagamentoSelecionado.id,
+          clientName: pagamentoSelecionado.client.name,
+          serviceName: pagamentoSelecionado.service.name,
+          professionalName: pagamentoSelecionado.professional.name || undefined,
+          amount: pagamentoSelecionado.amount,
+        } : null}
+        endpointOverride="/api/financeiro"
+        bodyExtra={{ action: "marcar-pago", paymentId: pagamentoSelecionado?.id }}
+        onFechar={() => setPagamentoSelecionado(null)}
+        onConfirmado={() => {
+          setPagamentoSelecionado(null)
+          fetchDados()
+          window.dispatchEvent(new CustomEvent("pagamentoConfirmado"))
+        }}
+      />
     </DashboardLayout>
   )
 }
