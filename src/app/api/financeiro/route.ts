@@ -705,46 +705,6 @@ export async function POST(request: Request) {
       )
     }
 
-    const pagamento = await prisma.payment.findUnique({
-      where: {
-        id: paymentId,
-      },
-      include: {
-        appointment: {
-          include: {
-            client: {
-              select: {
-                name: true,
-              },
-            },
-            service: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    })
-
-    if (!pagamento) {
-      return NextResponse.json(
-        {
-          error: "Pagamento não encontrado.",
-        },
-        {
-          status: 404,
-        },
-      )
-    }
-
-    if (pagamento.status === "PAID") {
-      return NextResponse.json({
-        ok: true,
-        message: "Pagamento já estava quitado.",
-      })
-    }
-
     const METODOS_VALIDOS = ["PIX", "CARD", "CASH", "CASHBACK", "SUBSCRIPTION"]
     if (!METODOS_VALIDOS.includes(method)) {
       return NextResponse.json(
@@ -754,13 +714,77 @@ export async function POST(request: Request) {
     }
     const methodFinal = method
 
+    // ── Tenta como Payment primeiro ──────────────────────────────────────────
+    const pagamento = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        appointment: {
+          include: {
+            client: { select: { name: true } },
+            service: { select: { name: true } },
+          },
+        },
+      },
+    })
+
+    // ── Se não é Payment, verifica se é Subscription ─────────────────────────
+    if (!pagamento) {
+      const assinatura = await prisma.subscription.findUnique({
+        where: { id: paymentId },
+        include: {
+          client: { select: { id: true, name: true } },
+          plan: { select: { name: true } },
+        },
+      })
+
+      if (!assinatura) {
+        return NextResponse.json({ error: "Pagamento não encontrado." }, { status: 404 })
+      }
+
+      const caixa = await getOuCriarCaixaHoje()
+
+      // Avança nextBillingAt em 1 mês e volta para ACTIVE
+      const proximoVencimento = new Date(assinatura.nextBillingAt)
+      proximoVencimento.setMonth(proximoVencimento.getMonth() + 1)
+
+      await prisma.$transaction(async (tx) => {
+        await tx.subscription.update({
+          where: { id: paymentId },
+          data: {
+            status: "ACTIVE" as any,
+            nextBillingAt: proximoVencimento,
+          },
+        })
+
+        await tx.transaction.create({
+          data: {
+            cashRegisterId: caixa.id,
+            type: "RECEITA",
+            amount: assinatura.price,
+            description: `Assinatura · ${assinatura.plan.name} — ${assinatura.client.name}`,
+            method: methodFinal,
+          },
+        })
+      })
+
+      return NextResponse.json({
+        ok: true,
+        subscriptionId: paymentId,
+        proximoVencimento: proximoVencimento.toISOString(),
+        method: methodFinal,
+      })
+    }
+
+    // ── Fluxo normal de Payment ───────────────────────────────────────────────
+    if (pagamento.status === "PAID") {
+      return NextResponse.json({ ok: true, message: "Pagamento já estava quitado." })
+    }
+
     const caixa = await getOuCriarCaixaHoje()
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
-        where: {
-          id: paymentId,
-        },
+        where: { id: paymentId },
         data: {
           status: "PAID",
           method: methodFinal as any,
@@ -780,12 +804,6 @@ export async function POST(request: Request) {
       })
     })
 
-    /**
-     * Regra:
-     * cashback só é gerado após pagamento confirmado.
-     * Como acabamos de mudar para PAID, agora podemos creditar.
-     * A função tem trava para não duplicar cashbackGenerated.
-     */
     await creditarCashbackPagamentoConfirmado(paymentId)
 
     return NextResponse.json({
