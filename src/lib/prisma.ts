@@ -16,19 +16,16 @@ const pool =
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
 
-    // Aumentado para evitar timeout quando várias APIs carregam juntas
-    max: 15,
+    // Supabase session pooler: pool_size 15 no total.
+    // Next.js dev pode criar múltiplas instâncias por hot reload —
+    // manter max baixo evita esgotar as sessões disponíveis.
+    max: 2,
     min: 0,
 
-    // Dá mais tempo para abrir conexão antes de falhar
-    connectionTimeoutMillis: 15000,
-
-    // Fecha conexões paradas depois de 30s
-    idleTimeoutMillis: 30000,
-
-    // Ajuda em conexões remotas
-    keepAlive: true,
-    allowExitOnIdle: false,
+    connectionTimeoutMillis: 8000,
+    idleTimeoutMillis: 5000,   // libera conexões ociosas rapidamente
+    keepAlive: false,          // não mantém conexões abertas sem uso
+    allowExitOnIdle: true,
   })
 
 global.__prismaPool = pool

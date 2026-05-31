@@ -10,26 +10,35 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const ano = parseInt(searchParams.get("ano") ?? String(new Date().getFullYear()))
 
-    // Agrega receita por mês diretamente no banco — evita carregar N registros em JS
-    const rows = await prisma.$queryRaw<{ mes: number; valor: number }[]>`
-      SELECT
-        EXTRACT(MONTH FROM a."scheduledAt")::int AS mes,
-        ROUND(SUM(p.amount)::numeric, 2)         AS valor
-      FROM payments p
-      JOIN appointments a ON a.id = p."appointmentId"
-      WHERE p.status = 'PAID'
-        AND a."establishmentId" = ${ESTAB_ID}
-        AND EXTRACT(YEAR FROM a."scheduledAt") = ${ano}
-      GROUP BY mes
-      ORDER BY mes
-    `
+    const anoInicio = new Date(ano, 0, 1)
+    const anoFim = new Date(ano, 11, 31, 23, 59, 59)
 
-    // Preenche os 12 meses (meses sem receita ficam com 0)
-    const mapa = new Map(rows.map(r => [r.mes, Number(r.valor)]))
+    // Usa findMany com select mínimo — $queryRaw segurava sessão inteira
+    // e causava EMAXCONNSESSION no Supabase session pooler
+    const pagamentos = await prisma.payment.findMany({
+      where: {
+        status: "PAID",
+        appointment: {
+          establishmentId: ESTAB_ID,
+          scheduledAt: { gte: anoInicio, lte: anoFim },
+        },
+      },
+      select: {
+        amount: true,
+        appointment: { select: { scheduledAt: true } },
+      },
+    })
+
+    const totalPorMes = new Array(12).fill(0)
+    for (const p of pagamentos) {
+      const mes = new Date(p.appointment.scheduledAt).getMonth()
+      totalPorMes[mes] += p.amount
+    }
+
     const evolucao = MESES.map((label, i) => ({
       mes: i + 1,
       label,
-      valor: mapa.get(i + 1) ?? 0,
+      valor: Math.round(totalPorMes[i] * 100) / 100,
     }))
 
     return NextResponse.json(evolucao)
