@@ -29,17 +29,56 @@ html {
   transition: filter 0.35s ease;
 }
 
+/*
+  Tema claro atual:
+  A interface inteira é invertida para simular modo claro.
+*/
 html.light {
   filter: invert(1) hue-rotate(180deg);
 }
 
-[data-no-invert] {
-  filter: invert(1) hue-rotate(180deg);
+/*
+  IMPORTANTE:
+  Como o html.light inverte a página toda, precisamos inverter novamente
+  imagens reais para que logo, fotos de serviços e fotos de cortes
+  voltem às cores originais.
+*/
+html.light img,
+html.light picture,
+html.light video,
+html.light canvas,
+html.light [data-no-invert] {
+  filter: invert(1) hue-rotate(180deg) !important;
 }
 
-/* Custom scrollbars — CSS-rendered so they respect the invert filter in light mode */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #52525b; border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: #71717a; }
-* { scrollbar-width: thin; scrollbar-color: #52525b transparent; }
+/*
+  Evita que imagens fiquem lavadas por efeitos herdados ou transições.
+*/
+html.light img {
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #52525b;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #52525b transparent;
+}

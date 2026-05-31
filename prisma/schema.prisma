@@ -7,86 +7,99 @@ datasource db {
 }
 
 model Establishment {
-  id                String             @id @default(cuid())
-  name              String
-  slug              String             @unique
-  plan              Plan               @default(START)
-  logoUrl           String?
-  phone             String?
-  email             String?
-  address           String?
-  city              String?
-  state             String?
-  zipCode           String?
-  pixKey            String?
-  whatsapp          String?
-  instagram         String?
-  inauguratedAt       DateTime?
-  cnpj                String?
-  razaoSocial         String?
-  inscricaoMunicipal  String?
-  regimeTributario    String?
-  businessHours       Json?
-  cashbackConfig      Json?
-  painelConfig        Json?
-  isActive          Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  appointments      Appointment[]
-  cashRegisters     CashRegister[]
-  clients           Client[]
-  haircuts          Haircut[]
-  products          Product[]
-  services          Service[]
-  subscriptionPlans SubscriptionPlan[]
-  users             User[]
-  pricingRules      PricingRule[]
-  cashbackConfigs   CashbackConfig[]
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  plan               Plan               @default(START)
+  logoUrl            String?
+  phone              String?
+  email              String?
+  address            String?
+  city               String?
+  state              String?
+  zipCode            String?
+  pixKey             String?
+  whatsapp           String?
+  instagram          String?
+  inauguratedAt      DateTime?
+  cnpj               String?
+  razaoSocial        String?
+  inscricaoMunicipal String?
+  regimeTributario   String?
+  businessHours      Json?
+  cashbackConfig     Json?
+  painelConfig       Json?
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  appointments       Appointment[]
+  cashRegisters      CashRegister[]
+  clients            Client[]
+  haircuts           Haircut[]
+  products           Product[]
+  services           Service[]
+  subscriptionPlans  SubscriptionPlan[]
+  users              User[]
+  pricingRules       PricingRule[]
+  cashbackConfigs    CashbackConfig[]
+  organizationId     String?            @map("organization_id")
+  organization       Organization?      @relation(fields: [organizationId], references: [id])
 
+  @@index([isActive], map: "idx_establishments_isActive")
+  @@index([organizationId], map: "idx_establishments_organizationId")
+  @@index([organizationId, isActive], map: "idx_establishments_organizationId_isActive")
   @@map("establishments")
 }
 
 model User {
-  id               String         @id @default(cuid())
-  name             String
-  email            String         @unique
-  emailVerified    DateTime?
-  image            String?
-  role             Role           @default(BARBER_CLT)
-  employmentType   EmploymentType @default(CLT)
-  phone            String?
-  isActive         Boolean        @default(true)
-  commissionPct    Float?
-  benchFee         Float?
-  benchFeePct      Float?
-  bookingSlug      String?        @unique
-  serviceZoneKm    Float?
-  serviceZoneAreas String[]
-  homeAddress      String?
-  establishmentId  String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  accounts         Account[]
-  appointments     Appointment[]
-  birthDate        DateTime?
-  homeNumber       String?
-  homeNeighborhood String?
-  homeCity         String?
-  homeZipCode      String?
-  pixKey           String?
-  breakBetweenAppts Int?     @default(10)
-  admissionDate DateTime? @default(now())
+  id                String           @id @default(cuid())
+  name              String
+  email             String           @unique
+  emailVerified     DateTime?
+  image             String?
+  role              Role             @default(BARBER_CLT)
+  employmentType    EmploymentType   @default(CLT)
+  phone             String?
+  isActive          Boolean          @default(true)
+  commissionPct     Float?
+  benchFee          Float?
+  benchFeePct       Float?
+  bookingSlug       String?          @unique
+  serviceZoneKm     Float?
+  serviceZoneAreas  String[]
+  homeAddress       String?
+  establishmentId   String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  accounts          Account[]
+  appointments      Appointment[]
+  birthDate         DateTime?
+  homeNumber        String?
+  homeNeighborhood  String?
+  homeCity          String?
+  homeZipCode       String?
+  pixKey            String?
+  breakBetweenAppts Int?             @default(10)
+  admissionDate     DateTime?        @default(now())
   schedules         UserSchedule[]
   userServices      UserService[]
-  attendsHome      Boolean   @default(false)
-  username         String?        @unique
-  passwordHash     String?
-  isFirstLogin     Boolean        @default(true)
-  kitItems         KitItem[]
-  sessions         Session[]
-  establishment    Establishment? @relation(fields: [establishmentId], references: [id])
-  permissions      UserPermission[]
+  attendsHome       Boolean          @default(false)
+  username          String?          @unique
+  passwordHash      String?
+  isFirstLogin      Boolean          @default(true)
+  kitItems          KitItem[]
+  sessions          Session[]
+  establishment     Establishment?   @relation(fields: [establishmentId], references: [id])
+  permissions       UserPermission[]
+  organizationId    String?          @map("organization_id")
+  organization      Organization?    @relation(fields: [organizationId], references: [id])
 
+  @@index([establishmentId, isActive], map: "idx_users_establishmentId_isActive")
+  @@index([organizationId], map: "idx_users_organizationId")
+  @@index([organizationId, role], map: "idx_users_organizationId_role")
+  @@index([organizationId, establishmentId, isActive], map: "idx_users_org_estab_isActive")
+  @@index([role], map: "idx_users_role")
+  @@index([employmentType], map: "idx_users_employmentType")
   @@map("users")
 }
 
@@ -101,6 +114,7 @@ model UserPermission {
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, resource])
+  @@index([resource], map: "idx_user_permissions_resource")
   @@map("user_permissions")
 }
 
@@ -120,6 +134,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId], map: "idx_accounts_userId")
   @@map("accounts")
 }
 
@@ -130,6 +145,8 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId], map: "idx_sessions_userId")
+  @@index([expires], map: "idx_sessions_expires")
   @@map("sessions")
 }
 
@@ -139,47 +156,54 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@index([expires], map: "idx_verification_tokens_expires")
   @@map("verification_tokens")
 }
 
 model Client {
-  id               String          @id @default(cuid())
-  name             String
-  phone            String
-  email            String?
-  birthDate        DateTime?
-  photoUrl         String?
-  isActive         Boolean         @default(true)
-  faceShape        String?
-  aiAnalysedAt     DateTime?
-  homeAddress      String?
-  homeCity         String?
-  homeZipCode      String?
-  homeLat          Float?
-  homeLng          Float?
-  cashbackBalance  Float           @default(0)
-  loyaltyPoints    Int             @default(0)
-  loyaltyLevel     LoyaltyLevel    @default(BRONZE)
-  segment          ClientSegment   @default(NEW)
-  avgVisitInterval Int?
-  lastVisitAt        DateTime?
-  totalSpent         Float           @default(0)
-  totalAtendimentos  Int             @default(0)
-  ticketMedio        Float           @default(0)
-  favoritoCorte      String?
-  favoritoProduto    String?
-  establishmentId  String
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  appointments     Appointment[]
-  establishment    Establishment   @relation(fields: [establishmentId], references: [id])
-  loyaltyAccount   LoyaltyAccount?
-  homeNumber       String?
-  homeNeighborhood String?
-  productSales     ProductSale[]
-  subscription     Subscription?
+  id                String          @id @default(cuid())
+  name              String
+  phone             String
+  email             String?
+  birthDate         DateTime?
+  photoUrl          String?
+  isActive          Boolean         @default(true)
+  faceShape         String?
+  aiAnalysedAt      DateTime?
+  homeAddress       String?
+  homeCity          String?
+  homeZipCode       String?
+  homeLat           Float?
+  homeLng           Float?
+  cashbackBalance   Float           @default(0)
+  loyaltyPoints     Int             @default(0)
+  loyaltyLevel      LoyaltyLevel    @default(BRONZE)
+  segment           ClientSegment   @default(NEW)
+  avgVisitInterval  Int?
+  lastVisitAt       DateTime?
+  totalSpent        Float           @default(0)
+  totalAtendimentos Int             @default(0)
+  ticketMedio       Float           @default(0)
+  favoritoCorte     String?
+  favoritoProduto   String?
+  establishmentId   String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  appointments      Appointment[]
+  establishment     Establishment   @relation(fields: [establishmentId], references: [id])
+  loyaltyAccount    LoyaltyAccount?
+  homeNumber        String?
+  homeNeighborhood  String?
+  productSales      ProductSale[]
+  subscription      Subscription?
 
   @@unique([phone, establishmentId])
+  @@index([establishmentId, isActive], map: "idx_clients_establishmentId_isActive")
+  @@index([establishmentId, name], map: "idx_clients_establishmentId_name")
+  @@index([establishmentId, createdAt], map: "idx_clients_establishmentId_createdAt")
+  @@index([segment], map: "idx_clients_segment")
+  @@index([loyaltyLevel], map: "idx_clients_loyaltyLevel")
+  @@index([lastVisitAt], map: "idx_clients_lastVisitAt")
   @@map("clients")
 }
 
@@ -201,6 +225,9 @@ model Service {
   haircuts        Haircut[]
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
+  @@index([establishmentId, isActive], map: "idx_services_establishmentId_isActive")
+  @@index([establishmentId, category], map: "idx_services_establishmentId_category")
+  @@index([availableHome], map: "idx_services_availableHome")
   @@map("services")
 }
 
@@ -225,6 +252,9 @@ model Haircut {
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
   service         Service?      @relation(fields: [serviceId], references: [id])
 
+  @@index([establishmentId, isActive], map: "idx_haircuts_establishmentId_isActive")
+  @@index([serviceId], map: "idx_haircuts_serviceId")
+  @@index([category], map: "idx_haircuts_category")
   @@map("haircuts")
 }
 
@@ -257,32 +287,43 @@ model Appointment {
   service         Service           @relation(fields: [serviceId], references: [id])
   payment         Payment?
 
+  @@index([establishmentId, scheduledAt], map: "idx_appointments_establishmentId_scheduledAt")
+  @@index([professionalId, scheduledAt], map: "idx_appointments_professionalId_scheduledAt")
+  @@index([clientId, scheduledAt], map: "idx_appointments_clientId_scheduledAt")
+  @@index([status, scheduledAt], map: "idx_appointments_status_scheduledAt")
+  @@index([serviceId], map: "idx_appointments_serviceId")
+  @@index([haircutId], map: "idx_appointments_haircutId")
+  @@index([createdAt], map: "idx_appointments_createdAt")
   @@map("appointments")
 }
 
 model Payment {
-  id                String        @id @default(cuid())
-  method            PaymentMethod
-  status            PaymentStatus @default(PENDING)
-  amount            Float
-  dueDate           DateTime?
+  id      String        @id @default(cuid())
+  method  PaymentMethod
+  status  PaymentStatus @default(PENDING)
+  amount  Float
+  dueDate DateTime?
 
-  pixQrCode         String?
-  pixCopyPaste      String?
-  pixTxId           String?       @unique
-  pixStatus         PixStatus     @default(PENDING)
-  pixPaidAt         DateTime?
+  pixQrCode    String?
+  pixCopyPaste String?
+  pixTxId      String?   @unique
+  pixStatus    PixStatus @default(PENDING)
+  pixPaidAt    DateTime?
 
-  splitType         SplitType     @default(SPLIT_ESTABLISHMENT)
+  splitType         SplitType @default(SPLIT_ESTABLISHMENT)
   splitEstabAmount  Float?
   splitProfAmount   Float?
-  cashbackGenerated Float         @default(0)
+  cashbackGenerated Float     @default(0)
 
-  appointmentId     String        @unique
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  appointment       Appointment   @relation(fields: [appointmentId], references: [id])
+  appointmentId String      @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
 
+  @@index([status, dueDate], map: "idx_payments_status_dueDate")
+  @@index([method], map: "idx_payments_method")
+  @@index([createdAt], map: "idx_payments_createdAt")
+  @@index([pixStatus], map: "idx_payments_pixStatus")
   @@map("payments")
 }
 
@@ -299,6 +340,8 @@ model CashRegister {
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
   transactions    Transaction[]
 
+  @@index([establishmentId, openedAt], map: "idx_cash_registers_establishmentId_openedAt")
+  @@index([closedAt], map: "idx_cash_registers_closedAt")
   @@map("cash_registers")
 }
 
@@ -312,6 +355,9 @@ model Transaction {
   cashRegisterId String
   cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id])
 
+  @@index([cashRegisterId, createdAt], map: "idx_transactions_cashRegisterId_createdAt")
+  @@index([type, createdAt], map: "idx_transactions_type_createdAt")
+  @@index([method], map: "idx_transactions_method")
   @@map("transactions")
 }
 
@@ -338,20 +384,30 @@ model Product {
   establishment   Establishment   @relation(fields: [establishmentId], references: [id])
   stockMovements  StockMovement[]
 
+  @@index([establishmentId, isActive], map: "idx_products_establishmentId_isActive")
+  @@index([establishmentId, name], map: "idx_products_establishmentId_name")
+  @@index([category], map: "idx_products_category")
+  @@index([stock], map: "idx_products_stock")
+  @@index([barcode], map: "idx_products_barcode")
+  @@index([sku], map: "idx_products_sku")
   @@map("products")
 }
 
 model StockMovement {
-  id        String   @id @default(cuid())
-  type      String
-  quantity  Int
-  reason    String?
+  id            String   @id @default(cuid())
+  type          String
+  quantity      Int
+  reason        String?
   unitPrice     Float?
   appointmentId String?
   createdAt     DateTime @default(now())
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
 
+  @@index([productId, createdAt], map: "idx_stock_movements_productId_createdAt")
+  @@index([appointmentId], map: "idx_stock_movements_appointmentId")
+  @@index([type, createdAt], map: "idx_stock_movements_type_createdAt")
+  @@index([createdAt], map: "idx_stock_movements_createdAt")
   @@map("stock_movements")
 }
 
@@ -366,6 +422,9 @@ model ProductSale {
   client    Client?  @relation(fields: [clientId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
 
+  @@index([productId, createdAt], map: "idx_product_sales_productId_createdAt")
+  @@index([clientId, createdAt], map: "idx_product_sales_clientId_createdAt")
+  @@index([createdAt], map: "idx_product_sales_createdAt")
   @@map("product_sales")
 }
 
@@ -381,6 +440,7 @@ model KitItem {
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id])
 
+  @@index([userId], map: "idx_kit_items_userId")
   @@map("kit_items")
 }
 
@@ -398,6 +458,8 @@ model LoyaltyAccount {
   client         Client               @relation(fields: [clientId], references: [id])
   transactions   LoyaltyTransaction[]
 
+  @@index([level], map: "idx_loyalty_accounts_level")
+  @@index([expiresAt], map: "idx_loyalty_accounts_expiresAt")
   @@map("loyalty_accounts")
 }
 
@@ -416,24 +478,28 @@ model LoyaltyTransaction {
   loyaltyAccount   LoyaltyAccount  @relation(fields: [loyaltyAccountId], references: [id])
   cashbackConfig   CashbackConfig? @relation(fields: [cashbackConfigId], references: [id])
 
+  @@index([loyaltyAccountId, createdAt], map: "idx_loyalty_transactions_loyaltyAccountId_createdAt")
+  @@index([cashbackConfigId], map: "idx_loyalty_transactions_cashbackConfigId")
+  @@index([type, createdAt], map: "idx_loyalty_transactions_type_createdAt")
   @@map("loyalty_transactions")
 }
 
 model SubscriptionPlan {
-  id                String         @id @default(cuid())
-  name              String
-  description       String?
-  price             Float
-  cortesIncluidos   Int            @default(4)
-  atendedomicilio   Boolean        @default(false)
-  services          String[]
-  isActive          Boolean        @default(true)
-  establishmentId   String
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  establishment     Establishment  @relation(fields: [establishmentId], references: [id])
-  subscriptions     Subscription[]
+  id              String         @id @default(cuid())
+  name            String
+  description     String?
+  price           Float
+  cortesIncluidos Int            @default(4)
+  atendedomicilio Boolean        @default(false)
+  services        String[]
+  isActive        Boolean        @default(true)
+  establishmentId String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  establishment   Establishment  @relation(fields: [establishmentId], references: [id])
+  subscriptions   Subscription[]
 
+  @@index([establishmentId, isActive], map: "idx_subscription_plans_establishmentId_isActive")
   @@map("subscription_plans")
 }
 
@@ -442,19 +508,22 @@ model Subscription {
   status        SubscriptionStatus @default(ACTIVE)
   price         Float
   startedAt     DateTime           @default(now())
-  nextBillingAt  DateTime
-  cortesUsados   Int               @default(0)
-  mesReferencia  String?
-  pausedAt       DateTime?
-  cancelledAt    DateTime?
-  notes          String?
-  clientId       String            @unique
+  nextBillingAt DateTime
+  cortesUsados  Int                @default(0)
+  mesReferencia String?
+  pausedAt      DateTime?
+  cancelledAt   DateTime?
+  notes         String?
+  clientId      String             @unique
   planId        String
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   client        Client             @relation(fields: [clientId], references: [id])
   plan          SubscriptionPlan   @relation(fields: [planId], references: [id])
 
+  @@index([planId], map: "idx_subscriptions_planId")
+  @@index([status, nextBillingAt], map: "idx_subscriptions_status_nextBillingAt")
+  @@index([mesReferencia], map: "idx_subscriptions_mesReferencia")
   @@map("subscriptions")
 }
 
@@ -468,6 +537,8 @@ model GiftCard {
   redeemedAt DateTime?
   createdAt  DateTime  @default(now())
 
+  @@index([isUsed], map: "idx_gift_cards_isUsed")
+  @@index([expiresAt], map: "idx_gift_cards_expiresAt")
   @@map("gift_cards")
 }
 
@@ -486,6 +557,7 @@ model PricingRule {
   updatedAt       DateTime      @updatedAt
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
+  @@index([establishmentId, isActive], map: "idx_pricing_rules_establishmentId_isActive")
   @@map("pricing_rules")
 }
 
@@ -500,19 +572,21 @@ model CashbackConfig {
   establishment   Establishment        @relation(fields: [establishmentId], references: [id])
   transactions    LoyaltyTransaction[]
 
+  @@index([establishmentId, createdAt], map: "idx_cashback_configs_establishmentId_createdAt")
   @@map("cashback_configs")
 }
 
 model UserSchedule {
-  id         String  @id @default(cuid())
-  userId     String
-  dayOfWeek  Int
-  startTime  String
-  endTime    String
-  isActive   Boolean @default(true)
-  user       User    @relation(fields: [userId], references: [id])
+  id        String  @id @default(cuid())
+  userId    String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  isActive  Boolean @default(true)
+  user      User    @relation(fields: [userId], references: [id])
 
   @@unique([userId, dayOfWeek])
+  @@index([dayOfWeek, isActive], map: "idx_user_schedules_dayOfWeek_isActive")
   @@map("user_schedules")
 }
 
@@ -523,16 +597,162 @@ model UserService {
   service   Service @relation(fields: [serviceId], references: [id])
 
   @@id([userId, serviceId])
+  @@index([serviceId], map: "idx_user_services_serviceId")
   @@map("user_services")
 }
 
-enum Role {
-  ADMIN
-  MANAGER
-  BARBER_CLT
-  BARBER_MEI
-  AUTONOMO
-  CLIENT
+model Organization {
+  id         String  @id @default(cuid())
+  name       String
+  legalName  String?
+  cnpj       String? @unique
+  email      String?
+  phone      String?
+  ownerName  String?
+  ownerEmail String?
+  ownerPhone String?
+
+  isActive      Boolean       @default(true)
+  isBlocked     Boolean       @default(false)
+  billingStatus BillingStatus @default(ACTIVE)
+
+  planId       String?
+  trialEndsAt  DateTime?
+  lastAccessAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plan           PlanDefinition?            @relation(fields: [planId], references: [id])
+  establishments Establishment[]
+  users          User[]
+  subscriptions  OrganizationSubscription[]
+  invoices       OrganizationInvoice[]
+  usageMetrics   UsageMetric[]
+  storageUsage   StorageUsage?
+
+  @@index([isActive, isBlocked], map: "idx_organizations_isActive_isBlocked")
+  @@index([billingStatus], map: "idx_organizations_billingStatus")
+  @@index([planId], map: "idx_organizations_planId")
+  @@map("organizations")
+}
+
+model PlanDefinition {
+  id           String  @id
+  name         String
+  description  String?
+  priceMonthly Float   @map("price_monthly")
+
+  maxEstablishments Int? @map("max_establishments")
+  maxUsers          Int? @map("max_users")
+  maxClients        Int? @map("max_clients")
+  maxAppointments   Int? @map("max_appointments")
+  maxStorageMb      Int? @map("max_storage_mb")
+
+  features Json?
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organizations Organization[]
+  subscriptions OrganizationSubscription[]
+
+  @@index([isActive], map: "idx_plan_definitions_isActive")
+  @@map("plan_definitions")
+}
+
+model OrganizationSubscription {
+  id String @id @default(cuid())
+
+  organizationId String @map("organization_id")
+  planId         String @map("plan_id")
+
+  status BillingStatus @default(ACTIVE)
+  price  Float
+
+  billingDay    Int       @default(5) @map("billing_day")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  nextBillingAt DateTime? @map("next_billing_at")
+  lastPaidAt    DateTime? @map("last_paid_at")
+  cancelledAt   DateTime? @map("cancelled_at")
+
+  provider   String? // manual, mercado_pago, stripe, asaas etc.
+  externalId String? @map("external_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         PlanDefinition @relation(fields: [planId], references: [id])
+
+  @@index([organizationId], map: "idx_org_subscriptions_organizationId")
+  @@index([planId], map: "idx_org_subscriptions_planId")
+  @@index([status, nextBillingAt], map: "idx_org_subscriptions_status_nextBillingAt")
+  @@map("organization_subscriptions")
+}
+
+model OrganizationInvoice {
+  id String @id @default(cuid())
+
+  organizationId String        @map("organization_id")
+  status         InvoiceStatus @default(PENDING)
+
+  amount      Float
+  dueDate     DateTime  @map("due_date")
+  paidAt      DateTime? @map("paid_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  referenceMonth String  @map("reference_month") // Ex: 2026-05
+  provider       String?
+  externalId     String? @map("external_id")
+
+  notes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, referenceMonth], map: "idx_org_invoices_organizationId_referenceMonth")
+  @@index([status, dueDate], map: "idx_org_invoices_status_dueDate")
+  @@map("organization_invoices")
+}
+
+model UsageMetric {
+  id String @id @default(cuid())
+
+  organizationId  String  @map("organization_id")
+  establishmentId String? @map("establishment_id")
+
+  metric         String
+  value          Int    @default(0)
+  referenceMonth String @map("reference_month") // Ex: 2026-05
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, establishmentId, metric, referenceMonth], map: "uq_usage_metric_org_estab_metric_month")
+  @@index([organizationId, referenceMonth], map: "idx_usage_metrics_organizationId_referenceMonth")
+  @@index([metric], map: "idx_usage_metrics_metric")
+  @@map("usage_metrics")
+}
+
+model StorageUsage {
+  id String @id @default(cuid())
+
+  organizationId String @unique @map("organization_id")
+
+  totalFiles  Int   @default(0) @map("total_files")
+  totalSizeMb Float @default(0) @map("total_size_mb")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("storage_usage")
 }
 
 enum EmploymentType {
@@ -571,7 +791,7 @@ enum PaymentMethod {
   CARD
   CASHBACK
   SUBSCRIPTION
-  PAY_LATER // ✅ NOVO
+  PAY_LATER
 }
 
 enum PaymentStatus {
@@ -613,4 +833,33 @@ enum ClientSegment {
   AT_RISK
   INACTIVE
   VIP
+}
+
+enum Role {
+  ADMIN // dono da plataforma SaaS
+  ORG_OWNER // dono da barbearia/rede
+  ORG_MANAGER // gestor da organização/rede
+  UNIT_MANAGER // gerente de unidade
+  RECEPTIONIST // recepção
+  MANAGER // legado
+  BARBER_CLT
+  BARBER_MEI
+  AUTONOMO
+  CLIENT
+}
+
+enum BillingStatus {
+  TRIAL
+  ACTIVE
+  OVERDUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
 }
