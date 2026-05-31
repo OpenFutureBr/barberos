@@ -17,6 +17,7 @@ const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-l
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState("")
   const [modalAberto, setModalAberto] = useState(false)
   const [servicoEditando, setServicoEditando] = useState<any | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -125,84 +126,85 @@ export default function ServicosPage() {
     return (
       <div
         onClick={() => handleEditar(servico)}
-        className={`relative rounded-xl overflow-hidden border border-zinc-700/60 cursor-pointer group transition-all hover:border-zinc-500 hover:shadow-xl hover:shadow-black/50 select-none ${dim ? "opacity-40 grayscale" : ""}`}
-        style={{ aspectRatio: "1.7 / 1" }}
+        className={`relative rounded-lg overflow-hidden border border-zinc-700/60 cursor-pointer group transition-all hover:border-zinc-500 hover:shadow-lg hover:shadow-black/40 select-none ${dim ? "opacity-40 grayscale" : ""}`}
+        style={{ aspectRatio: "2.8 / 1" }}
       >
         {/* Base */}
         <div className="absolute inset-0 bg-zinc-900" />
         {/* Diagonal texture */}
-        <div className="absolute inset-0 opacity-[0.035]"
-          style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "7px 7px" }} />
+        <div className="absolute inset-0 opacity-[0.03]"
+          style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "6px 6px" }} />
 
         {/* Left accent stripe */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${gradient}`} />
+        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
 
         {/* Header strip */}
-        <div className={`absolute top-0 left-1.5 right-0 h-7 bg-gradient-to-r ${gradient} flex items-center px-3 justify-between`}>
-          <span className="text-white/80 text-[9px] tracking-[0.2em] uppercase font-medium">Barberos · Serviços</span>
-          <span className="text-white/60 text-[9px] tracking-widest uppercase">{servico.category || "Geral"}</span>
+        <div className={`absolute top-0 left-1 right-0 h-5 bg-gradient-to-r ${gradient} flex items-center px-2 justify-between`}>
+          <span className="text-white/70 text-[8px] tracking-[0.15em] uppercase font-medium">Barberos</span>
+          <span className="text-white/50 text-[8px] tracking-wider uppercase">{servico.category || "Geral"}</span>
         </div>
 
         {/* Body */}
-        <div className="absolute top-7 left-1.5 right-0 bottom-0 flex">
+        <div className="absolute top-5 left-1 right-0 bottom-0 flex">
           {/* Photo */}
-          <div className="w-[30%] flex-shrink-0 p-2.5">
-            <div className="w-full h-full rounded-md overflow-hidden border border-zinc-700 bg-zinc-800">
+          <div className="w-[22%] flex-shrink-0 p-1.5">
+            <div className="w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800">
               {servico.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={servico.photoUrl} alt={servico.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-3xl opacity-30">✂</span>
+                  <span className="text-lg opacity-20">✂</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Vertical divider */}
-          <div className="w-px bg-zinc-800 my-3 flex-shrink-0" />
+          <div className="w-px bg-zinc-800 my-1.5 flex-shrink-0" />
 
           {/* Fields */}
-          <div className="flex-1 px-3 py-2.5 flex flex-col justify-between">
-            <div>
-              <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Nome do Serviço</div>
-              <div className={`font-bold leading-tight ${dim ? "text-zinc-400" : "text-white"}`} style={{ fontSize: "clamp(0.7rem, 1.2vw, 0.95rem)" }}>
+          <div className="flex-1 px-2 py-1.5 flex flex-col justify-between min-w-0">
+            <div className="text-zinc-600 text-[7px] tracking-[0.15em] uppercase truncate">
+              <span className={`font-semibold text-[11px] leading-none ${dim ? "text-zinc-400" : "text-white"} block truncate`}>
                 {servico.name}
-              </div>
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-3">
+            <div className="flex items-end gap-3">
               <div>
-                <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Valor</div>
-                <div className={`font-bold leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`} style={{ fontSize: "clamp(0.9rem, 1.5vw, 1.2rem)" }}>
+                <div className="text-zinc-600 text-[7px] uppercase tracking-wider">Valor</div>
+                <div className={`font-bold text-sm leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`}>
                   R$&nbsp;{Number(servico.price).toFixed(0)}
                 </div>
               </div>
               <div>
-                <div className="text-zinc-600 text-[8px] tracking-[0.18em] uppercase mb-0.5">Duração</div>
-                <div className="text-white font-semibold text-sm leading-none">
-                  {servico.durationMin}<span className="text-zinc-500 text-xs"> min</span>
+                <div className="text-zinc-600 text-[7px] uppercase tracking-wider">Duração</div>
+                <div className="text-white font-semibold text-xs leading-none">
+                  {servico.durationMin}<span className="text-zinc-600"> min</span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className={`text-[9px] uppercase tracking-wider ${servico.availableHome ? "text-teal-500" : "opacity-0"}`}>
-                ✦ Domicílio
-              </span>
-              <span className="text-[9px] text-zinc-700 group-hover:text-zinc-500 transition-colors">editar →</span>
+              {servico.availableHome && (
+                <span className="text-[8px] text-teal-500 leading-none mb-px">✦ Dom.</span>
+              )}
+              <span className="ml-auto text-[8px] text-zinc-700 group-hover:text-zinc-500 transition-colors">editar →</span>
             </div>
           </div>
         </div>
 
         {/* Bottom line */}
-        <div className="absolute bottom-0 left-1.5 right-0 h-px bg-zinc-800" />
+        <div className="absolute bottom-0 left-1 right-0 h-px bg-zinc-800/60" />
       </div>
     )
   }
 
   const ativos = servicos.filter(s => s.isActive)
   const inativos = servicos.filter(s => !s.isActive)
+
+  const filtrar = (lista: any[]) =>
+    busca.trim()
+      ? lista.filter(s => s.name.toLowerCase().includes(busca.toLowerCase()) || (s.category ?? "").toLowerCase().includes(busca.toLowerCase()))
+      : lista
 
   return (
     <DashboardLayout>
@@ -211,10 +213,29 @@ export default function ServicosPage() {
           <h1 className="text-white text-xl font-bold">Serviços</h1>
           <p className="text-zinc-500 text-sm">{ativos.length} ativos{inativos.length > 0 ? `, ${inativos.length} desabilitados` : ""}</p>
         </div>
-        <button onClick={handleNovo}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-          + Novo serviço
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar serviço..."
+              className="bg-zinc-900 border border-zinc-800 text-white text-sm rounded-lg pl-8 pr-3 py-2 outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600 w-48"
+            />
+            {busca && (
+              <button onClick={() => setBusca("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                ✕
+              </button>
+            )}
+          </div>
+          <button onClick={handleNovo}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+            + Novo serviço
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -227,15 +248,18 @@ export default function ServicosPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            {ativos.map(s => <ServiceCard key={s.id} servico={s} />)}
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            {filtrar(ativos).map(s => <ServiceCard key={s.id} servico={s} />)}
           </div>
-          {inativos.length > 0 && (
+          {filtrar(ativos).length === 0 && busca && (
+            <p className="text-zinc-600 text-sm text-center py-4">Nenhum serviço encontrado para "{busca}"</p>
+          )}
+          {inativos.length > 0 && filtrar(inativos).length > 0 && (
             <div>
-              <p className="text-zinc-600 text-xs uppercase tracking-wider mb-3">Desabilitados</p>
-              <div className="grid grid-cols-2 gap-4">
-                {inativos.map(s => <ServiceCard key={s.id} servico={s} dim />)}
+              <p className="text-zinc-600 text-xs uppercase tracking-wider mb-2">Desabilitados</p>
+              <div className="grid grid-cols-3 gap-3">
+                {filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)}
               </div>
             </div>
           )}
