@@ -1286,7 +1286,7 @@ export default function EstoquePage() {
               className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
               <span>📦</span> Novo Produto
             </button>
-            <button onClick={() => { setFabAberto(false); setProdutoEntrada(null); setBuscaEntrada(""); setQtdEntrada("1"); setCustoEntrada(""); setMotivoEntrada(""); setModalEntrada(true) }}
+            <button onClick={() => { setFabAberto(false); setModalEntrada(true) }}
               className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
               <span>📥</span> Entrada de Mercadoria
             </button>
