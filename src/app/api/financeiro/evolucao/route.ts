@@ -13,26 +13,44 @@ export async function GET(request: Request) {
     const anoInicio = new Date(ano, 0, 1)
     const anoFim = new Date(ano, 11, 31, 23, 59, 59)
 
-    // Usa findMany com select mínimo — $queryRaw segurava sessão inteira
-    // e causava EMAXCONNSESSION no Supabase session pooler
-    const pagamentos = await prisma.payment.findMany({
-      where: {
-        status: "PAID",
-        appointment: {
-          establishmentId: ESTAB_ID,
-          scheduledAt: { gte: anoInicio, lte: anoFim },
+    const [pagamentos, transacoesAssinatura] = await Promise.all([
+      // Pagamentos de agendamentos
+      prisma.payment.findMany({
+        where: {
+          status: "PAID",
+          appointment: {
+            establishmentId: ESTAB_ID,
+            scheduledAt: { gte: anoInicio, lte: anoFim },
+          },
         },
-      },
-      select: {
-        amount: true,
-        appointment: { select: { scheduledAt: true } },
-      },
-    })
+        select: {
+          amount: true,
+          appointment: { select: { scheduledAt: true } },
+        },
+      }),
+
+      // Pagamentos de assinaturas (registrados como Transaction)
+      prisma.transaction.findMany({
+        where: {
+          type: "RECEITA",
+          description: { startsWith: "Assinatura ·" },
+          createdAt: { gte: anoInicio, lte: anoFim },
+          cashRegister: { establishmentId: ESTAB_ID },
+        },
+        select: { amount: true, createdAt: true },
+      }),
+    ])
 
     const totalPorMes = new Array(12).fill(0)
+
     for (const p of pagamentos) {
       const mes = new Date(p.appointment.scheduledAt).getMonth()
       totalPorMes[mes] += p.amount
+    }
+
+    for (const t of transacoesAssinatura) {
+      const mes = new Date(t.createdAt).getMonth()
+      totalPorMes[mes] += t.amount
     }
 
     const evolucao = MESES.map((label, i) => ({

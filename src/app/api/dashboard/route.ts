@@ -65,6 +65,7 @@ export async function GET(request: Request) {
       apptsMesAnterior,
       pagamentosPendentes,
       assinaturasVencidas,
+      receitaAssinaturasPeriodo,
     ] = await Promise.all([
       prisma.appointment.findMany({
         where: {
@@ -190,6 +191,17 @@ export async function GET(request: Request) {
         _count: { id: true },
         _sum: { price: true },
       }),
+
+      // Assinaturas efetivamente pagas no período (registradas como Transaction)
+      prisma.transaction.aggregate({
+        where: {
+          type: "RECEITA",
+          description: { startsWith: "Assinatura ·" },
+          createdAt: { gte: fromDate, lte: toDate },
+          cashRegister: { establishmentId: ESTAB_ID },
+        },
+        _sum: { amount: true },
+      }),
     ])
 
     const pagamentosPendentesCount = pagamentosPendentes._count.id + assinaturasVencidas._count.id
@@ -241,13 +253,15 @@ export async function GET(request: Request) {
      * Receita efetivamente confirmada/paga.
      * Aqui pagamentos PAY_LATER pendentes não entram.
      */
+    const receitaAssinaturas = receitaAssinaturasPeriodo._sum.amount ?? 0
+
     const faturamentoRecebido =
       doneAppts.reduce((s, a) => {
         if (a.payment?.status === "PAID") return s + a.payment.amount
         return s
-      }, 0) + receitaProdutos
+      }, 0) + receitaProdutos + receitaAssinaturas
 
-    const faturamento = receitaServicos + receitaProdutos
+    const faturamento = receitaServicos + receitaProdutos + receitaAssinaturas
     const atendimentos = doneAppts.length
     const ticketMedio = atendimentos > 0 ? faturamento / atendimentos : 0
 
@@ -396,6 +410,7 @@ export async function GET(request: Request) {
       faturamentoRecebido: arredondar(faturamentoRecebido),
       receitaServicos: arredondar(receitaServicos),
       receitaProdutos: arredondar(receitaProdutos),
+      receitaAssinaturas: arredondar(receitaAssinaturas),
 
       atendimentos,
       ticketMedio: arredondar(ticketMedio),
