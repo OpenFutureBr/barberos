@@ -1401,6 +1401,44 @@ export default function EstoquePage() {
               {/* ── ABA ESTRATIFICADA ── */}
               {tipoEntrada === "estratificada" && (
                 <>
+                  {/* Upload XML — opção principal gratuita */}
+                  <div className="bg-zinc-800/60 border border-dashed border-zinc-600 rounded-xl p-4">
+                    <div className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">📄 Upload do XML da NF-e</div>
+                    <p className="text-zinc-500 text-xs mb-3">O fornecedor envia o arquivo <span className="text-white">.xml</span> junto com a nota. Faça o upload para preencher os itens automaticamente.</p>
+                    <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${buscandoNfe ? "opacity-50 cursor-not-allowed bg-zinc-800 border-zinc-700 text-zinc-400" : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"}`}>
+                      {buscandoNfe ? "Processando..." : "Selecionar arquivo XML"}
+                      <input type="file" accept=".xml,text/xml,application/xml" className="hidden" disabled={buscandoNfe}
+                        onChange={async e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setBuscandoNfe(true); setErroNfe(""); setDadosNfe(null); setItensNfe([])
+                          try {
+                            const fd = new FormData()
+                            fd.append("xml", file)
+                            const res = await fetch("/api/estoque/nfe/xml", { method: "POST", body: fd })
+                            const data = await res.json()
+                            if (!res.ok) { setErroNfe(data.error || "Erro ao processar XML"); return }
+                            setDadosNfe(data)
+                            setChaveNfe(data.chave ?? "")
+                            setItensNfe((data.itens ?? []).map((it: any) => ({
+                              desc: it.descricao,
+                              qty: String(it.quantidade),
+                              custo: it.valorUnitario > 0 ? String(it.valorUnitario.toFixed(2)) : "",
+                              produto: null,
+                            })))
+                          } catch (err) { setErroNfe(String(err)) }
+                          finally { setBuscandoNfe(false); e.target.value = "" }
+                        }} />
+                    </label>
+                  </div>
+
+                  {/* Separador */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-zinc-800" />
+                    <span className="text-zinc-600 text-xs">ou consulte pela chave</span>
+                    <div className="flex-1 h-px bg-zinc-800" />
+                  </div>
+
                   {/* Chave de acesso */}
                   <div>
                     <label className="text-zinc-400 text-xs mb-1 block">Chave de Acesso NF-e (44 dígitos)</label>
@@ -1411,11 +1449,11 @@ export default function EstoquePage() {
                         maxLength={44}
                         className={`${inputCls} font-mono text-xs tracking-wider flex-1`} />
                       <button type="button" onClick={buscarNfe} disabled={buscandoNfe || chaveNfe.length < 44}
-                        className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-semibold px-4 rounded-lg text-sm transition-colors flex-shrink-0">
+                        className="bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-zinc-300 font-semibold px-4 rounded-lg text-sm transition-colors flex-shrink-0">
                         {buscandoNfe ? "..." : "Consultar"}
                       </button>
                     </div>
-                    <div className="text-zinc-600 text-xs mt-1">{chaveNfe.length}/44 dígitos</div>
+                    <div className="text-zinc-600 text-xs mt-1">{chaveNfe.length}/44 dígitos · extrai dados básicos da chave</div>
                   </div>
 
                   {erroNfe && (
