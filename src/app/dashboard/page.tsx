@@ -52,12 +52,46 @@ type Appt = {
 }
 
 type DashData = {
-  faturamento: number; atendimentos: number; ticketMedio: number
-  clientesVip: number; pendentes: number; cancelados: number
-  mesAtualClientes: number; mesAnteriorClientes: number
-  split?: { presencial: { atendimentos: number; receita: number }; domicilio: { atendimentos: number; receita: number } }
-  topServicos: { nome: string; count: number; receita: number }[]
-  topProdutos: { nome: string; qtd: number; receita: number }[]
+  faturamento: number
+  faturamentoRecebido?: number
+  receitaServicos?: number
+  receitaProdutos?: number
+
+  atendimentos: number
+  ticketMedio: number
+
+  clientesVip: number
+  pendentes: number
+  cancelados: number
+
+  pagamentosPendentes?: number
+  valorPendente?: number
+
+  mesAtualClientes: number
+  mesAnteriorClientes: number
+
+  split?: {
+    presencial: {
+      atendimentos: number
+      receita: number
+    }
+    domicilio: {
+      atendimentos: number
+      receita: number
+    }
+  }
+
+  topServicos: {
+    nome: string
+    count: number
+    receita: number
+  }[]
+
+  topProdutos: {
+    nome: string
+    qtd: number
+    receita: number
+  }[]
 }
 
 type CaixaData = { caixa: { id: string; closedAt: string | null } | null; lancamentos: any[] }
@@ -68,7 +102,6 @@ export default function DashboardPage() {
   const [caixa, setCaixa] = useState<CaixaData | null>(null)
   const [evolucao, setEvolucao] = useState<{ mes: number; label: string; valor: number }[]>([])
   const [loading, setLoading] = useState(true)
-  const [estab, setEstab] = useState<{ name: string } | null>(null)
   const [periodo, setPeriodo] = useState<Periodo>("hoje")
   const [customFrom, setCustomFrom] = useState(hojeStr())
   const [customTo, setCustomTo] = useState(hojeStr())
@@ -77,24 +110,24 @@ export default function DashboardPage() {
 
   const fetchDados = useCallback(async () => {
     const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
-    const hoje = hojeStr()
     setLoading(true)
     try {
-      const [dashRes, apptsRes, caixaRes, estabRes] = await Promise.all([
+      // /api/dashboard já inclui agendamentosHoje — elimina chamada duplicada a /api/agendamentos
+      // /api/caixa?resumo=true retorna só status+saldo, sem todas as transações
+      const [dashRes, caixaRes] = await Promise.all([
         fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()).catch(() => ({})),
-        fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()).catch(() => []),
-        fetch("/api/caixa").then(r => r.json()).catch(() => ({})),
-        fetch("/api/configuracoes").then(r => r.json()).catch(() => ({})),
+        fetch("/api/caixa?resumo=true").then(r => r.json()).catch(() => ({})),
       ])
-      if (dashRes && !dashRes.error) setDados(dashRes)
-      if (Array.isArray(apptsRes)) setAppts(apptsRes)
+      if (dashRes && !dashRes.error) {
+        setDados(dashRes)
+        if (Array.isArray(dashRes.agendamentosHoje)) setAppts(dashRes.agendamentosHoje)
+      }
       if (caixaRes && !caixaRes.error) setCaixa(caixaRes)
-      if (estabRes && !estabRes.error) setEstab(estabRes)
 
       // Evolução — não bloqueia os KPIs se falhar
-      fetch(`/api/financeiro?mes=${new Date().getMonth()+1}&ano=${new Date().getFullYear()}`)
-        .then(r => r.json())
-        .then(d => { if (Array.isArray(d?.evolucao)) setEvolucao(d.evolucao) })
+      fetch(`/api/financeiro/evolucao?ano=${new Date().getFullYear()}`)
+        .then((r) => r.json())
+        .then((d) => { if (Array.isArray(d)) setEvolucao(d) })
         .catch(() => {})
     } catch (e) { console.error("[dashboard]", e) }
     finally { setLoading(false) }
@@ -102,9 +135,14 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchDados() }, [fetchDados])
   useEffect(() => {
-    window.addEventListener("pagamentoConfirmado", fetchDados)
-    return () => window.removeEventListener("pagamentoConfirmado", fetchDados)
-  }, [fetchDados])
+  window.addEventListener("pagamentoConfirmado", fetchDados)
+  window.addEventListener("pagamentoPendente", fetchDados)
+
+  return () => {
+    window.removeEventListener("pagamentoConfirmado", fetchDados)
+    window.removeEventListener("pagamentoPendente", fetchDados)
+  }
+}, [fetchDados])
 
   const agora = new Date()
   const apptsDone = appts.filter(a => a.status === "DONE" || a.status === "IN_PROGRESS")
@@ -153,7 +191,7 @@ export default function DashboardPage() {
       <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
 
       {/* ── KPIs PRINCIPAIS ── */}
-      <div className="grid grid-cols-4 gap-3 mb-3">
+      <div className="grid grid-cols-5 gap-3 mb-3">
 
         {/* Faturamento */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
@@ -166,6 +204,32 @@ export default function DashboardPage() {
           <div className="text-zinc-600 text-xs mt-1">serviços + produtos</div>
         </div>
 
+          {/* A receber */}
+      <Link
+        href="/dashboard/financeiro"
+        className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden hover:border-orange-500/30 transition-colors block"
+      >
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
+
+        <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">
+          A receber
+        </div>
+
+        {loading ? (
+          <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        ) : (
+          <div className="text-orange-400 text-2xl font-bold tabular-nums">
+            {fmtMoeda(dados?.valorPendente ?? 0)}
+          </div>
+        )}
+
+        <div className="text-zinc-600 text-xs mt-1">
+          {(dados?.pagamentosPendentes ?? 0)} pagamento
+          {(dados?.pagamentosPendentes ?? 0) !== 1 ? "s" : ""} pendente
+          {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver financeiro" : ""}
+        </div>
+      </Link>
+      
         {/* Atendimentos */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-green-500/60 to-transparent" />

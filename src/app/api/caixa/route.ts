@@ -29,8 +29,35 @@ async function getCaixaHoje() {
   })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+
+    // Modo resumo: só retorna status + saldo (usado pelo dashboard)
+    if (searchParams.get("resumo") === "true") {
+      const hoje = new Date()
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+
+      const caixa = await prisma.cashRegister.findFirst({
+        where: { establishmentId: ESTAB, openedAt: { gte: inicio, lte: fim } },
+        select: { id: true, closedAt: true },
+        orderBy: { openedAt: "desc" },
+      })
+
+      const agg = await prisma.transaction.aggregate({
+        where: { cashRegister: { establishmentId: ESTAB, openedAt: { gte: inicio, lte: fim } } },
+        _sum: { amount: true },
+      })
+
+      return NextResponse.json({
+        aberto: caixa ? !caixa.closedAt : false,
+        saldo: agg._sum.amount ?? 0,
+        caixa: caixa ? { id: caixa.id, closedAt: caixa.closedAt } : null,
+        lancamentos: [],
+      })
+    }
+
     const caixa = await getCaixaHoje()
 
     const hoje = new Date()
