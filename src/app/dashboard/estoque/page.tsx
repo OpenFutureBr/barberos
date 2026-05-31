@@ -1359,16 +1359,42 @@ export default function EstoquePage() {
                     })()}
                   </div>
 
-                  {/* Lista de itens adicionados */}
-                  {itensEntrada.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-zinc-500 text-xs uppercase tracking-wider">Itens da entrada</div>
+                  {/* Lista de itens */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-zinc-400 text-xs uppercase tracking-wider">Itens da entrada</div>
+                      <button type="button"
+                        onClick={() => setItensEntrada(prev => [...prev, { id: crypto.randomUUID(), produto: null as any, qty: "1", custo: "" }])}
+                        className="text-amber-400 hover:text-amber-300 text-xs transition-colors">+ Adicionar item</button>
+                    </div>
+
+                    {itensEntrada.length === 0 && (
+                      <div className="bg-zinc-800/50 border border-dashed border-zinc-700 rounded-lg p-4 text-center text-zinc-600 text-xs">
+                        Busque um produto acima ou clique em "+ Adicionar item"
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
                       {itensEntrada.map((item, i) => (
                         <div key={item.id} className="bg-zinc-800 rounded-lg p-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-white text-sm font-medium">{item.produto.name}</span>
+                            <span className="text-zinc-400 text-xs">Item {i + 1}</span>
                             <button type="button" onClick={() => setItensEntrada(prev => prev.filter(x => x.id !== item.id))}
                               className="text-zinc-600 hover:text-red-400 text-xs transition-colors">remover</button>
+                          </div>
+                          <div>
+                            <label className="text-zinc-500 text-xs mb-0.5 block">Produto *</label>
+                            <select value={item.produto?.id ?? ""}
+                              onChange={e => {
+                                const p = produtos.find(x => x.id === e.target.value) ?? null
+                                setItensEntrada(prev => prev.map((x,j) => j===i ? {...x, produto: p, custo: p ? String(p.costPrice ?? "") : x.custo} : x))
+                              }}
+                              className={inputCls}>
+                              <option value="">— selecione —</option>
+                              {produtos.filter(p => p.isActive).map(p => (
+                                <option key={p.id} value={p.id}>{p.name} (estoque: {p.stock})</option>
+                              ))}
+                            </select>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
@@ -1380,7 +1406,7 @@ export default function EstoquePage() {
                             <div>
                               <label className="text-zinc-500 text-xs mb-0.5 block">Preço de custo (R$)</label>
                               <input type="number" min="0" step="0.01" value={item.custo}
-                                placeholder={item.produto.costPrice?.toFixed(2)}
+                                placeholder={item.produto?.costPrice?.toFixed(2) ?? "0.00"}
                                 onChange={e => setItensEntrada(prev => prev.map((x,j) => j===i ? {...x, custo: e.target.value} : x))}
                                 className={inputCls} />
                             </div>
@@ -1388,13 +1414,7 @@ export default function EstoquePage() {
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {itensEntrada.length === 0 && (
-                    <div className="bg-zinc-800/50 border border-dashed border-zinc-700 rounded-lg p-6 text-center text-zinc-600 text-sm">
-                      Busque e adicione produtos acima
-                    </div>
-                  )}
+                  </div>
                 </>
               )}
 
