@@ -164,30 +164,38 @@ export default function ServicosPage() {
           <div className="w-px bg-zinc-800 my-1.5 flex-shrink-0" />
 
           {/* Fields */}
-          <div className="flex-1 px-2 py-1.5 flex flex-col justify-between min-w-0">
-            <div className="text-zinc-600 text-[7px] tracking-[0.15em] uppercase truncate">
-              <span className={`font-semibold text-[11px] leading-none ${dim ? "text-zinc-400" : "text-white"} block truncate`}>
+          <div className="flex-1 px-2.5 flex items-center gap-3 min-w-0">
+            {/* Nome */}
+            <div className="flex-1 min-w-0">
+              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Serviço</div>
+              <div className={`font-bold text-[11px] leading-tight truncate ${dim ? "text-zinc-400" : "text-white"}`}>
                 {servico.name}
-              </span>
-            </div>
-
-            <div className="flex items-end gap-3">
-              <div>
-                <div className="text-zinc-600 text-[7px] uppercase tracking-wider">Valor</div>
-                <div className={`font-bold text-sm leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`}>
-                  R$&nbsp;{Number(servico.price).toFixed(0)}
-                </div>
-              </div>
-              <div>
-                <div className="text-zinc-600 text-[7px] uppercase tracking-wider">Duração</div>
-                <div className="text-white font-semibold text-xs leading-none">
-                  {servico.durationMin}<span className="text-zinc-600"> min</span>
-                </div>
               </div>
               {servico.availableHome && (
-                <span className="text-[8px] text-teal-500 leading-none mb-px">✦ Dom.</span>
+                <span className="text-[7px] text-teal-500 mt-0.5 block">✦ Domicílio</span>
               )}
-              <span className="ml-auto text-[8px] text-zinc-700 group-hover:text-zinc-500 transition-colors">editar →</span>
+            </div>
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+
+            {/* Valor */}
+            <div className="flex-shrink-0 text-center">
+              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Valor</div>
+              <div className={`font-bold text-sm leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`}>
+                R$&nbsp;{Number(servico.price).toFixed(0)}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+
+            {/* Duração */}
+            <div className="flex-shrink-0 text-center">
+              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Duração</div>
+              <div className="text-white font-semibold text-xs leading-none">
+                {servico.durationMin}<span className="text-zinc-600 text-[10px]"> min</span>
+              </div>
             </div>
           </div>
         </div>
