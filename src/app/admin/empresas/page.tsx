@@ -47,6 +47,23 @@ type Empresa = {
   }
 }
 
+type NovaEmpresaForm = {
+  name: string
+  legalName: string
+  cnpj: string
+  email: string
+  phone: string
+  planId: string
+  unitName: string
+  unitCity: string
+  unitState: string
+  ownerName: string
+  ownerEmail: string
+  ownerPhone: string
+  ownerUsername: string
+  ownerPassword: string
+}
+
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", {
     style: "currency",
@@ -80,23 +97,124 @@ function statusClass(status: string, isBlocked: boolean) {
   return "bg-zinc-800 text-zinc-400 border-zinc-700"
 }
 
+function novaEmpresaVazia(): NovaEmpresaForm {
+  return {
+    name: "",
+    legalName: "",
+    cnpj: "",
+    email: "",
+    phone: "",
+    planId: "START",
+    unitName: "",
+    unitCity: "",
+    unitState: "",
+    ownerName: "",
+    ownerEmail: "",
+    ownerPhone: "",
+    ownerUsername: "",
+    ownerPassword: "123456",
+  }
+}
+
 export default function AdminEmpresasPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState("")
-  const [filtro, setFiltro] = useState<"todas" | "ativas" | "bloqueadas" | "atrasadas">(
-    "todas",
-  )
+  const [filtro, setFiltro] = useState<
+    "todas" | "ativas" | "bloqueadas" | "atrasadas"
+  >("todas")
+
+  const [modalNovaEmpresa, setModalNovaEmpresa] = useState(false)
+  const [criando, setCriando] = useState(false)
+  const [erroCriacao, setErroCriacao] = useState("")
+  const [novaEmpresa, setNovaEmpresa] = useState<NovaEmpresaForm>(novaEmpresaVazia())
+  const [planosDisponiveis, setPlanosDisponiveis] = useState<{ id: string; name: string; priceMonthly: number }[]>([])
 
   useEffect(() => {
-    fetch("/api/admin/empresas")
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d)) setEmpresas(d)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    fetch("/api/admin/planos")
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setPlanosDisponiveis(d.filter((p: any) => p.isActive)) : null)
+      .catch(() => {})
   }, [])
+
+  async function carregarEmpresas() {
+    setLoading(true)
+
+    try {
+      const res = await fetch("/api/admin/empresas")
+      const d = await res.json()
+
+      if (Array.isArray(d)) {
+        setEmpresas(d)
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    carregarEmpresas()
+  }, [])
+
+  async function criarEmpresa() {
+    setErroCriacao("")
+
+    if (!novaEmpresa.name.trim()) {
+      setErroCriacao("Informe o nome da empresa.")
+      return
+    }
+
+    if (!novaEmpresa.unitName.trim()) {
+      setErroCriacao("Informe o nome da primeira unidade.")
+      return
+    }
+
+    if (!novaEmpresa.ownerName.trim()) {
+      setErroCriacao("Informe o nome do dono/gestor.")
+      return
+    }
+
+    if (!novaEmpresa.ownerEmail.trim()) {
+      setErroCriacao("Informe o e-mail do dono/gestor.")
+      return
+    }
+
+    if (!novaEmpresa.ownerPassword || novaEmpresa.ownerPassword.length < 6) {
+      setErroCriacao("A senha inicial deve ter pelo menos 6 caracteres.")
+      return
+    }
+
+    setCriando(true)
+
+    try {
+      const res = await fetch("/api/admin/empresas", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(novaEmpresa),
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        setErroCriacao(data?.error || "Erro ao criar empresa.")
+        return
+      }
+
+      setModalNovaEmpresa(false)
+      setNovaEmpresa(novaEmpresaVazia())
+
+      await carregarEmpresas()
+    } catch (error) {
+      console.error(error)
+      setErroCriacao("Erro ao criar empresa.")
+    } finally {
+      setCriando(false)
+    }
+  }
 
   const empresasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -121,14 +239,22 @@ export default function AdminEmpresasPage() {
 
   const resumo = useMemo(() => {
     const total = empresas.length
+
     const ativas = empresas.filter(
       (e) => !e.isBlocked && e.billingStatus === "ACTIVE",
     ).length
+
     const bloqueadas = empresas.filter((e) => e.isBlocked).length
     const atrasadas = empresas.filter((e) => e.billingStatus === "OVERDUE").length
     const mrr = empresas.reduce((s, e) => s + (e.subscription?.price ?? 0), 0)
 
-    return { total, ativas, bloqueadas, atrasadas, mrr }
+    return {
+      total,
+      ativas,
+      bloqueadas,
+      atrasadas,
+      mrr,
+    }
   }, [empresas])
 
   return (
@@ -142,12 +268,26 @@ export default function AdminEmpresasPage() {
             </p>
           </div>
 
-          <Link
-            href="/admin"
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
-          >
-            ← Voltar
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setErroCriacao("")
+                setNovaEmpresa(novaEmpresaVazia())
+                setModalNovaEmpresa(true)
+              }}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Nova empresa
+            </button>
+
+            <Link
+              href="/admin"
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
+            >
+              ← Voltar
+            </Link>
+          </div>
         </div>
 
         <section className="grid grid-cols-5 gap-3">
@@ -171,7 +311,9 @@ export default function AdminEmpresasPage() {
           </div>
 
           <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4">
-            <div className="text-orange-400 text-xs uppercase mb-1">Atrasadas</div>
+            <div className="text-orange-400 text-xs uppercase mb-1">
+              Atrasadas
+            </div>
             <div className="text-2xl font-bold text-orange-400">
               {resumo.atrasadas}
             </div>
@@ -288,6 +430,7 @@ export default function AdminEmpresasPage() {
                       >
                         {e.isBlocked ? "Bloqueada" : e.billingStatus}
                       </span>
+
                       <div className="text-zinc-600 text-xs mt-1">
                         Próx. cobrança: {fmtData(e.subscription?.nextBillingAt)}
                       </div>
@@ -295,12 +438,15 @@ export default function AdminEmpresasPage() {
 
                     <td className="px-4 py-3 text-right">
                       <div className="text-zinc-300 text-xs">
-                        {e.usage.establishments}/{e.plan?.maxEstablishments ?? "∞"} unidades
+                        {e.usage.establishments}/{e.plan?.maxEstablishments ?? "∞"}{" "}
+                        unidades
                       </div>
+
                       <div className="text-zinc-600 text-xs">
                         {e.usage.activeUsers}/{e.plan?.maxUsers ?? "∞"} usuários ·{" "}
                         {e.usage.clients}/{e.plan?.maxClients ?? "∞"} clientes
                       </div>
+
                       <div className="text-zinc-700 text-xs">
                         {e.usage.totalStorageMb} MB storage
                       </div>
@@ -316,6 +462,7 @@ export default function AdminEmpresasPage() {
                       >
                         {fmtMoeda(e.usage.pendingAmount)}
                       </div>
+
                       <div className="text-zinc-600 text-xs">
                         {e.usage.pendingPayments} pendência
                         {e.usage.pendingPayments !== 1 ? "s" : ""}
@@ -337,6 +484,249 @@ export default function AdminEmpresasPage() {
           )}
         </section>
       </div>
+
+      {modalNovaEmpresa && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+              <div>
+                <h2 className="text-white font-bold text-lg">Nova empresa</h2>
+                <p className="text-zinc-500 text-sm">
+                  Cadastre a organização, primeira unidade e usuário dono.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setModalNovaEmpresa(false)}
+                className="text-zinc-500 hover:text-white text-xl transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div>
+                <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">
+                  Empresa contratante
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={novaEmpresa.name}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        name: e.target.value,
+                      }))
+                    }
+                    placeholder="Nome fantasia *"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.legalName}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        legalName: e.target.value,
+                      }))
+                    }
+                    placeholder="Razão social"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.cnpj}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        cnpj: e.target.value,
+                      }))
+                    }
+                    placeholder="CNPJ"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <select
+                    value={novaEmpresa.planId}
+                    onChange={(e) => setNovaEmpresa((s) => ({ ...s, planId: e.target.value }))}
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  >
+                    <option value="">— selecione —</option>
+                    {planosDisponiveis.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — R$ {p.priceMonthly.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}/mês
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={novaEmpresa.email}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        email: e.target.value,
+                      }))
+                    }
+                    placeholder="E-mail da empresa"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.phone}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        phone: e.target.value,
+                      }))
+                    }
+                    placeholder="Telefone da empresa"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">
+                  Primeira unidade
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <input
+                    value={novaEmpresa.unitName}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        unitName: e.target.value,
+                      }))
+                    }
+                    placeholder="Nome da unidade *"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 col-span-3"
+                  />
+
+                  <input
+                    value={novaEmpresa.unitCity}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        unitCity: e.target.value,
+                      }))
+                    }
+                    placeholder="Cidade"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 col-span-2"
+                  />
+
+                  <input
+                    value={novaEmpresa.unitState}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        unitState: e.target.value,
+                      }))
+                    }
+                    placeholder="UF"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">
+                  Usuário dono da barbearia
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={novaEmpresa.ownerName}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        ownerName: e.target.value,
+                      }))
+                    }
+                    placeholder="Nome do dono/gestor *"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.ownerEmail}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        ownerEmail: e.target.value,
+                      }))
+                    }
+                    placeholder="E-mail de login *"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.ownerPhone}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        ownerPhone: e.target.value,
+                      }))
+                    }
+                    placeholder="Telefone"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.ownerUsername}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        ownerUsername: e.target.value,
+                      }))
+                    }
+                    placeholder="Usuário de login, opcional"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+
+                  <input
+                    value={novaEmpresa.ownerPassword}
+                    onChange={(e) =>
+                      setNovaEmpresa((s) => ({
+                        ...s,
+                        ownerPassword: e.target.value,
+                      }))
+                    }
+                    placeholder="Senha inicial *"
+                    type="text"
+                    className="bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 col-span-2"
+                  />
+                </div>
+              </div>
+
+              {erroCriacao && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
+                  {erroCriacao}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalNovaEmpresa(false)}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={criarEmpresa}
+                  disabled={criando}
+                  className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
+                >
+                  {criando ? "Criando..." : "Criar empresa"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
