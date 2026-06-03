@@ -4,6 +4,8 @@ import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
+
+
 function calcularForca(senha: string): { nivel: number; label: string; cor: string } {
   if (senha.length === 0) return { nivel: 0, label: "", cor: "" }
   const temLetra = /[a-zA-Z]/.test(senha)
@@ -39,7 +41,7 @@ function OlhoIcon({ aberto }: { aberto: boolean }) {
 }
 
 export default function AlterarSenhaPage() {
-  const { update } = useSession()
+  const { update, data: session } = useSession()
   const router = useRouter()
   const [nova, setNova] = useState("")
   const [confirma, setConfirma] = useState("")
@@ -74,7 +76,8 @@ export default function AlterarSenhaPage() {
         return
       }
       await update({ isFirstLogin: false })
-      router.push("/dashboard")
+      const destino = session?.user?.role === "ADMIN" ? "/admin" : "/dashboard"
+      router.push(destino)
       router.refresh()
     } catch {
       setErro("Erro ao conectar. Tente novamente.")

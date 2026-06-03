@@ -34,12 +34,16 @@ export const proxy = auth((req) => {
     return redirectTo(req, "/alterar-senha")
   }
 
-  // Usuário já autenticado e tentando acessar /admin
-  // Somente ADMIN pode entrar
-  if (pathname.startsWith("/admin")) {
-    if (req.auth.user?.role !== "ADMIN") {
-      return redirectTo(req, "/dashboard")
-    }
+  const role = req.auth.user?.role
+
+  // ADMIN não acessa o dashboard da barbearia — vai direto para /admin
+  if (role === "ADMIN" && pathname.startsWith("/dashboard")) {
+    return redirectTo(req, "/admin")
+  }
+
+  // Somente ADMIN pode acessar /admin
+  if (pathname.startsWith("/admin") && role !== "ADMIN") {
+    return redirectTo(req, "/dashboard")
   }
 
   return NextResponse.next()

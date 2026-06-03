@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
@@ -21,7 +21,9 @@ export default function LoginPage() {
       if (res?.error) {
         setErro("Usuário ou senha incorretos.")
       } else {
-        router.push("/dashboard")
+        const session = await getSession()
+        const destino = session?.user?.role === "ADMIN" ? "/admin" : "/dashboard"
+        router.push(destino)
         router.refresh()
       }
     } catch {
