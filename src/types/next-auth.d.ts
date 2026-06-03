@@ -7,8 +7,22 @@ declare module "next-auth" {
       role: string
       username: string
       isFirstLogin: boolean
-      allowedResources: string[] // slugs where canView=true; ["*"] = admin (all)
+      allowedResources: string[]
+      planFeatures: string[]
+      organizationId: string | null
+      establishmentId: string | null
     } & DefaultSession["user"]
+  }
+
+  interface User {
+    id: string
+    role: string
+    username: string
+    isFirstLogin: boolean
+    allowedResources: string[]
+    planFeatures: string[]
+    organizationId: string | null
+    establishmentId: string | null
   }
 }
 
@@ -19,5 +33,8 @@ declare module "next-auth/jwt" {
     username: string
     isFirstLogin: boolean
     allowedResources: string[]
+    planFeatures: string[]
+    organizationId: string | null
+    establishmentId: string | null
   }
 }

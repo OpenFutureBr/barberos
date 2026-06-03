@@ -103,6 +103,11 @@ export default function LoginPage() {
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
+
+          <p className="text-center text-zinc-600 text-xs pt-1">
+            Esqueceu a senha?{" "}
+            <span className="text-zinc-500">Peça ao administrador para resetar o seu acesso.</span>
+          </p>
         </form>
 
         <p className="text-center text-zinc-600 text-xs mt-6">

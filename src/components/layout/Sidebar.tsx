@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 
+// feature: qual feature do plano é necessária para ver este item
+// undefined = disponível em todos os planos
 const menuGroups = [
   {
     label: "Principal",
     items: [
-      { href: "/dashboard",        label: "Dashboard",        icon: "◈", resource: "dashboard" },
-      { href: "/dashboard/agenda", label: "Agenda",           icon: "◷", resource: "agenda" },
-      { href: "/dashboard/fila",   label: "Fila de Espera",   icon: "●", resource: "fila" },
-      { href: "/dashboard/painel-tv", label: "Painel TV",     icon: "📺", newTab: true, resource: "painel_tv" },
+      { href: "/dashboard",           label: "Dashboard",        icon: "◈", resource: "dashboard" },
+      { href: "/dashboard/agenda",    label: "Agenda",           icon: "◷", resource: "agenda" },
+      { href: "/dashboard/fila",      label: "Fila de Espera",   icon: "●", resource: "fila" },
+      { href: "/dashboard/painel-tv", label: "Painel TV",        icon: "📺", newTab: true, resource: "painel_tv", feature: "painel_tv" },
     ],
   },
   {
@@ -23,27 +25,27 @@ const menuGroups = [
       { href: "/dashboard/galeria",     label: "Galeria de Cortes", icon: "✂", resource: "galeria" },
       { href: "/dashboard/equipe",      label: "Equipe",            icon: "◉", resource: "equipe" },
       { href: "/dashboard/estoque",     label: "Estoque",           icon: "◈", resource: "estoque" },
-      { href: "/dashboard/estoque-ia",  label: "IA Estoque",        icon: "⬡", resource: "ia_estoque" },
+      { href: "/dashboard/estoque-ia",  label: "IA Estoque",        icon: "⬡", resource: "ia_estoque", feature: "ia" },
       { href: "/dashboard/domicilio",   label: "Domicílio",         icon: "🚗", resource: "domicilio" },
-      { href: "/dashboard/ia-biotipo",  label: "IA Biotipo",        icon: "🤖", resource: "ia_biotipo" },
+      { href: "/dashboard/ia-biotipo",  label: "IA Biotipo",        icon: "🤖", resource: "ia_biotipo", feature: "ia" },
     ],
   },
   {
     label: "Financeiro",
     items: [
-      { href: "/dashboard/pix",          label: "PIX & Cobranças", icon: "💸", resource: "pix" },
-      { href: "/dashboard/caixa",        label: "Caixa",           icon: "💰", resource: "caixa" },
-      { href: "/dashboard/financeiro",   label: "Financeiro",      icon: "◷", resource: "financeiro" },
-      { href: "/dashboard/fiscal",       label: "Fiscal & NF-e",   icon: "📄", resource: "fiscal" },
-      { href: "/dashboard/precificacao", label: "Precificação",    icon: "🏷", resource: "precificacao" },
+      { href: "/dashboard/pix",          label: "PIX & Cobranças", icon: "💸", resource: "pix",          feature: "financeiro" },
+      { href: "/dashboard/caixa",        label: "Caixa",           icon: "💰", resource: "caixa",        feature: "financeiro" },
+      { href: "/dashboard/financeiro",   label: "Financeiro",      icon: "◷", resource: "financeiro",   feature: "financeiro" },
+      { href: "/dashboard/fiscal",       label: "Fiscal & NF-e",   icon: "📄", resource: "fiscal",       feature: "nfse" },
+      { href: "/dashboard/precificacao", label: "Precificação",    icon: "🏷", resource: "precificacao", feature: "financeiro" },
     ],
   },
   {
     label: "Fidelidade",
     items: [
-      { href: "/dashboard/cashback",    label: "Cashback",   icon: "✦", resource: "cashback" },
+      { href: "/dashboard/cashback",    label: "Cashback",    icon: "✦", resource: "cashback",    feature: "cashback" },
       { href: "/dashboard/assinaturas", label: "Assinaturas", icon: "◎", resource: "assinaturas" },
-      { href: "/dashboard/clientes-ia", label: "Central IA", icon: "⬡", resource: "clientes_ia" },
+      { href: "/dashboard/clientes-ia", label: "Central IA",  icon: "⬡", resource: "clientes_ia", feature: "ia" },
     ],
   },
   {
@@ -55,7 +57,7 @@ const menuGroups = [
   {
     label: "Escala",
     items: [
-      { href: "/dashboard/unidades",    label: "Multi-unidades", icon: "🏢", resource: "unidades" },
+      { href: "/dashboard/unidades",    label: "Multi-unidades", icon: "🏢", resource: "unidades",    feature: "multiUnidade" },
       { href: "/dashboard/white-label", label: "White-label",   icon: "🎨", resource: "white_label" },
       { href: "/dashboard/media",       label: "BarberOS Media", icon: "📡", resource: "media" },
     ],
@@ -64,7 +66,7 @@ const menuGroups = [
     label: "Sistema",
     items: [
       { href: "/dashboard/configuracoes", label: "Configurações", icon: "⚙", resource: "configuracoes" },
-      { href: "/dashboard/api-docs",      label: "API Docs",      icon: "📡", resource: "api_docs" },
+      { href: "/dashboard/api-docs",      label: "API Docs",      icon: "📡", resource: "api_docs", feature: "api" },
     ],
   },
 ]
@@ -83,11 +85,20 @@ export default function Sidebar() {
 
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.allowedResources?.includes("*")
   const allowedResources = session?.user?.allowedResources ?? []
+  const planFeatures = session?.user?.planFeatures ?? []
 
   function podeVer(resource: string) {
-    if (!session) return true // antes de carregar a sessão, não filtra
+    if (!session) return true
     if (isAdmin) return true
     return allowedResources.includes(resource)
+  }
+
+  function planoPermite(feature?: string) {
+    if (!feature) return true           // sem restrição de plano
+    if (!session) return true           // antes de carregar
+    if (isAdmin) return true            // admin vê tudo
+    if (planFeatures.includes("*")) return true
+    return planFeatures.includes(feature)
   }
 
   useEffect(() => {
@@ -196,7 +207,9 @@ export default function Sidebar() {
 
       <nav ref={navRef} onScroll={handleScroll} className="flex-1 overflow-y-auto py-2">
         {menuGroups.map((group) => {
-          const itensFiltrados = group.items.filter(i => podeVer(i.resource))
+          const itensFiltrados = group.items.filter(i =>
+            podeVer(i.resource) && planoPermite((i as any).feature)
+          )
           if (itensFiltrados.length === 0) return null
           const isCollapsed = collapsed.has(group.label)
           const hasActive = itensFiltrados.some(i => i.href === pathname)

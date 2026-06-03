@@ -156,6 +156,51 @@ export async function POST(req: Request) {
     })
   }
 
+  // ── 7. Consolida UsageMetrics do mês atual por organização ───────────────
+  const orgsAtivas = await prisma.organization.findMany({
+    where: { isActive: true, isBlocked: false },
+    select: { id: true, establishments: { select: { id: true } } },
+  })
+
+  for (const org of orgsAtivas) {
+    const estabIds = org.establishments.map(e => e.id)
+    if (estabIds.length === 0) continue
+
+    const [agendamentos, clientes, usuarios] = await Promise.all([
+      prisma.appointment.count({
+        where: {
+          establishmentId: { in: estabIds },
+          status: "DONE" as any,
+          scheduledAt: { gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1), lte: hoje },
+        },
+      }),
+      prisma.client.count({
+        where: { establishmentId: { in: estabIds }, createdAt: { gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1) } },
+      }),
+      prisma.user.count({
+        where: { organizationId: org.id, isActive: true },
+      }),
+    ])
+
+    await Promise.all([
+      prisma.usageMetric.upsert({
+        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "agendamentos_mes", referenceMonth: mesAtual } },
+        create: { organizationId: org.id, metric: "agendamentos_mes", value: agendamentos, referenceMonth: mesAtual },
+        update: { value: agendamentos },
+      }),
+      prisma.usageMetric.upsert({
+        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "clientes_novos_mes", referenceMonth: mesAtual } },
+        create: { organizationId: org.id, metric: "clientes_novos_mes", value: clientes, referenceMonth: mesAtual },
+        update: { value: clientes },
+      }),
+      prisma.usageMetric.upsert({
+        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "usuarios_ativos", referenceMonth: mesAtual } },
+        create: { organizationId: org.id, metric: "usuarios_ativos", value: usuarios, referenceMonth: mesAtual },
+        update: { value: usuarios },
+      }),
+    ])
+  }
+
   return NextResponse.json({
     ok: true,
     trialsConvertidos,
@@ -164,6 +209,7 @@ export async function POST(req: Request) {
     orgsAtualizadasOverdue,
     orgsSuspensas,
     orgsReativadas,
+    metricsConsolidadas: orgsAtivas.length,
     processadoEm: new Date().toISOString(),
   })
 }

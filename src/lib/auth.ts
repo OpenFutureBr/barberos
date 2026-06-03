@@ -58,21 +58,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
 
           let allowedResources: string[] = []
+          let planFeatures: string[] = []
 
           if (user.role === "ADMIN") {
             allowedResources = ["*"]
+            planFeatures = ["*"]
           } else {
-            const permissions = await prisma.userPermission.findMany({
-              where: {
-                userId: user.id,
-                canView: true,
-              },
-              select: {
-                resource: true,
-              },
-            })
+            const [permissions, org] = await Promise.all([
+              prisma.userPermission.findMany({
+                where: { userId: user.id, canView: true },
+                select: { resource: true },
+              }),
+              user.organizationId
+                ? prisma.organization.findUnique({
+                    where: { id: user.organizationId },
+                    include: { plan: { select: { features: true } } },
+                  })
+                : null,
+            ])
 
             allowedResources = permissions.map((p) => p.resource)
+
+            if (org?.plan?.features) {
+              planFeatures = Object.entries(org.plan.features as Record<string, boolean>)
+                .filter(([, v]) => v)
+                .map(([k]) => k)
+            }
           }
 
           console.log("[AUTH] Login autorizado:", username)
@@ -85,6 +96,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             username: user.username ?? username,
             isFirstLogin: user.isFirstLogin,
             allowedResources,
+            planFeatures,
+
+            organizationId: user.organizationId ?? null,
+            establishmentId: user.establishmentId ?? null,
           }
         } catch (error) {
           console.error("[AUTH] Erro no authorize:", error)
