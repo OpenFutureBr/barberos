@@ -612,6 +612,8 @@ model Organization {
   ownerEmail String?
   ownerPhone String?
 
+  logoUrl       String?
+
   isActive      Boolean       @default(true)
   isBlocked     Boolean       @default(false)
   billingStatus BillingStatus @default(ACTIVE)
