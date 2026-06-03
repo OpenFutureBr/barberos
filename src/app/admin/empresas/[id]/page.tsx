@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useParams } from "next/navigation"
+import AdminLayout from "@/components/admin/AdminLayout"
 
 type EmpresaDetalhe = {
   empresa: {
@@ -339,56 +339,31 @@ export default function AdminEmpresaDetalhePage() {
     })
   }
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-1">
-              Empresa / Organização
-            </div>
-
-            <h1 className="text-2xl font-bold">
-              {loading ? "Carregando..." : empresa?.name ?? "Empresa"}
-            </h1>
-
-            <p className="text-zinc-500 text-sm mt-1">
-              {empresa?.cnpj ?? "Sem CNPJ"} · {empresa?.email ?? "Sem e-mail"}
-            </p>
+            <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-1">Empresa / Organização</div>
+            <h1 className="text-2xl font-bold">{loading ? "Carregando..." : empresa?.name ?? "Empresa"}</h1>
+            <p className="text-zinc-500 text-sm mt-1">{empresa?.cnpj ?? "Sem CNPJ"} · {empresa?.email ?? "Sem e-mail"}</p>
           </div>
 
           <div className="flex items-center gap-2">
             {empresa && (
-              <span
-                className={`text-xs px-3 py-1 rounded-full border ${statusClass(
-                  empresa.billingStatus,
-                  empresa.isBlocked,
-                )}`}
-              >
+              <span className={`text-xs px-3 py-1 rounded-full border ${statusClass(empresa.billingStatus, empresa.isBlocked)}`}>
                 {empresa.isBlocked ? "Bloqueada" : empresa.billingStatus}
               </span>
             )}
-
             {empresa && (
-              <button
-                type="button"
-                onClick={bloquearOuDesbloquear}
-                disabled={actionLoading}
+              <button type="button" onClick={bloquearOuDesbloquear} disabled={actionLoading}
                 className={`px-4 py-2 rounded-lg text-sm border transition-colors disabled:opacity-50 ${
                   empresa.isBlocked
                     ? "bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/20"
                     : "bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20"
-                }`}
-              >
+                }`}>
                 {empresa.isBlocked ? "Desbloquear" : "Bloquear"}
               </button>
             )}
-
-            <Link
-              href="/admin/empresas"
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
-            >
-              ← Voltar
-            </Link>
           </div>
         </div>
 
@@ -995,7 +970,7 @@ export default function AdminEmpresaDetalhePage() {
           </>
         )}
       </div>
-    </main>
+    </AdminLayout>
   )
 }
 

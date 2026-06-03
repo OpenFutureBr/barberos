@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import AdminLayout from "@/components/admin/AdminLayout"
 
 type Fatura = {
   id: string
@@ -61,7 +61,7 @@ export default function AdminFaturamentoPage() {
     setProcessando(true)
     const res = await fetch("/api/admin/cobranca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
     const d = await res.json()
-    alert(`Processado:\n• ${d.faturasVencidas} faturas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`)
+    alert(`Processado:\n• ${d.trialsConvertidos} trials convertidos\n• ${d.faturasGeradas} faturas geradas\n• ${d.faturasVencidas} faturas marcadas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`)
     setProcessando(false)
     buscar()
   }
@@ -130,9 +130,8 @@ export default function AdminFaturamentoPage() {
     : faturas.filter(f => f.status === "PAID")
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
+    <AdminLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Faturamento</h1>
@@ -147,9 +146,6 @@ export default function AdminFaturamentoPage() {
               className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm">
               + Nova fatura
             </button>
-            <Link href="/admin" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700">
-              ← Voltar
-            </Link>
           </div>
         </div>
 
@@ -299,6 +295,6 @@ export default function AdminFaturamentoPage() {
           </div>
         </div>
       )}
-    </main>
+    </AdminLayout>
   )
 }

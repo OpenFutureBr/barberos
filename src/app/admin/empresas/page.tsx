@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import AdminLayout from "@/components/admin/AdminLayout"
 
 type Empresa = {
   id: string
@@ -258,8 +258,8 @@ export default function AdminEmpresasPage() {
   }, [empresas])
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Empresas</h1>
@@ -267,27 +267,13 @@ export default function AdminEmpresasPage() {
               Organizações, redes e CNPJs cadastrados na plataforma.
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setErroCriacao("")
-                setNovaEmpresa(novaEmpresaVazia())
-                setModalNovaEmpresa(true)
-              }}
-              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-            >
-              Nova empresa
-            </button>
-
-            <Link
-              href="/admin"
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
-            >
-              ← Voltar
-            </Link>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setErroCriacao(""); setNovaEmpresa(novaEmpresaVazia()); setModalNovaEmpresa(true) }}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            Nova empresa
+          </button>
         </div>
 
         <section className="grid grid-cols-5 gap-3">
@@ -727,6 +713,6 @@ export default function AdminEmpresasPage() {
           </div>
         </div>
       )}
-    </main>
+    </AdminLayout>
   )
 }

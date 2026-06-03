@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { signOut, useSession } from "next-auth/react"
+import AdminLayout from "@/components/admin/AdminLayout"
 
 type AdminDashboardData = {
   totalEmpresas: number
@@ -32,7 +32,6 @@ function fmtNumero(v: number) {
 export default function AdminHomePage() {
   const [dados, setDados] = useState<AdminDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const { data: session } = useSession()
 
   useEffect(() => {
     fetch("/api/admin/dashboard")
@@ -45,28 +44,11 @@ export default function AdminHomePage() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Admin SaaS</h1>
-            <p className="text-zinc-500 text-sm mt-1">
-              Gestão da plataforma, empresas, planos, cobrança e consumo.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-white text-sm font-medium">{session?.user?.name ?? "Admin"}</div>
-              <div className="text-zinc-500 text-xs">@{session?.user?.username}</div>
-            </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
-            >
-              Sair
-            </button>
-          </div>
+    <AdminLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-zinc-500 text-sm mt-1">Visão geral da plataforma.</p>
         </div>
 
         <div className="grid grid-cols-4 gap-4">
@@ -220,6 +202,6 @@ export default function AdminHomePage() {
           </div>
         )}
       </div>
-    </main>
+    </AdminLayout>
   )
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { writeFile, mkdir } from "fs/promises"
 import path from "path"
 import prisma from "@/lib/prisma"
+import { registrarUpload } from "@/lib/storage"
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
       console.warn("[logo] DB update falhou, mas arquivo foi salvo:", dbErr)
     }
 
+    registrarUpload(buffer.length)
     return NextResponse.json({ url: `${logoUrl}?v=${Date.now()}` })
   } catch (error) {
     console.error("[POST /api/configuracoes/logo]", error)

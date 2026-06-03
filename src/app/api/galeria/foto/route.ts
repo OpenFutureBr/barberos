@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import prisma from "@/lib/prisma"
+import { registrarUpload } from "@/lib/storage"
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
     await writeFile(join(uploadDir, filename), buffer)
     const url = `/uploads/${filename}`
     await prisma.haircut.update({ where: { id: corteId }, data: { photoUrl: url } })
+    registrarUpload(buffer.length)
     return NextResponse.json({ url })
   } catch (error) {
     console.error("[POST /api/galeria/foto]", error)

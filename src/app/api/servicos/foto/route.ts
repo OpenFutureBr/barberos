@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import prisma from "@/lib/prisma"
+import { registrarUpload } from "@/lib/storage"
 
 export async function POST(request: Request) {
   try {
@@ -24,11 +25,8 @@ export async function POST(request: Request) {
 
     const url = `/uploads/${filename}`
 
-    await prisma.service.update({
-      where: { id: servicoId },
-      data: { photoUrl: url },
-    })
-
+    await prisma.service.update({ where: { id: servicoId }, data: { photoUrl: url } })
+    registrarUpload(buffer.length)
     return NextResponse.json({ url })
   } catch (error) {
     console.error("[POST /api/servicos/foto]", error)

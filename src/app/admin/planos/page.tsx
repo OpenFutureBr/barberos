@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
+import AdminLayout from "@/components/admin/AdminLayout"
 
 type Plano = {
   id: string
@@ -122,21 +122,16 @@ export default function AdminPlanosPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Planos</h1>
             <p className="text-zinc-500 text-sm mt-1">Gerencie os planos SaaS e seus limites.</p>
           </div>
-          <div className="flex gap-3">
-            <Link href="/admin" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700">
-              ← Voltar
-            </Link>
-            <button onClick={abrirNovo} className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm">
-              + Novo plano
-            </button>
-          </div>
+          <button onClick={abrirNovo} className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm">
+            + Novo plano
+          </button>
         </div>
 
         {loading ? (
@@ -289,6 +284,6 @@ export default function AdminPlanosPage() {
           </div>
         </div>
       )}
-    </main>
+    </AdminLayout>
   )
 }
