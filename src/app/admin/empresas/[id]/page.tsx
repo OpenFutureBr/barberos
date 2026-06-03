@@ -211,6 +211,14 @@ export default function AdminEmpresaDetalhePage() {
   const [aba, setAba] = useState<Aba>("visao")
   const [actionLoading, setActionLoading] = useState(false)
   const [novoPlano, setNovoPlano] = useState("")
+  const [planos, setPlanos] = useState<{ id: string; name: string; priceMonthly: number }[]>([])
+
+  useEffect(() => {
+    fetch("/api/admin/planos")
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setPlanos(d.filter((p: any) => p.isActive)) : null)
+      .catch(() => {})
+  }, [])
 
   async function carregarDados() {
     if (!id) return
@@ -691,9 +699,11 @@ export default function AdminEmpresaDetalhePage() {
                           className="flex-1 bg-zinc-950 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
                         >
                           <option value="">Selecione</option>
-                          <option value="START">START</option>
-                          <option value="PRO">PRO</option>
-                          <option value="BUSINESS">BUSINESS</option>
+                          {planos.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} — R$ {p.priceMonthly.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}/mês
+                            </option>
+                          ))}
                         </select>
 
                         <button
