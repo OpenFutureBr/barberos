@@ -184,17 +184,17 @@ export async function POST(req: Request) {
 
     await Promise.all([
       prisma.usageMetric.upsert({
-        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "agendamentos_mes", referenceMonth: mesAtual } },
+        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "agendamentos_mes", referenceMonth: mesAtual } },
         create: { organizationId: org.id, metric: "agendamentos_mes", value: agendamentos, referenceMonth: mesAtual },
         update: { value: agendamentos },
       }),
       prisma.usageMetric.upsert({
-        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "clientes_novos_mes", referenceMonth: mesAtual } },
+        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "clientes_novos_mes", referenceMonth: mesAtual } },
         create: { organizationId: org.id, metric: "clientes_novos_mes", value: clientes, referenceMonth: mesAtual },
         update: { value: clientes },
       }),
       prisma.usageMetric.upsert({
-        where: { uq_usage_metric_org_estab_metric_month: { organizationId: org.id, establishmentId: null, metric: "usuarios_ativos", referenceMonth: mesAtual } },
+        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "usuarios_ativos", referenceMonth: mesAtual } },
         create: { organizationId: org.id, metric: "usuarios_ativos", value: usuarios, referenceMonth: mesAtual },
         update: { value: usuarios },
       }),
