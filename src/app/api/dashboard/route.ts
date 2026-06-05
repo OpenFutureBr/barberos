@@ -1,9 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { cacheOr, cacheDel } from "@/lib/cache"
 
 const ESTAB_ID = "estab001"
-const CACHE_TTL = 300 // 5 minutos
 
 function arredondar(valor: number) {
   return Math.round(valor * 100) / 100
@@ -28,20 +26,9 @@ function parsePeriodo(request: Request) {
   return { fromDate, toDate }
 }
 
-export async function DELETE(request: Request) {
-  // Invalida cache do dashboard (chamado ao confirmar pagamentos)
-  const { searchParams } = new URL(request.url)
-  const prefixo = searchParams.get("prefixo") ?? `dashboard:${ESTAB_ID}:`
-  await cacheDel(prefixo)
-  return NextResponse.json({ ok: true })
-}
-
 export async function GET(request: Request) {
   try {
     const { fromDate, toDate } = parsePeriodo(request)
-    const cacheKey = `dashboard:${ESTAB_ID}:${fromDate.toISOString().slice(0,10)}:${toDate.toISOString().slice(0,10)}`
-
-    const resultado = await cacheOr(cacheKey, CACHE_TTL, async () => {
 
     const now = new Date()
 
@@ -457,11 +444,7 @@ export async function GET(request: Request) {
           receita: arredondar(receitaDomicilio),
         },
       },
-    }) // fim do objeto de retorno do cacheOr
-
-    }) // fim do cacheOr
-
-    return NextResponse.json(resultado)
+    })
   } catch (error) {
     console.error("[GET /api/dashboard]", error)
 

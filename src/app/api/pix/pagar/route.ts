@@ -1,6 +1,5 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { cacheDelPrefix } from "@/lib/cache"
 
 type CashbackConfig = {
   servicos: number
@@ -487,9 +486,6 @@ export async function POST(request: Request) {
         },
       })
     }
-
-    // Invalida cache do dashboard ao confirmar pagamento
-    cacheDelPrefix("dashboard:").catch(() => {})
 
     return NextResponse.json({
       ok: true,

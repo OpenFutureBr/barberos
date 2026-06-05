@@ -1,6 +1,5 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { cacheDelPrefix } from "@/lib/cache"
 
 const MESES_LABEL = [
   "Jan",
@@ -806,7 +805,6 @@ export async function POST(request: Request) {
     })
 
     await creditarCashbackPagamentoConfirmado(paymentId)
-    cacheDelPrefix("dashboard:").catch(() => {})
 
     return NextResponse.json({
       ok: true,
