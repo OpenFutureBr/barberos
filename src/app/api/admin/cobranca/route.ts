@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 
+async function upsertMetric(organizationId: string, metric: string, value: number, referenceMonth: string) {
+  const existing = await prisma.usageMetric.findFirst({
+    where: { organizationId, establishmentId: null, metric, referenceMonth },
+    select: { id: true },
+  })
+  if (existing) {
+    return prisma.usageMetric.update({ where: { id: existing.id }, data: { value } })
+  }
+  return prisma.usageMetric.create({ data: { organizationId, metric, value, referenceMonth } })
+}
+
 /**
  * POST /api/admin/cobranca
  * Processa inadimplência e gera faturas mensais automáticas.
@@ -183,21 +194,9 @@ export async function POST(req: Request) {
     ])
 
     await Promise.all([
-      prisma.usageMetric.upsert({
-        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "agendamentos_mes", referenceMonth: mesAtual } },
-        create: { organizationId: org.id, metric: "agendamentos_mes", value: agendamentos, referenceMonth: mesAtual },
-        update: { value: agendamentos },
-      }),
-      prisma.usageMetric.upsert({
-        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "clientes_novos_mes", referenceMonth: mesAtual } },
-        create: { organizationId: org.id, metric: "clientes_novos_mes", value: clientes, referenceMonth: mesAtual },
-        update: { value: clientes },
-      }),
-      prisma.usageMetric.upsert({
-        where: { organizationId_establishmentId_metric_referenceMonth: { organizationId: org.id, establishmentId: null, metric: "usuarios_ativos", referenceMonth: mesAtual } },
-        create: { organizationId: org.id, metric: "usuarios_ativos", value: usuarios, referenceMonth: mesAtual },
-        update: { value: usuarios },
-      }),
+      upsertMetric(org.id, "agendamentos_mes", agendamentos, mesAtual),
+      upsertMetric(org.id, "clientes_novos_mes", clientes, mesAtual),
+      upsertMetric(org.id, "usuarios_ativos", usuarios, mesAtual),
     ])
   }
 
