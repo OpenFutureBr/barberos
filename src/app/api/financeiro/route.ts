@@ -55,7 +55,7 @@ function getStatusPendencia(dueDate: Date | null) {
   return vencimento < hoje ? "OVERDUE" : "PENDING"
 }
 
-async function getOuCriarCaixaHoje() {
+async function getOuCriarCaixaHoje(ESTAB_ID: string) {
   const hoje = new Date()
   const inicioDia = new Date(
     hoje.getFullYear(),
@@ -99,7 +99,7 @@ async function getOuCriarCaixaHoje() {
   return caixa
 }
 
-async function getCashbackConfig(): Promise<CashbackConfig & { id?: string }> {
+async function getCashbackConfig(ESTAB_ID: string): Promise<CashbackConfig & { id?: string }> {
   try {
     const cfg = await prisma.cashbackConfig.findFirst({
       where: {
@@ -176,7 +176,7 @@ async function calcularSegmento(
   return "INACTIVE"
 }
 
-async function creditarCashbackPagamentoConfirmado(paymentId: string) {
+async function creditarCashbackPagamentoConfirmado(paymentId: string, ESTAB_ID: string) {
   const payment = await prisma.payment.findUnique({
     where: {
       id: paymentId,
@@ -200,7 +200,7 @@ async function creditarCashbackPagamentoConfirmado(paymentId: string) {
 
   if (!client) return
 
-  const cashbackCfg = await getCashbackConfig()
+  const cashbackCfg = await getCashbackConfig(ESTAB_ID)
 
   const valorPago = payment.amount
   const valorServico = Math.min(appt.service?.price ?? 0, valorPago)
@@ -749,7 +749,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Pagamento não encontrado." }, { status: 404 })
       }
 
-      const caixa = await getOuCriarCaixaHoje()
+      const caixa = await getOuCriarCaixaHoje(ESTAB_ID)
 
       // Avança nextBillingAt em 1 mês e volta para ACTIVE
       const proximoVencimento = new Date(assinatura.nextBillingAt)
@@ -788,7 +788,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, message: "Pagamento já estava quitado." })
     }
 
-    const caixa = await getOuCriarCaixaHoje()
+    const caixa = await getOuCriarCaixaHoje(ESTAB_ID)
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -812,7 +812,7 @@ export async function POST(request: Request) {
       })
     })
 
-    await creditarCashbackPagamentoConfirmado(paymentId)
+    await creditarCashbackPagamentoConfirmado(paymentId, ESTAB_ID)
 
     return NextResponse.json({
       ok: true,

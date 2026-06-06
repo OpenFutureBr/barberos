@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       serviceId: servicoId,
       scheduledAt,
       status: "SCHEDULED" as any,
-      serviceType: tipoAtendimento === "domicilio" ? "HOME_VISIT" : "IN_PERSON",
+      serviceType: tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL",
     },
     select: {
       id: true,

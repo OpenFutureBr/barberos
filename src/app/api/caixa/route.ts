@@ -318,7 +318,7 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "lancar") {
-      let caixa = await getCaixaHoje()
+      let caixa = await getCaixaHoje(ESTAB)
 
       if (!caixa) {
         caixa = await prisma.cashRegister.create({

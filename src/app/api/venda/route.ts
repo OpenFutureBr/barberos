@@ -56,7 +56,7 @@ function nomeMetodo(method: string) {
   return method
 }
 
-async function getOuCriarCaixaHoje() {
+async function getOuCriarCaixaHoje(ESTAB_ID: string) {
   const hoje = new Date()
   const inicioDia = new Date(
     hoje.getFullYear(),
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
      * Se baixarmos aqui também, o estoque será debitado duas vezes.
      */
 
-    const caixa = await getOuCriarCaixaHoje()
+    const caixa = await getOuCriarCaixaHoje(ESTAB_ID)
 
     const descricaoProdutos =
       items.length > 0

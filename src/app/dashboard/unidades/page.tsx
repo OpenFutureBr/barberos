@@ -1,67 +1,500 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
-const unidadesMock = [
-  {
-    id: "1",
-    nome: "Barbearia Costa — Vila Madalena",
-    cidade: "São Paulo · SP",
-    slug: "barbearia-costa-vm",
-    plano: "PRO",
-    status: "ABERTA",
-    profissionais: 5,
-    clientesAtivos: 247,
-    faturamentoMes: 28450,
-    ticketMedio: 95,
-    atendimentosHoje: 12,
-    avaliacaoMedia: 4.8,
-  },
-  {
-    id: "2",
-    nome: "Barbearia Costa — Pinheiros",
-    cidade: "São Paulo · SP",
-    slug: "barbearia-costa-ph",
-    plano: "PRO",
-    status: "ABERTA",
-    profissionais: 3,
-    clientesAtivos: 134,
-    faturamentoMes: 15200,
-    ticketMedio: 85,
-    atendimentosHoje: 7,
-    avaliacaoMedia: 4.6,
-  },
-  {
-    id: "3",
-    nome: "Barbearia Costa — Itaim Bibi",
-    cidade: "São Paulo · SP",
-    slug: "barbearia-costa-ib",
-    plano: "START",
-    status: "FECHADA",
-    profissionais: 2,
-    clientesAtivos: 89,
-    faturamentoMes: 8900,
-    ticketMedio: 75,
-    atendimentosHoje: 0,
-    avaliacaoMedia: 4.5,
-  },
-]
+const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
-const planoStyle: Record<string, string> = {
+type BizHour = { dayOfWeek: number; label: string; isOpen: boolean; startTime: string; endTime: string; markup: number }
+type CashbackCfg = { servicos: number; domicilio: number; produtos: number; assinaturas: number }
+
+const defaultHours = (): BizHour[] =>
+  DIAS.map((label, i) => ({ dayOfWeek: i, label, isOpen: i >= 1 && i <= 6, startTime: "09:00", endTime: "19:00", markup: 0 }))
+
+type Unidade = {
+  id: string
+  name: string
+  slug: string
+  plan: string
+  isActive: boolean
+  city: string | null
+  state: string | null
+  logoUrl: string | null
+  _count: { users: number; clients: number; appointments: number }
+}
+
+type ConfigFull = {
+  id: string
+  name: string
+  slug: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zipCode: string | null
+  pixKey: string | null
+  whatsapp: string | null
+  instagram: string | null
+  inauguratedAt: string | null
+  cnpj: string | null
+  razaoSocial: string | null
+  inscricaoMunicipal: string | null
+  regimeTributario: string | null
+  businessHours: BizHour[] | null
+  cashbackConfig: CashbackCfg | null
+  logoUrl: string | null
+}
+
+// ---- formatters ----
+function fmtCnpj(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 14)
+  if (d.length <= 2) return d
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+}
+function fmtTel(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11)
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+function fmtWa(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 13)
+  if (d.length <= 2) return `+${d}`
+  if (d.length <= 4) return `+${d.slice(0, 2)} (${d.slice(2)}`
+  if (d.length <= 9) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`
+  if (d.length <= 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`
+  return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
+}
+function fmtCep(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 8)
+  if (d.length <= 5) return d
+  return `${d.slice(0, 5)}-${d.slice(5)}`
+}
+function toDateInput(iso: string | null | undefined) {
+  if (!iso) return ""
+  return new Date(iso).toISOString().split("T")[0]
+}
+
+const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
+
+const planBadge: Record<string, string> = {
   PRO: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
   BUSINESS: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
   START: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
 }
 
-export default function UnidadesPage() {
-  const [unidadeSel, setUnidadeSel] = useState<string | null>(null)
-  const [modalNova, setModalNova] = useState(false)
+// ---- Secao colapsável ----
+function Secao({ titulo, id, colapsados, toggle, children }: {
+  titulo: string; id: string; colapsados: Set<string>; toggle: (id: string) => void; children: React.ReactNode
+}) {
+  const fechado = colapsados.has(id)
+  return (
+    <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl overflow-hidden">
+      <button type="button" onClick={() => toggle(id)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-700/30 transition-colors text-left">
+        <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">{titulo}</span>
+        <svg className={`w-4 h-4 text-zinc-500 transition-transform flex-shrink-0 ${fechado ? "" : "rotate-180"}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {!fechado && (
+        <div className="px-4 pb-4 space-y-3 border-t border-zinc-700/40">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  const totalFaturamento = unidadesMock.reduce((s, u) => s + u.faturamentoMes, 0)
-  const totalClientes = unidadesMock.reduce((s, u) => s + u.clientesAtivos, 0)
-  const totalProfissionais = unidadesMock.reduce((s, u) => s + u.profissionais, 0)
-  const totalAtendimentos = unidadesMock.reduce((s, u) => s + u.atendimentosHoje, 0)
+// ---- Modal de config por unidade ----
+function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClose: () => void; onSalvo: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+  const [erro, setErro] = useState("")
+  const [colapsados, setColapsados] = useState<Set<string>>(new Set())
+  const [uploadando, setUploadando] = useState(false)
+
+  function toggle(id: string) {
+    setColapsados(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  // form state
+  const [nome, setNome] = useState("")
+  const [slug, setSlug] = useState("")
+  const [telefone, setTelefone] = useState("")
+  const [email, setEmail] = useState("")
+  const [endereco, setEndereco] = useState("")
+  const [cidade, setCidade] = useState("")
+  const [estado, setEstado] = useState("")
+  const [cep, setCep] = useState("")
+  const [inauguratedAt, setInauguratedAt] = useState("")
+  const [pixKey, setPixKey] = useState("")
+  const [whatsapp, setWhatsapp] = useState("")
+  const [instagram, setInstagram] = useState("")
+  const [cnpj, setCnpj] = useState("")
+  const [razaoSocial, setRazaoSocial] = useState("")
+  const [inscricaoMunicipal, setInscricaoMunicipal] = useState("")
+  const [regimeTributario, setRegimeTributario] = useState("Simples Nacional")
+  const [businessHours, setBusinessHours] = useState<BizHour[]>(defaultHours())
+  const [cashbackConfig, setCashbackConfig] = useState<CashbackCfg>({ servicos: 7, domicilio: 5, produtos: 3, assinaturas: 10 })
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/unidades/${unidadeId}`)
+      .then(r => r.json())
+      .then((d: ConfigFull) => {
+        setNome(d.name ?? "")
+        setSlug(d.slug ?? "")
+        setTelefone(fmtTel(d.phone ?? ""))
+        setEmail(d.email ?? "")
+        setEndereco(d.address ?? "")
+        setCidade(d.city ?? "")
+        setEstado(d.state ?? "")
+        setCep(fmtCep(d.zipCode ?? ""))
+        setInauguratedAt(toDateInput(d.inauguratedAt))
+        setPixKey(d.pixKey ?? "")
+        setWhatsapp(fmtWa(d.whatsapp ?? ""))
+        setInstagram(d.instagram ?? "")
+        setCnpj(fmtCnpj(d.cnpj ?? ""))
+        setRazaoSocial(d.razaoSocial ?? "")
+        setInscricaoMunicipal(d.inscricaoMunicipal ?? "")
+        setRegimeTributario(d.regimeTributario ?? "Simples Nacional")
+        setLogoUrl(d.logoUrl ?? null)
+        if (Array.isArray(d.businessHours)) setBusinessHours(d.businessHours)
+        if (d.cashbackConfig) setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [unidadeId])
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoPreview(URL.createObjectURL(file))
+    setUploadando(true)
+    try {
+      const fd = new FormData()
+      fd.append("logo", file)
+      const res = await fetch(`/api/unidades/${unidadeId}/logo`, { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || "Erro ao enviar logo"); return }
+      setLogoUrl(data.url)
+    } catch (err) { alert(String(err)) }
+    finally { setUploadando(false) }
+  }
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvando(true); setErro("")
+    try {
+      const res = await fetch(`/api/unidades/${unidadeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nome, slug,
+          phone: telefone.replace(/\D/g, "") || null,
+          email: email || null,
+          address: endereco || null,
+          city: cidade || null,
+          state: estado || null,
+          zipCode: cep.replace(/\D/g, "") || null,
+          pixKey: pixKey || null,
+          whatsapp: whatsapp.replace(/\D/g, "") || null,
+          instagram: instagram || null,
+          inauguratedAt: inauguratedAt || null,
+          cnpj: cnpj.replace(/\D/g, "") || null,
+          razaoSocial: razaoSocial || null,
+          inscricaoMunicipal: inscricaoMunicipal || null,
+          regimeTributario,
+          businessHours, cashbackConfig,
+          logoUrl: logoUrl?.split("?")[0] ?? null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErro(data.error || "Erro ao salvar"); return }
+      setSalvo(true)
+      setTimeout(() => setSalvo(false), 2500)
+      onSalvo()
+    } catch (err) { setErro(String(err)) }
+    finally { setSalvando(false) }
+  }
+
+  function toggleDia(idx: number) {
+    setBusinessHours(prev => prev.map((d, i) => i === idx ? { ...d, isOpen: !d.isOpen } : d))
+  }
+  function setHorario(idx: number, field: "startTime" | "endTime", value: string) {
+    setBusinessHours(prev => prev.map((d, i) => i === idx ? { ...d, [field]: value } : d))
+  }
+
+  const logoSrc = logoPreview || logoUrl
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
+      <div className="w-full max-w-xl bg-zinc-900 flex flex-col h-full overflow-hidden">
+        {/* header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
+          <div>
+            <h2 className="text-white font-bold">{nome || "Configurações da Unidade"}</h2>
+            <p className="text-zinc-500 text-xs mt-0.5">barberos.com/{slug}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Carregando...</div>
+        ) : (
+          <form onSubmit={handleSalvar} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+
+            {/* Logo */}
+            <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>
+              <div className="flex items-center gap-4 pt-3">
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center">
+                  {logoSrc
+                    ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover" />
+                    : <span className="text-white font-bold text-2xl">{nome.charAt(0) || "B"}</span>}
+                </div>
+                <div>
+                  <label className={`inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm px-4 py-2 rounded-lg border border-zinc-700 transition-colors cursor-pointer ${uploadando ? "opacity-50 cursor-not-allowed" : ""}`}>
+                    {uploadando ? "Enviando..." : "Enviar logo"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogoChange} disabled={uploadando} />
+                  </label>
+                  <p className="text-zinc-600 text-xs mt-1">PNG, JPG ou WebP · máx 3 MB</p>
+                  {logoUrl && <p className="text-green-400 text-xs mt-1">✓ Logo carregada</p>}
+                </div>
+              </div>
+            </Secao>
+
+            {/* Informações básicas */}
+            <Secao titulo="Informações básicas" id="info" colapsados={colapsados} toggle={toggle}>
+              <div className="pt-3">
+                <label className="text-zinc-400 text-xs mb-1 block">Nome da unidade *</label>
+                <input value={nome} onChange={e => setNome(e.target.value)} required className={inputCls} placeholder="Barbearia Costa — Vila Madalena" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Link de agendamento</label>
+                <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500 transition-colors">
+                  <span className="text-zinc-600 text-xs px-3 border-r border-zinc-700 py-2">barberos.com/</span>
+                  <input value={slug} onChange={e => setSlug(e.target.value)} className="flex-1 bg-transparent text-white px-3 py-2 text-sm outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
+                  <input value={telefone} onChange={e => setTelefone(fmtTel(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Email</label>
+                  <input value={email} onChange={e => setEmail(e.target.value)} type="email" className={inputCls} placeholder="contato@barbearia.com" />
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Data de inauguração</label>
+                <input type="date" value={inauguratedAt} onChange={e => setInauguratedAt(e.target.value)} className={`${inputCls} [color-scheme:dark]`} />
+              </div>
+            </Secao>
+
+            {/* Contato & Pagamento */}
+            <Secao titulo="Contato & Pagamento" id="contato" colapsados={colapsados} toggle={toggle}>
+              <div className="grid grid-cols-2 gap-3 pt-3">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">WhatsApp</label>
+                  <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500">
+                    <span className="text-zinc-600 text-xs px-2 py-2">💬</span>
+                    <input value={whatsapp} onChange={e => setWhatsapp(fmtWa(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
+                  </div>
+                  <p className="text-zinc-600 text-xs mt-0.5">Com código do país (+55)</p>
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Instagram</label>
+                  <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500">
+                    <span className="text-zinc-600 text-xs px-2 py-2">@</span>
+                    <input value={instagram} onChange={e => setInstagram(e.target.value.replace("@", ""))} placeholder="barbearia.costa" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Chave PIX</label>
+                <input value={pixKey} onChange={e => setPixKey(e.target.value)} className={inputCls} placeholder="CPF, CNPJ, email, telefone ou chave aleatória" />
+              </div>
+            </Secao>
+
+            {/* Endereço */}
+            <Secao titulo="Endereço" id="endereco" colapsados={colapsados} toggle={toggle}>
+              <div className="pt-3">
+                <label className="text-zinc-400 text-xs mb-1 block">Endereço</label>
+                <input value={endereco} onChange={e => setEndereco(e.target.value)} className={inputCls} placeholder="Rua das Flores, 123" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">CEP</label>
+                  <input value={cep} onChange={e => setCep(fmtCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
+                  <input value={cidade} onChange={e => setCidade(e.target.value)} className={inputCls} placeholder="São Paulo" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Estado</label>
+                  <input value={estado} onChange={e => setEstado(e.target.value)} className={inputCls} placeholder="SP" maxLength={2} />
+                </div>
+              </div>
+            </Secao>
+
+            {/* Dados fiscais */}
+            <Secao titulo="Dados fiscais" id="fiscal" colapsados={colapsados} toggle={toggle}>
+              <div className="grid grid-cols-2 gap-3 pt-3">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">CNPJ</label>
+                  <input value={cnpj} onChange={e => setCnpj(fmtCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Inscrição Municipal</label>
+                  <input value={inscricaoMunicipal} onChange={e => setInscricaoMunicipal(e.target.value)} className={inputCls} placeholder="000000-0" />
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Razão Social</label>
+                <input value={razaoSocial} onChange={e => setRazaoSocial(e.target.value)} className={inputCls} placeholder="Barbearia Costa Ltda" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Regime tributário</label>
+                <select value={regimeTributario} onChange={e => setRegimeTributario(e.target.value)} className={inputCls}>
+                  <option>Simples Nacional</option>
+                  <option>Lucro Presumido</option>
+                  <option>Lucro Real</option>
+                  <option>MEI</option>
+                </select>
+              </div>
+            </Secao>
+
+            {/* Horário de funcionamento */}
+            <Secao titulo="Horário de funcionamento" id="horario" colapsados={colapsados} toggle={toggle}>
+              <div className="space-y-2 pt-3">
+                {businessHours.map((dia, idx) => (
+                  <div key={dia.dayOfWeek} className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${dia.isOpen ? "bg-zinc-700/50" : "bg-zinc-800/30"}`}>
+                    <button type="button" onClick={() => toggleDia(idx)}
+                      className={`w-9 h-5 rounded-full flex items-center transition-all px-0.5 flex-shrink-0 ${dia.isOpen ? "bg-amber-500 justify-end" : "bg-zinc-600 justify-start"}`}>
+                      <div className="w-4 h-4 bg-white rounded-full shadow" />
+                    </button>
+                    <span className={`text-sm w-16 flex-shrink-0 ${dia.isOpen ? "text-white font-medium" : "text-zinc-600"}`}>{dia.label}</span>
+                    {dia.isOpen ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input type="time" value={dia.startTime} onChange={e => setHorario(idx, "startTime", e.target.value)}
+                          className="bg-zinc-700 border border-zinc-600 text-white rounded px-2 py-1 text-sm outline-none focus:border-amber-500 [color-scheme:dark]" />
+                        <span className="text-zinc-500 text-xs">até</span>
+                        <input type="time" value={dia.endTime} onChange={e => setHorario(idx, "endTime", e.target.value)}
+                          className="bg-zinc-700 border border-zinc-600 text-white rounded px-2 py-1 text-sm outline-none focus:border-amber-500 [color-scheme:dark]" />
+                      </div>
+                    ) : (
+                      <span className="text-zinc-600 text-xs">Fechado</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Secao>
+
+            {/* Cashback */}
+            <Secao titulo="Cashback por categoria" id="cashback" colapsados={colapsados} toggle={toggle}>
+              <p className="text-zinc-600 text-xs pt-3">Percentual creditado automaticamente após cada pagamento confirmado.</p>
+              <div className="space-y-3">
+                {([
+                  { key: "servicos", label: "Serviços presenciais" },
+                  { key: "domicilio", label: "Serviços a domicílio" },
+                  { key: "produtos", label: "Produtos (PDV)" },
+                  { key: "assinaturas", label: "Planos / Assinaturas" },
+                ] as const).map(({ key, label }) => (
+                  <div key={key} className="flex items-center gap-4">
+                    <span className="flex-1 text-white text-sm">{label}</span>
+                    <div className="flex items-center gap-3">
+                      <input type="range" min="0" max="20" step="1"
+                        value={cashbackConfig[key]}
+                        onChange={e => setCashbackConfig(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
+                        className="w-24 accent-amber-500" />
+                      <span className="text-amber-400 font-bold text-sm w-8 text-right">{cashbackConfig[key]}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Secao>
+
+            {erro && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">{erro}</div>
+            )}
+
+            <div className="flex items-center gap-3 pb-6">
+              <button type="submit" disabled={salvando}
+                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
+                {salvando ? "Salvando..." : "Salvar alterações"}
+              </button>
+              {salvo && <span className="text-green-400 text-sm">✓ Salvo</span>}
+              <button type="button" onClick={onClose} className="ml-auto text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
+                Fechar
+              </button>
+            </div>
+
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Página principal ----
+export default function UnidadesPage() {
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandido, setExpandido] = useState<string | null>(null)
+  const [configAbertoId, setConfigAbertoId] = useState<string | null>(null)
+  const [modalNova, setModalNova] = useState(false)
+  const [criando, setCriando] = useState(false)
+  const [novoNome, setNovoNome] = useState("")
+  const [novaCidade, setNovaCidade] = useState("")
+  const [novoEstado, setNovoEstado] = useState("")
+  const [erroCriacao, setErroCriacao] = useState("")
+
+  const carregar = useCallback(() => {
+    setLoading(true)
+    fetch("/api/unidades")
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setUnidades(d) : setUnidades([]))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { carregar() }, [carregar])
+
+  async function criarUnidade(e: React.FormEvent) {
+    e.preventDefault()
+    if (!novoNome.trim()) return
+    setCriando(true); setErroCriacao("")
+    try {
+      const res = await fetch("/api/unidades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: novoNome.trim(), city: novaCidade.trim() || null, state: novoEstado.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErroCriacao(data.error || "Erro ao criar"); return }
+      setModalNova(false)
+      setNovoNome(""); setNovaCidade(""); setNovoEstado("")
+      carregar()
+    } catch (err) { setErroCriacao(String(err)) }
+    finally { setCriando(false) }
+  }
+
+  const total = {
+    profissionais: unidades.reduce((s, u) => s + u._count.users, 0),
+    clientes: unidades.reduce((s, u) => s + u._count.clients, 0),
+    hoje: unidades.reduce((s, u) => s + u._count.appointments, 0),
+  }
 
   return (
     <DashboardLayout>
@@ -69,7 +502,9 @@ export default function UnidadesPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Multi-unidades</h1>
-          <p className="text-zinc-500 text-sm">{unidadesMock.length} unidades · Dashboard consolidado</p>
+          <p className="text-zinc-500 text-sm">
+            {loading ? "Carregando..." : `${unidades.length} unidade${unidades.length !== 1 ? "s" : ""} · Dashboard consolidado`}
+          </p>
         </div>
         <button
           onClick={() => setModalNova(true)}
@@ -80,107 +515,137 @@ export default function UnidadesPage() {
       </div>
 
       {/* KPIs consolidados */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
-        <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Consolidado — todas as unidades</div>
-        <div className="grid grid-cols-4 gap-4">
-          <div>
-            <div className="text-zinc-500 text-xs mb-1">Faturamento total/mês</div>
-            <div className="text-green-400 text-2xl font-bold">R$ {totalFaturamento.toLocaleString("pt-BR")}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500 text-xs mb-1">Clientes ativos</div>
-            <div className="text-blue-400 text-2xl font-bold">{totalClientes}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500 text-xs mb-1">Profissionais</div>
-            <div className="text-purple-400 text-2xl font-bold">{totalProfissionais}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500 text-xs mb-1">Atendimentos hoje</div>
-            <div className="text-amber-400 text-2xl font-bold">{totalAtendimentos}</div>
+      {!loading && unidades.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Consolidado — todas as unidades</div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <div className="text-zinc-500 text-xs mb-1">Profissionais ativos</div>
+              <div className="text-purple-400 text-2xl font-bold">{total.profissionais}</div>
+            </div>
+            <div>
+              <div className="text-zinc-500 text-xs mb-1">Clientes cadastrados</div>
+              <div className="text-blue-400 text-2xl font-bold">{total.clientes.toLocaleString("pt-BR")}</div>
+            </div>
+            <div>
+              <div className="text-zinc-500 text-xs mb-1">Atendimentos hoje</div>
+              <div className="text-amber-400 text-2xl font-bold">{total.hoje}</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Estado vazio */}
+      {!loading && unidades.length === 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+          <div className="text-zinc-600 text-4xl mb-3">🏢</div>
+          <div className="text-white font-medium mb-1">Nenhuma unidade cadastrada</div>
+          <div className="text-zinc-500 text-sm mb-4">Clique em "Nova unidade" para adicionar sua primeira filial.</div>
+          <button onClick={() => setModalNova(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+            + Nova unidade
+          </button>
+        </div>
+      )}
 
       {/* Cards das unidades */}
-      <div className="space-y-3">
-        {unidadesMock.map((unidade) => (
-          <div
-            key={unidade.id}
-            className={`bg-zinc-900 border rounded-xl overflow-hidden cursor-pointer transition-all ${
-              unidadeSel === unidade.id
-                ? "border-amber-500/40"
-                : "border-zinc-800 hover:border-zinc-700"
-            }`}
-            onClick={() => setUnidadeSel(unidadeSel === unidade.id ? null : unidade.id)}
-          >
-            {/* Header da unidade */}
-            <div className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                <span className="text-black font-bold">B</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-white font-medium">{unidade.nome}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${planoStyle[unidade.plano]}`}>
-                    {unidade.plano}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    unidade.status === "ABERTA"
-                      ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                      : "bg-zinc-700 text-zinc-400 border border-zinc-600"
-                  }`}>
-                    {unidade.status === "ABERTA" ? "● Aberta" : "○ Fechada"}
-                  </span>
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2].map(i => (
+            <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-zinc-800 rounded-xl" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-zinc-800 rounded w-48" />
+                  <div className="h-3 bg-zinc-800 rounded w-32" />
                 </div>
-                <div className="text-zinc-500 text-xs">{unidade.cidade} · {unidade.slug}</div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-green-400 font-bold">R$ {unidade.faturamentoMes.toLocaleString("pt-BR")}</div>
-                <div className="text-zinc-600 text-xs">este mês</div>
-              </div>
-              <div className="text-zinc-500 text-sm flex-shrink-0">
-                {unidadeSel === unidade.id ? "▲" : "▼"}
               </div>
             </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {unidades.map(unidade => (
+            <div key={unidade.id}
+              className={`bg-zinc-900 border rounded-xl overflow-hidden transition-all ${expandido === unidade.id ? "border-amber-500/40" : "border-zinc-800 hover:border-zinc-700"}`}>
 
-            {/* Detalhe expandido */}
-            {unidadeSel === unidade.id && (
-              <div className="border-t border-zinc-800 p-4">
-                <div className="grid grid-cols-4 gap-3 mb-4">
-                  <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                    <div className="text-zinc-500 text-xs mb-1">Profissionais</div>
-                    <div className="text-white font-bold text-lg">{unidade.profissionais}</div>
+              {/* Header do card */}
+              <div className="p-4 flex items-center gap-4 cursor-pointer"
+                onClick={() => setExpandido(expandido === unidade.id ? null : unidade.id)}>
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-amber-500 flex items-center justify-center">
+                  {unidade.logoUrl
+                    ? <img src={unidade.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    : <span className="text-black font-bold">{unidade.name.charAt(0)}</span>}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="text-white font-medium">{unidade.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${planBadge[unidade.plan] ?? planBadge.START}`}>
+                      {unidade.plan}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${unidade.isActive ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-zinc-700 text-zinc-400 border-zinc-600"}`}>
+                      {unidade.isActive ? "● Ativa" : "○ Inativa"}
+                    </span>
                   </div>
-                  <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                    <div className="text-zinc-500 text-xs mb-1">Clientes</div>
-                    <div className="text-white font-bold text-lg">{unidade.clientesAtivos}</div>
-                  </div>
-                  <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                    <div className="text-zinc-500 text-xs mb-1">Ticket médio</div>
-                    <div className="text-amber-400 font-bold text-lg">R$ {unidade.ticketMedio}</div>
-                  </div>
-                  <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                    <div className="text-zinc-500 text-xs mb-1">Avaliação</div>
-                    <div className="text-yellow-400 font-bold text-lg">★ {unidade.avaliacaoMedia}</div>
+                  <div className="text-zinc-500 text-xs">
+                    {[unidade.city, unidade.state].filter(Boolean).join(" · ")}
+                    {unidade.slug && ` · ${unidade.slug}`}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-700 transition-colors">
-                    Ver dashboard
-                  </button>
-                  <button className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-700 transition-colors">
-                    Gerenciar equipe
-                  </button>
-                  <button className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-700 transition-colors">
-                    Configurações
-                  </button>
+                <div className="hidden sm:flex items-center gap-4 flex-shrink-0 text-right">
+                  <div>
+                    <div className="text-purple-400 font-bold">{unidade._count.users}</div>
+                    <div className="text-zinc-600 text-xs">profissionais</div>
+                  </div>
+                  <div>
+                    <div className="text-blue-400 font-bold">{unidade._count.clients}</div>
+                    <div className="text-zinc-600 text-xs">clientes</div>
+                  </div>
+                  <div>
+                    <div className="text-amber-400 font-bold">{unidade._count.appointments}</div>
+                    <div className="text-zinc-600 text-xs">hoje</div>
+                  </div>
+                </div>
+                <div className="text-zinc-500 text-sm flex-shrink-0 ml-2">
+                  {expandido === unidade.id ? "▲" : "▼"}
                 </div>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+
+              {/* Detalhe expandido */}
+              {expandido === unidade.id && (
+                <div className="border-t border-zinc-800 p-4">
+                  {/* métricas mobile */}
+                  <div className="grid grid-cols-3 gap-3 mb-4 sm:hidden">
+                    <div className="bg-zinc-800 rounded-lg p-3 text-center">
+                      <div className="text-zinc-500 text-xs mb-1">Profissionais</div>
+                      <div className="text-purple-400 font-bold">{unidade._count.users}</div>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg p-3 text-center">
+                      <div className="text-zinc-500 text-xs mb-1">Clientes</div>
+                      <div className="text-blue-400 font-bold">{unidade._count.clients}</div>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg p-3 text-center">
+                      <div className="text-zinc-500 text-xs mb-1">Hoje</div>
+                      <div className="text-amber-400 font-bold">{unidade._count.appointments}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <a href={`/agendar/${unidade.slug}`} target="_blank" rel="noreferrer"
+                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-700 transition-colors text-center">
+                      Link público
+                    </a>
+                    <button
+                      onClick={() => setConfigAbertoId(unidade.id)}
+                      className="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-sm font-medium px-4 py-2 rounded-lg border border-amber-500/20 transition-colors">
+                      Configurar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal nova unidade */}
       {modalNova && (
@@ -188,32 +653,54 @@ export default function UnidadesPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b border-zinc-800">
               <h2 className="text-white font-bold">Nova Unidade</h2>
-              <button onClick={() => setModalNova(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
+              <button onClick={() => { setModalNova(false); setErroCriacao("") }} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
             </div>
-            <div className="p-5 space-y-3">
+            <form onSubmit={criarUnidade} className="p-5 space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome da unidade *</label>
-                <input placeholder="Ex: Barbearia Costa — Moema" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+                <input
+                  value={novoNome}
+                  onChange={e => setNovoNome(e.target.value)}
+                  required
+                  placeholder="Ex: Barbearia Costa — Moema"
+                  className={inputCls}
+                  autoFocus
+                />
               </div>
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Cidade *</label>
-                <input placeholder="Ex: São Paulo · SP" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
+                  <input value={novaCidade} onChange={e => setNovaCidade(e.target.value)} placeholder="São Paulo" className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-xs mb-1 block">Estado</label>
+                  <input value={novoEstado} onChange={e => setNovoEstado(e.target.value)} placeholder="SP" maxLength={2} className={inputCls} />
+                </div>
               </div>
-              <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Plano</label>
-                <select className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
-                  <option>START — R$ 49/mês</option>
-                  <option>PRO — R$ 149/mês</option>
-                  <option>BUSINESS — R$ 399/mês</option>
-                </select>
+              <p className="text-zinc-600 text-xs">O slug e demais configurações podem ser ajustados após a criação.</p>
+              {erroCriacao && <div className="text-red-400 text-sm">{erroCriacao}</div>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => { setModalNova(false); setErroCriacao("") }}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={criando || !novoNome.trim()}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+                  {criando ? "Criando..." : "Criar unidade"}
+                </button>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setModalNova(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button onClick={() => setModalNova(false)} className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">Criar unidade</button>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
+      )}
+
+      {/* Config drawer */}
+      {configAbertoId && (
+        <ConfigModal
+          unidadeId={configAbertoId}
+          onClose={() => setConfigAbertoId(null)}
+          onSalvo={carregar}
+        />
       )}
 
     </DashboardLayout>
