@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 
 
@@ -7,8 +8,12 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const servicos = await prisma.service.findMany({
-      where: { establishmentId: "estab001" },
+      where: { establishmentId: estabId },
       orderBy: { createdAt: "desc" },
     })
     return NextResponse.json(servicos, {
@@ -21,6 +26,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     const servico = await prisma.service.create({
       data: {
@@ -29,7 +38,7 @@ export async function POST(request: Request) {
         price: parseFloat(body.price),
         durationMin: parseInt(body.durationMin),
         availableHome: body.availableHome ?? false,
-        establishmentId: "estab001",
+        establishmentId: estabId,
         isActive: body.isActive ?? true,
         photoUrl: body.photoUrl || null,
       },

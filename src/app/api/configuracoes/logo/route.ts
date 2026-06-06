@@ -3,13 +3,17 @@ import { writeFile, mkdir, unlink } from "fs/promises"
 import path from "path"
 import prisma from "@/lib/prisma"
 import { registrarUpload } from "@/lib/storage"
+import { auth } from "@/lib/auth"
 
-const ESTAB_ID = "estab001"
 const MAX_SIZE = 3 * 1024 * 1024 // 3 MB
 const EXTS_PERMITIDAS = ["jpg", "jpeg", "png", "webp", "svg"]
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const formData = await request.formData()
     const file = formData.get("logo") as File | null
 

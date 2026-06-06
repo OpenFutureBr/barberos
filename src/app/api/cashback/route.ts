@@ -1,9 +1,12 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
-    const estabId = "estab001"
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
     // Clientes com saldo de cashback ou loyalty account
     const clientes = await prisma.client.findMany({

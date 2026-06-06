@@ -1,12 +1,16 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { gerarUsername } from "@/lib/auth"
+import { auth, gerarUsername } from "@/lib/auth"
 import bcrypt from "bcryptjs"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const profissionais = await prisma.user.findMany({
-      where: { establishmentId: "estab001" },
+      where: { establishmentId: estabId },
       include: {
         schedules: true,
         userServices: { include: { service: true } },
@@ -23,6 +27,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     const username = await gerarUsername(body.name)
@@ -47,7 +55,7 @@ export async function POST(request: Request) {
         homeCity: body.homeCity || null,
         admissionDate: body.admissionDate ? new Date(body.admissionDate) : new Date(),
         breakBetweenAppts: body.breakBetweenAppts ? parseInt(body.breakBetweenAppts) : 10,
-        establishmentId: "estab001",
+        establishmentId: estabId,
         isActive: true,
         username,
         passwordHash,

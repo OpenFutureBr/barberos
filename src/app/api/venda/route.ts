@@ -1,10 +1,10 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 // Endpoint para vendas avulsas (sem agendamento)
 // Chamado pelo PagamentoModal via endpointOverride
 
-const ESTAB_ID = "estab001"
 
 type MetodoEntrada =
   | "PIX"
@@ -102,6 +102,10 @@ async function getOuCriarCaixaHoje() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     const method = normalizarMetodo(body.method)

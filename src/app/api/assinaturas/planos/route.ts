@@ -1,10 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const planos = await prisma.subscriptionPlan.findMany({
-      where: { establishmentId: "estab001" },
+      where: { establishmentId: estabId },
       include: {
         subscriptions: {
           where: { status: { in: ["ACTIVE", "OVERDUE"] as any } },
@@ -22,6 +27,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     const plano = await prisma.subscriptionPlan.create({
       data: {
@@ -31,7 +40,7 @@ export async function POST(request: Request) {
         cortesIncluidos: parseInt(body.cortesIncluidos) || 4,
         atendedomicilio: Boolean(body.atendedomicilio),
         services: Array.isArray(body.services) ? body.services : [],
-        establishmentId: "estab001",
+        establishmentId: estabId,
       },
     })
     return NextResponse.json(plano)

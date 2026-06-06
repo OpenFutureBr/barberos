@@ -60,12 +60,12 @@ function parseValor(valor: unknown) {
   return 0
 }
 
-async function getCashbackConfig(): Promise<CashbackConfig & { id?: string }> {
+async function getCashbackConfig(estabId: string): Promise<CashbackConfig & { id?: string }> {
   try {
     // Busca a versão mais recente da tabela histórica
     const cfg = await prisma.cashbackConfig.findFirst({
       where: {
-        establishmentId: "estab001",
+        establishmentId: estabId,
       },
       orderBy: {
         createdAt: "desc",
@@ -77,7 +77,7 @@ async function getCashbackConfig(): Promise<CashbackConfig & { id?: string }> {
     // Fallback: lê do JSON do estabelecimento
     const estab = await prisma.establishment.findUnique({
       where: {
-        id: "estab001",
+        id: estabId,
       },
       select: {
         cashbackConfig: true,
@@ -315,7 +315,7 @@ export async function POST(request: Request) {
 
     if (deveCreditarCashback && appt.client) {
       const clientId = appt.client.id
-      const cashbackCfg = await getCashbackConfig()
+      const cashbackCfg = await getCashbackConfig(appt.establishmentId)
 
       // Separa serviço de produtos
       const valorServico = Math.min(appt.service?.price ?? 0, valorPago)

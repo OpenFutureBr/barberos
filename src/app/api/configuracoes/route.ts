@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
-    const estab = await prisma.establishment.findUnique({ where: { id: "estab001" } })
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
+    const estab = await prisma.establishment.findUnique({ where: { id: estabId } })
     return NextResponse.json(estab, {
       headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
     })
@@ -15,10 +20,14 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     const estab = await prisma.establishment.update({
-      where: { id: "estab001" },
+      where: { id: estabId },
       data: {
         name: body.name,
         phone: body.phone || null,
@@ -51,7 +60,7 @@ export async function PUT(request: Request) {
           domicilio:   Number(cfg.domicilio   ?? 5),
           produtos:    Number(cfg.produtos    ?? 3),
           assinaturas: Number(cfg.assinaturas ?? 10),
-          establishmentId: "estab001",
+          establishmentId: estabId,
         },
       })
     }

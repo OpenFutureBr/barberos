@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 const MESES_LABEL = [
   "Jan",
@@ -16,7 +17,6 @@ const MESES_LABEL = [
   "Dez",
 ]
 
-const ESTAB_ID = "estab001"
 
 type CashbackConfig = {
   servicos: number
@@ -365,6 +365,10 @@ async function creditarCashbackPagamentoConfirmado(paymentId: string) {
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
 
     const ano = parseInt(
@@ -677,6 +681,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     const { action } = body
 

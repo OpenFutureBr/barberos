@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 
 
@@ -19,8 +20,12 @@ function int(v: unknown, fallback = 0): number {
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const produtos = await prisma.product.findMany({
-      where: { establishmentId: "estab001" },
+      where: { establishmentId: estabId },
       include: {
         stockMovements: {
           select: { type: true, quantity: true, unitPrice: true, createdAt: true },
@@ -38,6 +43,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     console.log("[POST /api/estoque] body:", body)
 
@@ -59,7 +68,7 @@ export async function POST(request: Request) {
         hasAlcohol: Boolean(body.hasAlcohol),
         photoUrl: body.photoUrl ? String(body.photoUrl) : null,
         isActive: true,
-        establishmentId: "estab001",
+        establishmentId: estabId,
       },
     })
 

@@ -1,13 +1,18 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const mesAtual = new Date().toISOString().slice(0, 7) // YYYY-MM
 
     const assinantes = await prisma.subscription.findMany({
       where: {
-        plan: { establishmentId: "estab001" },
+        plan: { establishmentId: estabId },
         status: { not: "CANCELLED" as any },
       },
       include: {

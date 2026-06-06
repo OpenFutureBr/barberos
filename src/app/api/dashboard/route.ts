@@ -1,7 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-const ESTAB_ID = "estab001"
+import { auth } from "@/lib/auth"
 
 function arredondar(valor: number) {
   return Math.round(valor * 100) / 100
@@ -28,6 +27,10 @@ function parsePeriodo(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { fromDate, toDate } = parsePeriodo(request)
 
     const now = new Date()

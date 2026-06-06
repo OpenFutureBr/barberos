@@ -1,8 +1,13 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const agora = new Date()
     const fim = new Date(agora.getTime() + 30 * 60 * 1000)
     const inicioDia = new Date(agora)
@@ -11,7 +16,7 @@ export async function GET() {
     // Busca IN_PROGRESS sempre + agendamentos do dia dentro da janela
     const agendamentos = await prisma.appointment.findMany({
       where: {
-        establishmentId: "estab001",
+        establishmentId: estabId,
         OR: [
           { status: "IN_PROGRESS" as any },
           {

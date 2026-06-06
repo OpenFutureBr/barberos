@@ -1,11 +1,9 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { ServiceType, AppointmentStatus } from "@prisma/client"
-
+import { auth } from "@/lib/auth"
 
 import { addMinutes, addDays, isBefore, isAfter } from "date-fns"
-
-const ESTABLISHMENT_ID = "estab001"
 
 
 function adicionarMinutos(data: Date, minutos: number) {
@@ -18,10 +16,14 @@ function datasSobrepoem(inicioA: Date, fimA: Date, inicioB: Date, fimB: Date) {
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const data = searchParams.get("data")
 
-    const where: any = { establishmentId: ESTABLISHMENT_ID }
+    const where: any = { establishmentId: estabId }
 
     if (data) {
       where.scheduledAt = {
@@ -49,6 +51,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     const { clientId, professionalId, serviceId, haircutId, scheduledAt, serviceType, notes } = body
 
@@ -79,7 +85,7 @@ export async function POST(request: Request) {
 
     // Busca serviço
     const service = await prisma.service.findFirst({
-      where: { id: serviceId, establishmentId: ESTABLISHMENT_ID, isActive: true },
+      where: { id: serviceId, establishmentId: estabId, isActive: true },
       select: { id: true, name: true, durationMin: true },
     })
 
@@ -114,7 +120,7 @@ export async function POST(request: Request) {
     const agendamentosExistentes = await prisma.appointment.findMany({
       where: {
         professionalId,
-        establishmentId: ESTABLISHMENT_ID,
+        establishmentId: estabId,
         status: { notIn: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW] },
         scheduledAt: {
           gte: addMinutes(startUtc, -24 * 60),
@@ -149,7 +155,7 @@ export async function POST(request: Request) {
         scheduledAt: startUtc,
         serviceType: normalizedServiceType,
         status: AppointmentStatus.SCHEDULED,
-        establishmentId: ESTABLISHMENT_ID,
+        establishmentId: estabId,
         haircutId: haircutId || null,
         notes: notes || null,
       },

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const assinatura = await prisma.subscription.findUnique({
       where: { id },
       include: {
-        plan: { select: { name: true, price: true } },
+        plan: { select: { name: true, price: true, establishmentId: true } },
         client: { select: { name: true } },
       },
     })
@@ -37,18 +38,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     // Registra como receita no caixa do dia
+    const sessionData = await auth()
+    const estabId = sessionData?.user?.establishmentId ?? assinatura.plan?.establishmentId ?? ""
+
     const hoje = new Date()
     const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
     const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
 
     let caixa = await prisma.cashRegister.findFirst({
-      where: { establishmentId: "estab001", openedAt: { gte: inicioDia, lte: fimDia } },
+      where: { establishmentId: estabId, openedAt: { gte: inicioDia, lte: fimDia } },
       orderBy: { openedAt: "desc" },
     })
 
     if (!caixa) {
       caixa = await prisma.cashRegister.create({
-        data: { establishmentId: "estab001", openingAmount: 0 },
+        data: { establishmentId: estabId, openingAmount: 0 },
       })
     }
 

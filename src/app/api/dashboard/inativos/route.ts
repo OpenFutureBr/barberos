@@ -1,16 +1,19 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const dias = Math.max(1, parseInt(searchParams.get("dias") ?? "7") || 7)
 
     const limiteInicio = new Date()
     limiteInicio.setDate(limiteInicio.getDate() - dias)
     limiteInicio.setHours(0, 0, 0, 0)
-
-    const estabId = "estab001"
 
     const clientes = await prisma.client.findMany({
       where: { establishmentId: estabId, isActive: true },

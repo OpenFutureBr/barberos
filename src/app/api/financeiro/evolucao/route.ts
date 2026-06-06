@@ -1,12 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-const ESTAB_ID = "estab001"
+import { auth } from "@/lib/auth"
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB_ID = session?.user?.establishmentId
+    if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const ano = parseInt(searchParams.get("ano") ?? String(new Date().getFullYear()))
 

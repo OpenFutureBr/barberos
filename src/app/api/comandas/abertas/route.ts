@@ -1,17 +1,22 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 // Retorna agendamentos de hoje com status ativo (comanda potencialmente aberta)
 // Uma comanda não deve ficar mais de 24h aberta
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const hoje = new Date()
     const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
 
     const appts = await prisma.appointment.findMany({
       where: {
-        establishmentId: "estab001",
+        establishmentId: estabId,
         status: { in: ["SCHEDULED", "CONFIRMED", "IN_QUEUE", "IN_PROGRESS"] as any },
         scheduledAt: {
           gte: limite24h,   // não mais de 24h

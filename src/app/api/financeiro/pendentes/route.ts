@@ -1,9 +1,12 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-const ESTAB_ID = "estab001"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
+  const session = await auth()
+  const ESTAB_ID = session?.user?.establishmentId
+  if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
   const hoje = new Date()
   hoje.setHours(23, 59, 59, 999)
 

@@ -1,9 +1,8 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
-const ESTAB = "estab001"
-
-async function getCaixaHoje() {
+async function getCaixaHoje(ESTAB: string) {
   const hoje = new Date()
   const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
   const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
@@ -31,6 +30,10 @@ async function getCaixaHoje() {
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB = session?.user?.establishmentId
+    if (!ESTAB) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
 
     // Modo resumo: só retorna status + saldo (usado pelo dashboard)
@@ -58,7 +61,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const caixa = await getCaixaHoje()
+    const caixa = await getCaixaHoje(ESTAB)
 
     const hoje = new Date()
     const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
@@ -277,6 +280,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const ESTAB = session?.user?.establishmentId
+    if (!ESTAB) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     if (body.action === "abrir") {
@@ -291,7 +298,7 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "fechar") {
-      const caixa = await getCaixaHoje()
+      const caixa = await getCaixaHoje(ESTAB)
 
       if (!caixa) {
         return NextResponse.json({ error: "Nenhum caixa aberto" }, { status: 400 })

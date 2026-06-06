@@ -1,10 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const regras = await prisma.pricingRule.findMany({
-      where: { establishmentId: "estab001" },
+      where: { establishmentId: estabId },
       orderBy: { createdAt: "asc" },
     })
     return NextResponse.json(regras)
@@ -16,6 +21,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
     const regra = await prisma.pricingRule.create({
       data: {
@@ -27,7 +36,7 @@ export async function POST(request: Request) {
         daysOfWeek: Array.isArray(body.daysOfWeek) ? body.daysOfWeek.map(Number) : [],
         startTime: body.startTime || null,
         endTime: body.endTime || null,
-        establishmentId: "estab001",
+        establishmentId: estabId,
       },
     })
     return NextResponse.json(regra)

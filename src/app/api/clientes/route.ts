@@ -1,14 +1,19 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
 
     // Modo simples: apenas id, name, phone — para comboboxes
     if (searchParams.get("modo") === "simples") {
       const clientes = await prisma.client.findMany({
-        where: { establishmentId: "estab001", isActive: true },
+        where: { establishmentId: estabId, isActive: true },
         select: { id: true, name: true, phone: true },
         orderBy: { name: "asc" },
       })
@@ -23,7 +28,7 @@ export async function GET(request: Request) {
     const busca = searchParams.get("busca") ?? ""
 
     const where: any = {
-      establishmentId: "estab001",
+      establishmentId: estabId,
       isActive: true,
       ...(busca ? {
         OR: [
@@ -65,7 +70,7 @@ export async function POST(request: Request) {
         name: body.name,
         phone: body.phone,
         email: body.email || null,
-        establishmentId: "estab001",
+        establishmentId: estabId,
         birthDate: body.birthDate ? new Date(body.birthDate) : null,
         homeZipCode: body.homeZipCode || null,
         homeAddress: body.homeAddress || null,

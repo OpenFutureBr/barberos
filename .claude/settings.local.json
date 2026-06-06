@@ -48,12 +48,18 @@
       "Bash(mkdir -p \"c:/Users/paulo.leigo/barberos/src/app/api/admin/planos/[id]\")",
       "Bash(grep -v \"//\\\\|select\\\\|where\\\\|findUnique\\\\|include\")",
       "Bash(rm src/lib/cache.ts)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(grep -a \"Lulu\\\\|lulu\\\\|arruda\\\\|senha\\\\|password\\\\|proprietario\" \"c:/Users/paulo.leigo/.claude/projects/c--Users-paulo-leigo-barberos/a9b4eda4-e56c-4eda-9e9c-9fb75dce5f6a.jsonl\" 2>/dev/null | tail -50)",
+      "Read(//c/Users/paulo.leigo/.claude/projects/c--Users-paulo-leigo-barberos/**)",
+      "Bash(grep -r \"\\\\/public\\\\/\" src/app --include=\"*.tsx\" --include=\"*.ts\")",
+      "Bash(mkdir -p \"c:/Users/paulo.leigo/barberos/src/app/agendar/[slug]\")",
+      "Bash(awk -F: '{print $1}')"
     ],
     "additionalDirectories": [
       "c:\\Users\\paulo.leigo\\barberos\\src\\app\\api\\agenda\\comanda",
       "c:\\Users\\paulo.leigo\\barberos\\src\\app\\dashboard\\agenda\\comanda",
-      "c:\\Users\\paulo.leigo\\barberos\\src\\app\\api\\admin\\planos"
+      "c:\\Users\\paulo.leigo\\barberos\\src\\app\\api\\admin\\planos",
+      "c:\\Users\\paulo.leigo\\barberos\\src\\app\\agendar"
     ]
   }
 }
