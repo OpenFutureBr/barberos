@@ -419,6 +419,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [servicoId, setServicoId] = useState("")
   const [profId, setProfId] = useState("")
   const [tipoAtendimento, setTipoAtendimento] = useState("presencial")
+  const [verFotoServico, setVerFotoServico] = useState(false)
 
   // Telefone para busca de cliente
   const [telefone, setTelefone] = useState("")
@@ -583,6 +584,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     setHaircutId("")
+    setVerFotoServico(false)
     if (!servicoId) { setHaircuts([]); return }
     fetch(`/api/galeria?serviceId=${servicoId}`)
       .then(r => r.json())
@@ -783,6 +785,15 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 {profId && servicosFiltrados.length === 0 && (
                   <p className="text-zinc-500 text-xs mt-1">Nenhum serviço vinculado a este profissional.</p>
                 )}
+                {servicoSelecionado?.photoUrl && (
+                  <button type="button" onClick={() => setVerFotoServico(true)}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    Ver foto do serviço
+                  </button>
+                )}
               </div>
 
               {/* Galeria de cortes — aparece quando o serviço tem fotos cadastradas */}
@@ -908,6 +919,29 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
           onSalvo={handleEnderecoSalvo}
           onCancelar={() => setMostrarCadastroEndereco(false)}
         />
+      )}
+
+      {/* Lightbox — foto do serviço */}
+      {verFotoServico && servicoSelecionado?.photoUrl && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setVerFotoServico(false)}>
+          <div className="relative max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="rounded-2xl overflow-hidden bg-zinc-900 shadow-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={servicoSelecionado.photoUrl}
+                alt={servicoSelecionado.name}
+                className="w-full object-cover max-h-[70vh]"
+              />
+              <div className="px-4 py-3 flex items-center justify-between">
+                <span className="text-white font-medium text-sm">{servicoSelecionado.name}</span>
+                <button type="button" onClick={() => setVerFotoServico(false)}
+                  className="text-zinc-400 hover:text-white text-xs transition-colors">fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
