@@ -28,6 +28,7 @@ export const RESOURCES: Resource[] = [
   { slug: "clientes_ia",  label: "Central IA",         path: "/dashboard/clientes-ia", group: "Fidelidade" },
   { slug: "whatsapp",     label: "WhatsApp",           path: "/dashboard/whatsapp",   group: "Comunicação" },
   { slug: "configuracoes", label: "Configurações",     path: "/dashboard/configuracoes", group: "Sistema" },
+  { slug: "permissoes",    label: "Permissões",         path: "/dashboard/permissoes",    group: "Sistema" },
 ]
 
 export function pathToSlug(pathname: string): string | null {

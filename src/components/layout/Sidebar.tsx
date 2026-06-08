@@ -66,6 +66,7 @@ const menuGroups = [
     label: "Sistema",
     items: [
       { href: "/dashboard/configuracoes", label: "Configurações", icon: "⚙", resource: "configuracoes" },
+      { href: "/dashboard/permissoes",    label: "Permissões",    icon: "🔑", resource: "permissoes" },
       { href: "/dashboard/api-docs",      label: "API Docs",      icon: "📡", resource: "api_docs", feature: "api" },
     ],
   },

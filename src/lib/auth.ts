@@ -64,25 +64,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             allowedResources = ["*"]
             planFeatures = ["*"]
           } else {
-            const [permissions, org] = await Promise.all([
-              prisma.userPermission.findMany({
-                where: { userId: user.id, canView: true },
-                select: { resource: true },
-              }),
-              user.organizationId
-                ? prisma.organization.findUnique({
-                    where: { id: user.organizationId },
-                    include: { plan: { select: { features: true } } },
-                  })
-                : null,
-            ])
-
-            allowedResources = permissions.map((p) => p.resource)
+            const org = user.organizationId
+              ? await prisma.organization.findUnique({
+                  where: { id: user.organizationId },
+                  include: { plan: { select: { features: true } } },
+                })
+              : null
 
             if (org?.plan?.features) {
               planFeatures = Object.entries(org.plan.features as Record<string, boolean>)
                 .filter(([, v]) => v)
                 .map(([k]) => k)
+            }
+
+            if (user.role === "ORG_OWNER") {
+              allowedResources = ["*"]
+            } else {
+              // First try explicit UserPermission entries
+              let permissions = await prisma.userPermission.findMany({
+                where: { userId: user.id, canView: true },
+                select: { resource: true },
+              })
+
+              // Fall back to RolePermissionTemplate if no explicit permissions set
+              if (permissions.length === 0) {
+                const orgFilter = user.organizationId
+                  ? { OR: [{ organizationId: user.organizationId }, { organizationId: null }] }
+                  : { organizationId: null }
+
+                const templates = await prisma.rolePermissionTemplate.findMany({
+                  where: { role: user.role, canView: true, ...orgFilter },
+                  select: { resource: true, organizationId: true },
+                })
+                // De-duplicate: org-specific overrides platform-wide
+                const orgSpecific = new Set(templates.filter(t => t.organizationId).map(t => t.resource))
+                permissions = templates.filter(t => t.organizationId || !orgSpecific.has(t.resource))
+              }
+
+              allowedResources = permissions.map((p) => p.resource)
             }
           }
 

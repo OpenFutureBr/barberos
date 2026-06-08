@@ -118,6 +118,22 @@ model UserPermission {
   @@map("user_permissions")
 }
 
+model RolePermissionTemplate {
+  id             String        @id @default(cuid())
+  role           String
+  resource       String
+  canView        Boolean       @default(false)
+  canCreate      Boolean       @default(false)
+  canEdit        Boolean       @default(false)
+  canDelete      Boolean       @default(false)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([role, resource, organizationId])
+  @@index([role, organizationId], map: "idx_role_perm_templates_role_org")
+  @@map("role_permission_templates")
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -631,13 +647,14 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  plan           PlanDefinition?            @relation(fields: [planId], references: [id])
-  establishments Establishment[]
-  users          User[]
-  subscriptions  OrganizationSubscription[]
-  invoices       OrganizationInvoice[]
-  usageMetrics   UsageMetric[]
-  storageUsage   StorageUsage?
+  plan                    PlanDefinition?            @relation(fields: [planId], references: [id])
+  establishments          Establishment[]
+  users                   User[]
+  subscriptions           OrganizationSubscription[]
+  invoices                OrganizationInvoice[]
+  usageMetrics            UsageMetric[]
+  storageUsage            StorageUsage?
+  rolePermissionTemplates RolePermissionTemplate[]
 
   @@index([isActive, isBlocked], map: "idx_organizations_isActive_isBlocked")
   @@index([billingStatus], map: "idx_organizations_billingStatus")
