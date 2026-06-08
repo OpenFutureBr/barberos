@@ -57,6 +57,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         regimeTributario: body.regimeTributario || null,
         businessHours: body.businessHours ?? undefined,
         cashbackConfig: body.cashbackConfig ?? undefined,
+        painelConfig: body.painelConfig ?? undefined,
         ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl || null } : {}),
       },
     })

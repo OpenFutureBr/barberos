@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
 
 
 
@@ -42,7 +41,6 @@ function OlhoIcon({ aberto }: { aberto: boolean }) {
 
 export default function AlterarSenhaPage() {
   const { update, data: session } = useSession()
-  const router = useRouter()
   const [nova, setNova] = useState("")
   const [confirma, setConfirma] = useState("")
   const [mostrarNova, setMostrarNova] = useState(false)
@@ -77,8 +75,7 @@ export default function AlterarSenhaPage() {
       }
       await update({ isFirstLogin: false })
       const destino = session?.user?.role === "ADMIN" ? "/admin" : "/dashboard"
-      router.push(destino)
-      router.refresh()
+      window.location.href = destino
     } catch {
       setErro("Erro ao conectar. Tente novamente.")
     } finally {

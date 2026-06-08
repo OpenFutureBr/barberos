@@ -58,6 +58,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 })
     }
 
+    // Load org plan to inherit plan enum and check maxEstablishments
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: {
+        planId: true,
+        plan: { select: { maxEstablishments: true } },
+        _count: { select: { establishments: true } },
+      },
+    })
+
+    const maxUnidades = org?.plan?.maxEstablishments ?? null
+    const totalAtual = org?._count?.establishments ?? 0
+
+    if (maxUnidades !== null && totalAtual >= maxUnidades) {
+      return NextResponse.json(
+        { error: `Limite de ${maxUnidades} unidade${maxUnidades === 1 ? "" : "s"} atingido para o plano atual.` },
+        { status: 403 }
+      )
+    }
+
+    // Map PlanDefinition id → Plan enum (SOLO | START | PRO | BUSINESS)
+    const VALID_PLANS = ["SOLO", "START", "PRO", "BUSINESS"]
+    const planEnum = org?.planId?.toUpperCase() ?? "START"
+    const inheritedPlan = VALID_PLANS.includes(planEnum) ? planEnum : "START"
+
     let slug = (body.name as string)
       .normalize("NFD")
       .replace(/[̀-ͯ]/g, "")
@@ -79,6 +104,7 @@ export async function POST(request: Request) {
       data: {
         name: body.name.trim(),
         slug,
+        plan: inheritedPlan as any,
         organizationId: orgId,
         city: body.city?.trim() || null,
         state: body.state?.trim() || null,

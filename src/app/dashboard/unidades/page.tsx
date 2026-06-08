@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
@@ -44,6 +45,7 @@ type ConfigFull = {
   businessHours: BizHour[] | null
   cashbackConfig: CashbackCfg | null
   logoUrl: string | null
+  painelConfig: { playlistAtivaIdx?: number } | null
 }
 
 // ---- formatters ----
@@ -147,6 +149,57 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
+  // Serviços por unidade
+  type SvcItem = { id: string; name: string; price: number; durationMin: number; category: string | null; establishmentId: string; isEnabled: boolean }
+  const [servicos, setServicos] = useState<SvcItem[]>([])
+  const [salvandoServicos, setSalvandoServicos] = useState(false)
+
+  // Playlists da org
+  type Playlist = { label: string; url: string }
+  const [orgPlaylists, setOrgPlaylists] = useState<Playlist[]>([])
+  const [playlistAtivaIdx, setPlaylistAtivaIdx] = useState<number>(-1)
+  const [salvandoPlaylist, setSalvandoPlaylist] = useState(false)
+
+  function toggleServico(id: string) {
+    setServicos(prev => prev.map(s => s.id === id ? { ...s, isEnabled: !s.isEnabled } : s))
+  }
+
+  async function salvarServicos() {
+    setSalvandoServicos(true)
+    await fetch(`/api/unidades/${unidadeId}/servicos`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(servicos.map(s => ({ serviceId: s.id, isEnabled: s.isEnabled }))),
+    })
+    setSalvandoServicos(false)
+  }
+
+  async function salvarPlaylist() {
+    if (playlistAtivaIdx < 0) return
+    setSalvandoPlaylist(true)
+    const painelConfig = { playlists: orgPlaylists, playlistAtivaIdx }
+    await fetch(`/api/unidades/${unidadeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ painelConfig }),
+    })
+    setSalvandoPlaylist(false)
+  }
+
+  useEffect(() => {
+    fetch(`/api/unidades/${unidadeId}/servicos`)
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setServicos(d) : null)
+      .catch(() => {})
+
+    fetch("/api/org/config")
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d?.playlists)) setOrgPlaylists(d.playlists)
+      })
+      .catch(() => {})
+  }, [unidadeId])
+
   useEffect(() => {
     fetch(`/api/unidades/${unidadeId}`)
       .then(r => r.json())
@@ -170,6 +223,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
         setLogoUrl(d.logoUrl ?? null)
         if (Array.isArray(d.businessHours)) setBusinessHours(d.businessHours)
         if (d.cashbackConfig) setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
+        if (d.painelConfig?.playlistAtivaIdx !== undefined) setPlaylistAtivaIdx(d.painelConfig.playlistAtivaIdx)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -425,6 +479,65 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               </div>
             </Secao>
 
+            {/* Serviços desta unidade */}
+            <Secao titulo="Serviços desta unidade" id="servicos-unidade" colapsados={colapsados} toggle={toggle}>
+              <p className="text-zinc-600 text-xs pt-3">Ative ou desative os serviços disponíveis nesta unidade. Serviços cadastrados em outras unidades da organização podem ser habilitados aqui.</p>
+              {servicos.length === 0 ? (
+                <p className="text-zinc-500 text-sm pt-3">Nenhum serviço cadastrado na organização.</p>
+              ) : (
+                <div className="space-y-1 pt-3">
+                  {Array.from(new Set(servicos.map(s => s.category ?? "Sem categoria"))).map(cat => (
+                    <div key={cat} className="mb-3">
+                      <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wide mb-1">{cat}</p>
+                      <div className="space-y-1">
+                        {servicos.filter(s => (s.category ?? "Sem categoria") === cat).map(s => (
+                          <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
+                            <div
+                              onClick={() => toggleServico(s.id)}
+                              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer ${s.isEnabled ? "bg-amber-500" : "bg-zinc-700"}`}
+                            >
+                              <div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${s.isEnabled ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                            </div>
+                            <span className={`text-sm transition-colors ${s.isEnabled ? "text-white" : "text-zinc-500"}`}>{s.name}</span>
+                            <span className="text-zinc-600 text-xs ml-auto">R$ {s.price.toFixed(2)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={salvarServicos} disabled={salvandoServicos}
+                    className="mt-2 text-xs bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors">
+                    {salvandoServicos ? "Salvando..." : "Salvar serviços"}
+                  </button>
+                </div>
+              )}
+            </Secao>
+
+            {/* Painel TV — Playlist */}
+            <Secao titulo="Painel TV — Playlist" id="painel-playlist" colapsados={colapsados} toggle={toggle}>
+              <p className="text-zinc-600 text-xs pt-3">Escolha qual playlist a TV desta unidade irá exibir. Playlists são gerenciadas pelo proprietário da organização.</p>
+              {orgPlaylists.length === 0 ? (
+                <p className="text-zinc-500 text-sm pt-3">Nenhuma playlist configurada na organização.</p>
+              ) : (
+                <div className="space-y-2 pt-3">
+                  {orgPlaylists.map((pl, idx) => (
+                    <label key={idx} className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="playlist" value={idx}
+                        checked={playlistAtivaIdx === idx}
+                        onChange={() => setPlaylistAtivaIdx(idx)}
+                        className="accent-amber-500" />
+                      <span className="text-sm text-white">{pl.label}</span>
+                      <span className="text-zinc-600 text-xs truncate max-w-[200px]">{pl.url}</span>
+                    </label>
+                  ))}
+                  <button type="button" onClick={salvarPlaylist} disabled={salvandoPlaylist || playlistAtivaIdx < 0}
+                    className="mt-2 text-xs bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors">
+                    {salvandoPlaylist ? "Salvando..." : "Salvar playlist"}
+                  </button>
+                </div>
+              )}
+            </Secao>
+
             {erro && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">{erro}</div>
             )}
@@ -449,6 +562,16 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
 
 // ---- Página principal ----
 export default function UnidadesPage() {
+  const { data: session, update } = useSession()
+  const estabAtualId = session?.user?.establishmentId
+  const [trocando, setTrocando] = useState<string | null>(null)
+
+  async function acessarUnidade(id: string) {
+    setTrocando(id)
+    await update({ establishmentId: id })
+    window.location.href = "/dashboard"
+  }
+
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [loading, setLoading] = useState(true)
   const [expandido, setExpandido] = useState<string | null>(null)
@@ -585,6 +708,11 @@ export default function UnidadesPage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full border ${unidade.isActive ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-zinc-700 text-zinc-400 border-zinc-600"}`}>
                       {unidade.isActive ? "● Ativa" : "○ Inativa"}
                     </span>
+                    {unidade.id === estabAtualId && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium">
+                        ◈ Em uso
+                      </span>
+                    )}
                   </div>
                   <div className="text-zinc-500 text-xs">
                     {[unidade.city, unidade.state].filter(Boolean).join(" · ")}
@@ -630,13 +758,26 @@ export default function UnidadesPage() {
                   </div>
 
                   <div className="flex gap-2">
+                    {unidade.id === estabAtualId ? (
+                      <button disabled className="px-3 py-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-400 text-xs font-medium flex items-center gap-1.5 opacity-80">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Ativa
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); acessarUnidade(unidade.id) }}
+                        disabled={trocando === unidade.id}
+                        className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-xs font-medium border border-zinc-700 transition-colors">
+                        {trocando === unidade.id ? "..." : "Acessar"}
+                      </button>
+                    )}
                     <a href={`/agendar/${unidade.slug}`} target="_blank" rel="noreferrer"
-                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-700 transition-colors text-center">
+                      className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium border border-zinc-700 transition-colors text-center">
                       Link público
                     </a>
                     <button
-                      onClick={() => setConfigAbertoId(unidade.id)}
-                      className="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-sm font-medium px-4 py-2 rounded-lg border border-amber-500/20 transition-colors">
+                      onClick={(e) => { e.stopPropagation(); setConfigAbertoId(unidade.id) }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-medium border border-amber-500/20 transition-colors">
                       Configurar
                     </button>
                   </div>

@@ -29,6 +29,7 @@ model Establishment {
   businessHours      Json?
   cashbackConfig     Json?
   painelConfig       Json?
+  whatsappConfig     Json?
   isActive           Boolean            @default(true)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -42,6 +43,8 @@ model Establishment {
   users              User[]
   pricingRules       PricingRule[]
   cashbackConfigs    CashbackConfig[]
+  serviceUnits       ServiceUnit[]
+  whatsappLogs       WhatsAppLog[]
   organizationId     String?            @map("organization_id")
   organization       Organization?      @relation(fields: [organizationId], references: [id])
 
@@ -234,17 +237,33 @@ model Service {
   isActive        Boolean       @default(true)
   availableHome   Boolean       @default(false)
   establishmentId String
+  organizationId  String?       @map("organization_id")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   appointments    Appointment[]
   userServices    UserService[]
   haircuts        Haircut[]
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  serviceUnits    ServiceUnit[]
 
   @@index([establishmentId, isActive], map: "idx_services_establishmentId_isActive")
   @@index([establishmentId, category], map: "idx_services_establishmentId_category")
+  @@index([organizationId], map: "idx_services_organizationId")
   @@index([availableHome], map: "idx_services_availableHome")
   @@map("services")
+}
+
+model ServiceUnit {
+  id              String        @id @default(cuid())
+  serviceId       String        @map("service_id")
+  establishmentId String        @map("establishment_id")
+  isEnabled       Boolean       @default(true)
+  service         Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, establishmentId])
+  @@index([establishmentId, isEnabled], map: "idx_service_units_estab_enabled")
+  @@map("service_units")
 }
 
 model Haircut {
@@ -644,6 +663,8 @@ model Organization {
   trialEndsAt  DateTime?
   lastAccessAt DateTime?
 
+  orgConfig Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -763,6 +784,27 @@ model UsageMetric {
   @@index([organizationId, referenceMonth], map: "idx_usage_metrics_organizationId_referenceMonth")
   @@index([metric], map: "idx_usage_metrics_metric")
   @@map("usage_metrics")
+}
+
+model WhatsAppLog {
+  id              String        @id @default(cuid())
+  establishmentId String        @map("establishment_id")
+  clientId        String?       @map("client_id")
+  clientName      String        @map("client_name")
+  phone           String
+  message         String
+  status          String        // "ok" | "erro"
+  errorMsg        String?       @map("error_msg")
+  source          String        @default("manual") // "manual" | "automation"
+  automationType  String?       @map("automation_type")
+  sentAt          DateTime      @default(now()) @map("sent_at")
+  sentById        String?       @map("sent_by_id")
+
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@index([establishmentId, sentAt(sort: Desc)], map: "idx_whatsapp_logs_estab_sent")
+  @@index([establishmentId, status], map: "idx_whatsapp_logs_estab_status")
+  @@map("whatsapp_logs")
 }
 
 model StorageUsage {

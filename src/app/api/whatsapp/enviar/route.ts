@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
 
 const EVO_URL = process.env.EVOLUTION_API_URL
 const EVO_KEY = process.env.EVOLUTION_API_KEY
@@ -6,15 +8,21 @@ const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE ?? "barberos"
 
 export async function POST(request: Request) {
   try {
-    const { telefone, mensagem } = await request.json()
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    const userId = session?.user?.id
+
+    const { telefone, mensagem, clientId, clientName } = await request.json()
 
     if (!telefone || !mensagem) {
       return NextResponse.json({ error: "telefone e mensagem são obrigatórios" }, { status: 400 })
     }
 
-    // Limpa e formata o número (garante código do país)
     const numero = telefone.replace(/\D/g, "")
     const numeroFinal = numero.startsWith("55") ? numero : `55${numero}`
+
+    let status = "ok"
+    let errorMsg: string | undefined
 
     const res = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
       method: "POST",
@@ -31,8 +39,29 @@ export async function POST(request: Request) {
     const data = await res.json()
 
     if (!res.ok) {
-      console.error("[WhatsApp] Erro Evolution API:", data)
-      return NextResponse.json({ error: data.message ?? "Erro ao enviar mensagem" }, { status: 500 })
+      status = "erro"
+      errorMsg = data.message ?? "Erro ao enviar mensagem"
+    }
+
+    // Log the send attempt
+    if (estabId) {
+      await prisma.whatsAppLog.create({
+        data: {
+          establishmentId: estabId,
+          clientId: clientId ?? null,
+          clientName: clientName ?? "Desconhecido",
+          phone: telefone,
+          message: mensagem,
+          status,
+          errorMsg: errorMsg ?? null,
+          source: "manual",
+          sentById: userId ?? null,
+        },
+      })
+    }
+
+    if (status === "erro") {
+      return NextResponse.json({ error: errorMsg }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, data })

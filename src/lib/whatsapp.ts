@@ -1,9 +1,13 @@
-export async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ ok: boolean; erro?: string }> {
+export async function enviarWhatsApp(
+  telefone: string,
+  mensagem: string,
+  opts?: { clientId?: string; clientName?: string }
+): Promise<{ ok: boolean; erro?: string }> {
   try {
     const res = await fetch("/api/whatsapp/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telefone, mensagem }),
+      body: JSON.stringify({ telefone, mensagem, clientId: opts?.clientId, clientName: opts?.clientName }),
     })
     const data = await res.json()
     if (!res.ok) return { ok: false, erro: data.error ?? "Erro ao enviar" }
