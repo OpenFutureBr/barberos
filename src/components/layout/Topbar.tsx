@@ -59,7 +59,7 @@ export default function Topbar({
   const nome = NOMES[pathname] ?? "BarberOS"
 
   return (
-    <header className="h-11 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-3 fixed top-0 left-48 right-0 z-20">
+    <header className="h-11 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-3 fixed top-0 left-0 md:left-48 right-0 z-20">
       <div className="flex-1 flex items-baseline gap-2 min-w-0">
         <span className="text-white text-sm font-bold truncate">{nome}</span>
         {dataAtual && (

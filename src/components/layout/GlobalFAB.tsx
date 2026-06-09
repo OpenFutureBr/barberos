@@ -338,7 +338,7 @@ export default function GlobalFAB() {
         <ModalCaixa modoInicial={modalCaixa} onClose={() => setModalCaixa(null)} />
       )}
 
-      <div ref={ref} className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+      <div ref={ref} className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 flex flex-col items-end gap-2">
         {aberto && (
           <div className="flex flex-col items-end gap-1.5 mb-1">
             {opcoes.map(op => (

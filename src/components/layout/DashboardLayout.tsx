@@ -8,6 +8,7 @@ import AgendaModal from "./AgendaModal"
 import VendaModal, { type CartItem } from "./VendaModal"
 import PagamentoModal, { type DadosPagamento } from "./PagamentoModal"
 import GlobalFAB from "./GlobalFAB"
+import MobileNav from "./MobileNav"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
@@ -77,8 +78,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onAbrirVenda={() => setModalVendaAberto(true)}
         cartCount={cartCount}
       />
-      <main className="ml-48 pt-11 min-h-screen">
-        <div className="p-4">{children}</div>
+      <main className="md:ml-48 pt-11 min-h-screen">
+        <div className="p-4 pb-24 md:pb-4">{children}</div>
       </main>
       <AgendaModal
         aberto={modalAgendaAberto}
@@ -98,6 +99,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onConfirmado={(id) => { window.dispatchEvent(new CustomEvent("pagamentoConfirmado", { detail: id })); setDadosPagamento(null) }}
       />
       <GlobalFAB />
+      <MobileNav />
     </div>
   )
 }

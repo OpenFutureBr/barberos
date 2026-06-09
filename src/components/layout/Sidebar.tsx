@@ -184,7 +184,7 @@ export default function Sidebar() {
   const papelUsuario = roleLabel[session?.user?.role ?? ""] ?? session?.user?.role ?? "—"
 
   return (
-    <aside className="w-48 bg-zinc-900 border-r border-zinc-800 flex flex-col h-screen fixed left-0 top-0 z-30">
+    <aside className="w-48 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col h-screen fixed left-0 top-0 z-30">
 
       <div className="p-3 border-b border-zinc-800 flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 bg-amber-500 flex items-center justify-center">
