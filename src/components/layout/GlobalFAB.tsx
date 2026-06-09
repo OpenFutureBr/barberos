@@ -96,14 +96,18 @@ const ICON_VOLTAR     = "M15 19l-7-7 7-7"
 
 // ─── Modal de lançamento ──────────────────────────────────────────────────────
 
+type Profissional = { id: string; name: string }
+
 function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"; onClose: () => void }) {
-  // Para saída: primeiro escolhe categoria, depois preenche o form
   const [etapa, setEtapa] = useState<"categoria" | "form">(modoInicial === "SAIDA" ? "categoria" : "form")
   const [categoriaEscolhida, setCategoriaEscolhida] = useState<Categoria | null>(null)
+  const [grupoEscolhido, setGrupoEscolhido] = useState<string | null>(null)
 
   const [descricao, setDescricao] = useState("")
   const [valor, setValor] = useState("")
   const [metodo, setMetodo] = useState("DINHEIRO")
+  const [profissionalId, setProfissionalId] = useState("")
+  const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
@@ -111,8 +115,22 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (etapa === "form") inputRef.current?.focus() }, [etapa])
 
-  function selecionarCategoria(cat: Categoria) {
+  const isPessoal = grupoEscolhido === "Pessoal"
+
+  useEffect(() => {
+    if (isPessoal && profissionais.length === 0) {
+      fetch("/api/equipe")
+        .then(r => r.json())
+        .then((data: Profissional[]) => {
+          if (Array.isArray(data)) setProfissionais(data)
+        })
+        .catch(() => {})
+    }
+  }, [isPessoal])
+
+  function selecionarCategoria(cat: Categoria, grupo: string) {
     setCategoriaEscolhida(cat)
+    setGrupoEscolhido(grupo)
     setDescricao(cat.label)
     setEtapa("form")
   }
@@ -124,6 +142,10 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
     const v = parseFloat(valor.replace(",", "."))
     if (!v || v <= 0) { setErro("Informe um valor válido."); return }
     if (!descricao.trim()) { setErro("Informe uma descrição."); return }
+
+    const profNome = profissionais.find(p => p.id === profissionalId)?.name
+    const descricaoFinal = profNome ? `${descricao.trim()} — ${profNome}` : descricao.trim()
+
     setSalvando(true); setErro(null)
     try {
       const res = await fetch("/api/caixa", {
@@ -133,7 +155,7 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
           action: "lancar",
           tipo: tipoLancamento,
           valor: v,
-          descricao: descricao.trim(),
+          descricao: descricaoFinal,
           metodo,
         }),
       })
@@ -199,7 +221,7 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {grupo.categorias.map(cat => (
-                    <button key={cat.label} onClick={() => selecionarCategoria(cat)}
+                    <button key={cat.label} onClick={() => selecionarCategoria(cat, grupo.grupo)}
                       className="flex flex-col items-start gap-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-xl px-3 py-2.5 text-left transition-all group">
                       <span className="text-white text-xs font-medium leading-tight">{cat.label}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded border ${TIPO_BADGE[cat.tipo]}`}>
@@ -212,7 +234,7 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
             ))}
 
             {/* Opção livre */}
-            <button onClick={() => { setCategoriaEscolhida({ label: "", tipo: "DESPESA" }); setEtapa("form") }}
+            <button onClick={() => { setCategoriaEscolhida({ label: "", tipo: "DESPESA" }); setGrupoEscolhido(null); setEtapa("form") }}
               className="w-full flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-dashed border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-500 hover:text-zinc-300 text-xs transition-all">
               {ic("M12 4v16m-8-8h16")} Outro (digitar manualmente)
             </button>
@@ -247,6 +269,23 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
                 className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
               />
             </div>
+
+            {/* Profissional (só para categorias do grupo Pessoal) */}
+            {isPessoal && (
+              <div>
+                <label className="text-zinc-400 text-xs mb-1.5 block">Profissional</label>
+                <select
+                  value={profissionalId}
+                  onChange={e => setProfissionalId(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
+                >
+                  <option value="">— Selecionar profissional —</option>
+                  {profissionais.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Método */}
             <div>
