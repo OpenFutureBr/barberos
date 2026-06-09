@@ -234,9 +234,6 @@ export default function EstoquePage() {
     setGruposColapsados(prev => ({ ...prev, [g]: !prev[g] }))
   }
 
-  // FAB
-  const [fabAberto, setFabAberto] = useState(false)
-
   // Entrada de mercadoria
   const [modalEntrada, setModalEntrada] = useState(false)
   const [tipoEntrada, setTipoEntrada] = useState<"simples" | "estratificada">("simples")
@@ -298,6 +295,18 @@ export default function EstoquePage() {
     window.addEventListener("vendaRegistrada", onVendaRegistrada)
     return () => window.removeEventListener("vendaRegistrada", onVendaRegistrada)
   }, [aba, filtroDataVendas])
+
+  // Responde ao FAB global
+  useEffect(() => {
+    function onNovoProduto() { resetarForm(); setModalNovo(true) }
+    function onEntradaMercadoria() { setModalEntrada(true) }
+    window.addEventListener("abrirNovoProduto", onNovoProduto)
+    window.addEventListener("abrirEntradaMercadoria", onEntradaMercadoria)
+    return () => {
+      window.removeEventListener("abrirNovoProduto", onNovoProduto)
+      window.removeEventListener("abrirEntradaMercadoria", onEntradaMercadoria)
+    }
+  }, [])
   useEffect(() => {
     fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
@@ -1277,30 +1286,6 @@ export default function EstoquePage() {
       )}
 
       {mostrarModalAlcool && <ModalAlcool subgrupo={subgrupoAlcoolPendente} onConfirm={handleConfirmarAlcool} />}
-
-      {/* FAB — botão flutuante */}
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-        {fabAberto && (
-          <>
-            <button onClick={() => { setFabAberto(false); resetarForm(); setModalNovo(true) }}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
-              <span>📦</span> Novo Produto
-            </button>
-            <button onClick={() => { setFabAberto(false); setModalEntrada(true) }}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
-              <span>📥</span> Entrada de Mercadoria
-            </button>
-            <button onClick={() => { setFabAberto(false); window.dispatchEvent(new CustomEvent("abrirVenda")) }}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all">
-              <span>💳</span> Venda
-            </button>
-          </>
-        )}
-        <button onClick={() => setFabAberto(prev => !prev)}
-          className={`w-14 h-14 rounded-full shadow-xl text-2xl font-bold transition-all ${fabAberto ? "bg-zinc-700 rotate-45 text-white" : "bg-amber-500 hover:bg-amber-400 text-black"}`}>
-          +
-        </button>
-      </div>
 
       {/* MODAL ENTRADA DE MERCADORIA */}
       {modalEntrada && (

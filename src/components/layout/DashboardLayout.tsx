@@ -7,6 +7,7 @@ import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
 import VendaModal, { type CartItem } from "./VendaModal"
 import PagamentoModal, { type DadosPagamento } from "./PagamentoModal"
+import GlobalFAB from "./GlobalFAB"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
@@ -96,6 +97,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         endpointOverride={dadosPagamento?.appointmentId?.startsWith("venda-") ? "/api/venda" : undefined}
         onConfirmado={(id) => { window.dispatchEvent(new CustomEvent("pagamentoConfirmado", { detail: id })); setDadosPagamento(null) }}
       />
+      <GlobalFAB />
     </div>
   )
 }
