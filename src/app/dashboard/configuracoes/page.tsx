@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { clearPwaCache } from "@/lib/clearPwaCache"
 
@@ -84,6 +85,8 @@ function Secao({ titulo, id, badge, colapsados, toggle, children }: {
 }
 
 export default function ConfiguracoesPage() {
+  const { data: session } = useSession()
+  const isOwner = ["ADMIN", "ORG_OWNER"].includes(session?.user?.role ?? "")
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
@@ -176,6 +179,9 @@ export default function ConfiguracoesPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadandoLogo, setUploadandoLogo] = useState(false)
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
+  const [orgLogoPreview, setOrgLogoPreview] = useState<string | null>(null)
+  const [uploadandoOrgLogo, setUploadandoOrgLogo] = useState(false)
 
   useEffect(() => {
     fetch("/api/configuracoes")
@@ -198,7 +204,9 @@ export default function ConfiguracoesPage() {
         setRazaoSocial(d.razaoSocial ?? "")
         setInscricaoMunicipal(d.inscricaoMunicipal ?? "")
         setRegimeTributario(d.regimeTributario ?? "Simples Nacional")
-        setLogoUrl(d.logoUrl ?? null)
+        // Logo da unidade — se não tiver própria, herda da org
+        setLogoUrl(d.logoUrl ?? d.orgLogoUrl ?? null)
+        setOrgLogoUrl(d.orgLogoUrl ?? null)
         if (d.businessHours && Array.isArray(d.businessHours)) setBusinessHours(d.businessHours)
         if (d.cashbackConfig && typeof d.cashbackConfig === "object") setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
         if (d.painelConfig && typeof d.painelConfig === "object") setPainelConfig(prev => ({ ...prev, ...(d.painelConfig as object) }))
@@ -223,6 +231,23 @@ export default function ConfiguracoesPage() {
       window.dispatchEvent(new CustomEvent("logoAtualizada", { detail: data.url }))
     } catch (err) { alert(String(err)) }
     finally { setUploadandoLogo(false) }
+  }
+
+  async function handleOrgLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setOrgLogoPreview(URL.createObjectURL(file))
+    setUploadandoOrgLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append("logo", file)
+      const res = await fetch("/api/org/logo", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || "Erro ao enviar logo da organização"); return }
+      setOrgLogoUrl(data.url)
+      window.dispatchEvent(new CustomEvent("logoAtualizada", { detail: data.url }))
+    } catch (err) { alert(String(err)) }
+    finally { setUploadandoOrgLogo(false) }
   }
 
   async function handleSalvar(e: { preventDefault: () => void }) {
@@ -281,7 +306,34 @@ export default function ConfiguracoesPage() {
 
           {/* Logo */}
           <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>
-            <div className="flex items-center gap-4 pt-3">
+
+            {/* Logo da organização — visível apenas para ORG_OWNER/ADMIN */}
+            {isOwner && (
+              <div className="pt-3 pb-4 border-b border-zinc-800 mb-4">
+                <p className="text-zinc-400 text-xs font-semibold mb-3">Logo da organização</p>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center">
+                    {(orgLogoPreview || orgLogoUrl) ? (
+                      <img src={orgLogoPreview || orgLogoUrl!} alt="Logo da org" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-zinc-600 text-xs text-center px-1">Sem logo</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className={`inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm px-4 py-2 rounded-lg border border-zinc-700 transition-colors cursor-pointer ${uploadandoOrgLogo ? "opacity-50 cursor-not-allowed" : ""}`}>
+                      {uploadandoOrgLogo ? "Enviando..." : "Enviar logo da organização"}
+                      <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleOrgLogoChange} disabled={uploadandoOrgLogo} />
+                    </label>
+                    <p className="text-zinc-600 text-xs mt-1">PNG, JPG, WebP ou SVG · máx 3MB · todas as unidades herdam esta logo</p>
+                    {orgLogoUrl && !orgLogoPreview && <p className="text-green-400 text-xs mt-1">✓ Logo da organização configurada</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Logo desta unidade */}
+            <p className="text-zinc-400 text-xs font-semibold mb-3 pt-1">Logo desta unidade</p>
+            <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center">
                 {logoSrc ? (
                   <img src={logoSrc} alt="Logo" className="w-full h-full object-cover" />
@@ -291,11 +343,14 @@ export default function ConfiguracoesPage() {
               </div>
               <div>
                 <label className={`inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm px-4 py-2 rounded-lg border border-zinc-700 transition-colors cursor-pointer ${uploadandoLogo ? "opacity-50 cursor-not-allowed" : ""}`}>
-                  {uploadandoLogo ? "Enviando..." : "Enviar logo"}
-                  <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogoChange} disabled={uploadandoLogo} />
+                  {uploadandoLogo ? "Enviando..." : "Enviar logo da unidade"}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoChange} disabled={uploadandoLogo} />
                 </label>
-                <p className="text-zinc-600 text-xs mt-1">PNG, JPG ou WebP · máx 3MB</p>
-                {logoUrl && <p className="text-green-400 text-xs mt-1">✓ Logo carregada</p>}
+                <p className="text-zinc-600 text-xs mt-1">PNG, JPG, WebP ou SVG · máx 3MB · sobrepõe a logo da organização</p>
+                {orgLogoUrl && !logoPreview && !logoUrl && (
+                  <p className="text-zinc-500 text-xs mt-1">Usando logo da organização por padrão</p>
+                )}
+                {logoUrl && <p className="text-green-400 text-xs mt-1">✓ Logo própria da unidade</p>}
               </div>
             </div>
           </Secao>

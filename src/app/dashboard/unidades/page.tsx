@@ -148,6 +148,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   const [cashbackConfig, setCashbackConfig] = useState<CashbackCfg>({ servicos: 7, domicilio: 5, produtos: 3, assinaturas: 10 })
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
 
   // Serviços por unidade
   type SvcItem = { id: string; name: string; price: number; durationMin: number; category: string | null; establishmentId: string; isEnabled: boolean }
@@ -197,6 +198,12 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
       .then(d => {
         if (Array.isArray(d?.playlists)) setOrgPlaylists(d.playlists)
       })
+      .catch(() => {})
+
+    // Logo da organização para exibir como fallback
+    fetch("/api/org/info")
+      .then(r => r.json())
+      .then(d => { if (d?.logoUrl) setOrgLogoUrl(d.logoUrl) })
       .catch(() => {})
   }, [unidadeId])
 
@@ -310,18 +317,24 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
             {/* Logo */}
             <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>
               <div className="flex items-center gap-4 pt-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center">
-                  {logoSrc
-                    ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover" />
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center relative">
+                  {(logoPreview || logoUrl || orgLogoUrl)
+                    ? <img src={logoPreview || logoUrl || orgLogoUrl!} alt="Logo" className="w-full h-full object-cover" />
                     : <span className="text-white font-bold text-2xl">{nome.charAt(0) || "B"}</span>}
+                  {!logoUrl && !logoPreview && orgLogoUrl && (
+                    <div className="absolute bottom-0 right-0 bg-zinc-900 rounded text-zinc-500 text-[9px] px-1">org</div>
+                  )}
                 </div>
                 <div>
                   <label className={`inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm px-4 py-2 rounded-lg border border-zinc-700 transition-colors cursor-pointer ${uploadando ? "opacity-50 cursor-not-allowed" : ""}`}>
-                    {uploadando ? "Enviando..." : "Enviar logo"}
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogoChange} disabled={uploadando} />
+                    {uploadando ? "Enviando..." : "Enviar logo própria"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoChange} disabled={uploadando} />
                   </label>
-                  <p className="text-zinc-600 text-xs mt-1">PNG, JPG ou WebP · máx 3 MB</p>
-                  {logoUrl && <p className="text-green-400 text-xs mt-1">✓ Logo carregada</p>}
+                  <p className="text-zinc-600 text-xs mt-1">PNG, JPG, WebP ou SVG · máx 3 MB</p>
+                  {!logoUrl && !logoPreview && orgLogoUrl && (
+                    <p className="text-zinc-500 text-xs mt-1">Usando logo da organização por padrão</p>
+                  )}
+                  {logoUrl && <p className="text-green-400 text-xs mt-1">✓ Logo própria desta unidade</p>}
                 </div>
               </div>
             </Secao>

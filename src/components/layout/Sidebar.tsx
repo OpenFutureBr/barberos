@@ -154,7 +154,8 @@ export default function Sidebar() {
     fetch("/api/configuracoes")
       .then(r => r.json())
       .then(d => {
-        if (d?.logoUrl) setLogoUrl(d.logoUrl)
+        // Prefer unit logo, fall back to org logo
+        setLogoUrl(d?.logoUrl ?? d?.orgLogoUrl ?? null)
         if (d?.name) setEstabNome(d.name)
       })
       .catch(() => {})

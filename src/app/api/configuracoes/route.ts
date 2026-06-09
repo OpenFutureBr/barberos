@@ -8,8 +8,11 @@ export async function GET() {
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
-    const estab = await prisma.establishment.findUnique({ where: { id: estabId } })
-    return NextResponse.json(estab, {
+    const estab = await prisma.establishment.findUnique({
+      where: { id: estabId },
+      include: { organization: { select: { logoUrl: true } } },
+    })
+    return NextResponse.json({ ...estab, orgLogoUrl: estab?.organization?.logoUrl ?? null }, {
       headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
     })
   } catch (error) {

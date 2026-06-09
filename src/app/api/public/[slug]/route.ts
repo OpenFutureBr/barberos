@@ -19,6 +19,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       city: true,
       state: true,
       businessHours: true,
+      organization: { select: { logoUrl: true } },
       services: {
         where: { isActive: true },
         select: {
@@ -52,5 +53,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     return NextResponse.json({ error: "Estabelecimento não encontrado" }, { status: 404 })
   }
 
-  return NextResponse.json(estab)
+  // Resolve logo: unit-specific > org-level
+  const logoUrl = estab.logoUrl ?? estab.organization?.logoUrl ?? null
+  return NextResponse.json({ ...estab, logoUrl })
 }

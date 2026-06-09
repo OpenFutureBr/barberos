@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir, unlink } from "fs/promises"
-import path from "path"
 import prisma from "@/lib/prisma"
-import { registrarUpload } from "@/lib/storage"
 import { auth } from "@/lib/auth"
+import { uploadLogo, urlToStoragePath, deleteLogo, mimeFromExt } from "@/lib/supabase-storage"
+import { registrarUpload } from "@/lib/storage"
 
 const MAX_SIZE = 3 * 1024 * 1024
 const EXTS = ["jpg", "jpeg", "png", "webp", "svg"]
@@ -21,7 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const estab = await prisma.establishment.findFirst({
       where: { id, organizationId: orgId },
-      select: { id: true },
+      select: { id: true, logoUrl: true },
     })
     if (!estab) return NextResponse.json({ error: "Não encontrado" }, { status: 404 })
 
@@ -35,26 +34,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: `Formato inválido. Use: ${EXTS.join(", ")}.` }, { status: 400 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const storagePath = `unit/${id}.${ext}`
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads")
-    await mkdir(uploadDir, { recursive: true })
-
-    for (const e of EXTS) {
-      try { await unlink(path.join(uploadDir, `logo_unit_${id}.${e}`)) } catch {}
+    if (estab.logoUrl) {
+      const old = urlToStoragePath(estab.logoUrl)
+      if (old) await deleteLogo(old)
     }
 
-    const filename = `logo_unit_${id}.${ext}`
-    await writeFile(path.join(uploadDir, filename), buffer)
+    const publicUrl = await uploadLogo(storagePath, buffer, mimeFromExt(ext))
 
-    const logoPath = `/uploads/${filename}`
-    const logoUrl = `${logoPath}?v=${Date.now()}`
+    await prisma.establishment.update({ where: { id }, data: { logoUrl: publicUrl } })
 
-    await prisma.establishment.update({ where: { id }, data: { logoUrl: logoPath } })
+    registrarUpload(buffer.length, id)
 
-    registrarUpload(buffer.length)
-    return NextResponse.json({ url: logoUrl })
+    return NextResponse.json({ url: publicUrl })
   } catch (error) {
     console.error("[POST /api/unidades/[id]/logo]", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
