@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter, usePathname } from "next/navigation"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -97,8 +98,17 @@ const ICON_VOLTAR     = "M15 19l-7-7 7-7"
 // ─── Modal de lançamento ──────────────────────────────────────────────────────
 
 type Profissional = { id: string; name: string }
+type CategoriaCustom = { id: string; nome: string; tipo: "CUSTO" | "DESPESA" }
 
-function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"; onClose: () => void }) {
+function ModalCaixa({
+  modoInicial,
+  categoriasCustom,
+  onClose,
+}: {
+  modoInicial: "ENTRADA" | "SAIDA"
+  categoriasCustom: CategoriaCustom[]
+  onClose: () => void
+}) {
   const [etapa, setEtapa] = useState<"categoria" | "form">(modoInicial === "SAIDA" ? "categoria" : "form")
   const [categoriaEscolhida, setCategoriaEscolhida] = useState<Categoria | null>(null)
   const [grupoEscolhido, setGrupoEscolhido] = useState<string | null>(null)
@@ -106,7 +116,7 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
   const [descricao, setDescricao] = useState("")
   const [valor, setValor] = useState("")
   const [metodo, setMetodo] = useState("DINHEIRO")
-  const [profissionalId, setProfissionalId] = useState("")
+  const [colaboradorId, setColaboradorId] = useState("")
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -115,18 +125,14 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (etapa === "form") inputRef.current?.focus() }, [etapa])
 
-  const isPessoal = grupoEscolhido === "Pessoal"
-
   useEffect(() => {
-    if (isPessoal && profissionais.length === 0) {
+    if (modoInicial === "SAIDA" && profissionais.length === 0) {
       fetch("/api/equipe")
         .then(r => r.json())
-        .then((data: Profissional[]) => {
-          if (Array.isArray(data)) setProfissionais(data)
-        })
+        .then((data: Profissional[]) => { if (Array.isArray(data)) setProfissionais(data) })
         .catch(() => {})
     }
-  }, [isPessoal])
+  }, [modoInicial])
 
   function selecionarCategoria(cat: Categoria, grupo: string) {
     setCategoriaEscolhida(cat)
@@ -143,7 +149,7 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
     if (!v || v <= 0) { setErro("Informe um valor válido."); return }
     if (!descricao.trim()) { setErro("Informe uma descrição."); return }
 
-    const profNome = profissionais.find(p => p.id === profissionalId)?.name
+    const profNome = profissionais.find(p => p.id === colaboradorId)?.name
     const descricaoFinal = profNome ? `${descricao.trim()} — ${profNome}` : descricao.trim()
 
     setSalvando(true); setErro(null)
@@ -233,6 +239,28 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
               </div>
             ))}
 
+            {/* Categorias customizadas */}
+            {categoriasCustom.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-zinc-500/10 text-zinc-400 border-zinc-500/20">
+                    Personalizadas
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {categoriasCustom.map(cat => (
+                    <button key={cat.id} onClick={() => selecionarCategoria({ label: cat.nome, tipo: cat.tipo }, "Custom")}
+                      className="flex flex-col items-start gap-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-xl px-3 py-2.5 text-left transition-all">
+                      <span className="text-white text-xs font-medium leading-tight">{cat.nome}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${TIPO_BADGE[cat.tipo]}`}>
+                        {TIPO_LABEL[cat.tipo]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Opção livre */}
             <button onClick={() => { setCategoriaEscolhida({ label: "", tipo: "DESPESA" }); setGrupoEscolhido(null); setEtapa("form") }}
               className="w-full flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-dashed border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-500 hover:text-zinc-300 text-xs transition-all">
@@ -270,16 +298,16 @@ function ModalCaixa({ modoInicial, onClose }: { modoInicial: "ENTRADA" | "SAIDA"
               />
             </div>
 
-            {/* Profissional (só para categorias do grupo Pessoal) */}
-            {isPessoal && (
+            {/* Colaborador (para qualquer saída) */}
+            {!isEntrada && profissionais.length > 0 && (
               <div>
-                <label className="text-zinc-400 text-xs mb-1.5 block">Profissional</label>
+                <label className="text-zinc-400 text-xs mb-1.5 block">Colaborador <span className="text-zinc-600">(opcional)</span></label>
                 <select
-                  value={profissionalId}
-                  onChange={e => setProfissionalId(e.target.value)}
+                  value={colaboradorId}
+                  onChange={e => setColaboradorId(e.target.value)}
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
                 >
-                  <option value="">— Selecionar profissional —</option>
+                  <option value="">— Nenhum —</option>
                   {profissionais.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -334,9 +362,19 @@ type FABOption = {
 }
 
 export default function GlobalFAB() {
+  const router = useRouter()
+  const pathname = usePathname()
   const [aberto, setAberto] = useState(false)
   const [modalCaixa, setModalCaixa] = useState<"ENTRADA" | "SAIDA" | null>(null)
+  const [categoriasCustom, setCategoriasCustom] = useState<CategoriaCustom[]>([])
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch("/api/caixa/categorias")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.categorias)) setCategoriasCustom(d.categorias) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -357,6 +395,15 @@ export default function GlobalFAB() {
     window.dispatchEvent(new CustomEvent(evento))
   }
 
+  function irParaEstoque(param: string) {
+    setAberto(false)
+    if (pathname === "/dashboard/estoque") {
+      window.dispatchEvent(new CustomEvent(param))
+    } else {
+      router.push(`/dashboard/estoque?abrir=${param}`)
+    }
+  }
+
   function abrirCaixa(modo: "ENTRADA" | "SAIDA") {
     setAberto(false)
     setModalCaixa(modo)
@@ -365,8 +412,8 @@ export default function GlobalFAB() {
   const opcoes: FABOption[] = [
     { label: "Agendamento",          icon: ICON_AGENDA,     onClick: () => despachar("abrirModalAgenda") },
     { label: "Venda / PDV",          icon: ICON_VENDA,      onClick: () => despachar("abrirVenda") },
-    { label: "Novo Produto",         icon: ICON_PRODUTO,    onClick: () => despachar("abrirNovoProduto") },
-    { label: "Entrada de Mercadoria",icon: ICON_MERCADORIA, onClick: () => despachar("abrirEntradaMercadoria") },
+    { label: "Novo Produto",         icon: ICON_PRODUTO,    onClick: () => irParaEstoque("abrirNovoProduto") },
+    { label: "Entrada de Mercadoria",icon: ICON_MERCADORIA, onClick: () => irParaEstoque("abrirEntradaMercadoria") },
     { label: "Entrada de dinheiro",  icon: ICON_MAIS_CIRC,  color: "text-green-400", onClick: () => abrirCaixa("ENTRADA") },
     { label: "Saída de dinheiro",    icon: ICON_MENOS,      color: "text-red-400",   onClick: () => abrirCaixa("SAIDA") },
   ]
@@ -374,7 +421,11 @@ export default function GlobalFAB() {
   return (
     <>
       {modalCaixa && (
-        <ModalCaixa modoInicial={modalCaixa} onClose={() => setModalCaixa(null)} />
+        <ModalCaixa
+          modoInicial={modalCaixa}
+          categoriasCustom={categoriasCustom}
+          onClose={() => setModalCaixa(null)}
+        />
       )}
 
       <div ref={ref} className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 flex flex-col items-end gap-2">

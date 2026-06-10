@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
 
@@ -129,6 +130,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
 }
 
 export default function EstoquePage() {
+  const searchParams = useSearchParams()
   const [aba, setAba] = useState<"estoque" | "catalogo" | "pdv" | "movimentos">("estoque")
   const [produtos, setProdutos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -296,7 +298,7 @@ export default function EstoquePage() {
     return () => window.removeEventListener("vendaRegistrada", onVendaRegistrada)
   }, [aba, filtroDataVendas])
 
-  // Responde ao FAB global
+  // Responde ao FAB global (evento ou query param ao navegar)
   useEffect(() => {
     function onNovoProduto() { resetarForm(); setModalNovo(true) }
     function onEntradaMercadoria() { setModalEntrada(true) }
@@ -307,6 +309,12 @@ export default function EstoquePage() {
       window.removeEventListener("abrirEntradaMercadoria", onEntradaMercadoria)
     }
   }, [])
+
+  useEffect(() => {
+    const abrir = searchParams.get("abrir")
+    if (abrir === "abrirNovoProduto") { resetarForm(); setModalNovo(true) }
+    if (abrir === "abrirEntradaMercadoria") { setModalEntrada(true) }
+  }, [searchParams])
   useEffect(() => {
     fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])

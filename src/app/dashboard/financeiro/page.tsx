@@ -135,6 +135,14 @@ function IconPendentes() {
   )
 }
 
+function IconCategorias() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3zM6 6h.008v.008H6V6z" />
+    </svg>
+  )
+}
+
 type DRE = {
   receitaServicos: number
   receitaProdutos: number
@@ -199,7 +207,9 @@ type ResumoPendencias = {
   totalAVencer: number
 }
 
-type AbaFinanceiro = "dre" | "pendentes" | "repasses" | "evolucao"
+type AbaFinanceiro = "dre" | "pendentes" | "repasses" | "evolucao" | "categorias"
+
+type CategoriaCustom = { id: string; nome: string; tipo: "CUSTO" | "DESPESA" }
 
 function calcularStatusPendencia(dueDate?: string | null): "PENDING" | "OVERDUE" {
   if (!dueDate) return "PENDING"
@@ -331,6 +341,12 @@ export default function FinanceiroPage() {
   const [sortRepasses, setSortRepasses] = useState<"desc" | "asc">("desc")
   const [sortEvolucao, setSortEvolucao] = useState<"mes" | "desc" | "asc">("mes")
 
+  // Categorias custom de custo/despesa
+  const [categoriasCustom, setCategoriasCustom] = useState<CategoriaCustom[]>([])
+  const [catNome, setCatNome] = useState("")
+  const [catTipo, setCatTipo] = useState<"CUSTO" | "DESPESA">("DESPESA")
+  const [salvandoCat, setSalvandoCat] = useState(false)
+
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState<Pendencia | null>(
     null,
   )
@@ -381,6 +397,37 @@ export default function FinanceiroPage() {
     fetchDados()
   }, [fetchDados])
 
+  useEffect(() => {
+    fetch("/api/caixa/categorias")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.categorias)) setCategoriasCustom(d.categorias) })
+      .catch(() => {})
+  }, [])
+
+  async function adicionarCategoria() {
+    if (!catNome.trim()) return
+    const nova: CategoriaCustom = { id: Date.now().toString(), nome: catNome.trim(), tipo: catTipo }
+    const novaLista = [...categoriasCustom, nova]
+    setSalvandoCat(true)
+    await fetch("/api/caixa/categorias", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorias: novaLista }),
+    }).catch(() => {})
+    setCategoriasCustom(novaLista)
+    setCatNome("")
+    setSalvandoCat(false)
+  }
+
+  async function removerCategoria(id: string) {
+    const novaLista = categoriasCustom.filter(c => c.id !== id)
+    await fetch("/api/caixa/categorias", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorias: novaLista }),
+    }).catch(() => {})
+    setCategoriasCustom(novaLista)
+  }
 
   const repassesOrdenados = [...repasses].sort((a, b) =>
     sortRepasses === "desc" ? b.repasse - a.repasse : a.repasse - b.repasse,
@@ -507,6 +554,7 @@ export default function FinanceiroPage() {
             { id: "pendentes", icon: <IconPendentes />, label: "Pendentes" },
             { id: "repasses", icon: <IconRepasses />, label: "Repasses" },
             { id: "evolucao", icon: <IconEvolucao />, label: "Evolução" },
+            { id: "categorias", icon: <IconCategorias />, label: "Categorias" },
           ] as const
         ).map((tab) => (
           <button
@@ -978,6 +1026,88 @@ export default function FinanceiroPage() {
                 </div>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* Categorias de custo/despesa */}
+      {aba === "categorias" && (
+        <div className="space-y-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-4">Nova categoria</div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-zinc-500 text-xs mb-1 block">Nome</label>
+                <input
+                  value={catNome}
+                  onChange={e => setCatNome(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") adicionarCategoria() }}
+                  placeholder="Ex: Material de escritório"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+              <div className="w-36">
+                <label className="text-zinc-500 text-xs mb-1 block">Tipo</label>
+                <select
+                  value={catTipo}
+                  onChange={e => setCatTipo(e.target.value as "CUSTO" | "DESPESA")}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors"
+                >
+                  <option value="CUSTO">Custo</option>
+                  <option value="DESPESA">Despesa</option>
+                </select>
+              </div>
+              <button
+                onClick={adicionarCategoria}
+                disabled={salvandoCat || !catNome.trim()}
+                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+              >
+                {salvandoCat ? "..." : "+ Adicionar"}
+              </button>
+            </div>
+            <p className="text-zinc-600 text-xs mt-3">
+              Categorias criadas aqui aparecerão no botão + ao lançar saída de dinheiro.
+            </p>
+          </div>
+
+          {categoriasCustom.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-800">
+                <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">
+                  Categorias cadastradas ({categoriasCustom.length})
+                </span>
+              </div>
+              <div className="divide-y divide-zinc-800">
+                {categoriasCustom.map(cat => (
+                  <div key={cat.id} className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                        cat.tipo === "CUSTO"
+                          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                          : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                      }`}>
+                        {cat.tipo === "CUSTO" ? "Custo" : "Despesa"}
+                      </span>
+                      <span className="text-zinc-200 text-sm">{cat.nome}</span>
+                    </div>
+                    <button
+                      onClick={() => removerCategoria(cat.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors text-lg leading-none"
+                      title="Remover"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {categoriasCustom.length === 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+              <div className="text-zinc-600 text-sm">Nenhuma categoria personalizada ainda.</div>
+              <div className="text-zinc-700 text-xs mt-1">Adicione acima para que apareçam no lançamento de saída.</div>
+            </div>
           )}
         </div>
       )}

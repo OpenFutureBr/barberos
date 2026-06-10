@@ -84,6 +84,109 @@ function Secao({ titulo, id, badge, colapsados, toggle, children }: {
   )
 }
 
+function WlContainer() {
+  const [nomeMarca, setNomeMarca] = useState("Barbearia Costa")
+  const [corPrimaria, setCorPrimaria] = useState("#c9a84c")
+  const [corSecundaria, setCorSecundaria] = useState("#26c9b2")
+  const [dominio, setDominio] = useState("")
+  const [slogan, setSlogan] = useState("")
+  const [salvo, setSalvo] = useState(false)
+
+  function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    setSalvo(true)
+    setTimeout(() => setSalvo(false), 3000)
+  }
+
+  return (
+    <div className="pt-2 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSalvar} className="space-y-3">
+          <div>
+            <label className="text-zinc-400 text-xs mb-1 block">Nome da marca *</label>
+            <input value={nomeMarca} onChange={e => setNomeMarca(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-xs mb-1 block">Slogan</label>
+            <input value={slogan} onChange={e => setSlogan(e.target.value)}
+              placeholder="Estilo e precisão em cada corte"
+              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-xs mb-1 block">Domínio personalizado</label>
+            <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500 transition-colors">
+              <span className="text-zinc-600 text-xs px-3 border-r border-zinc-700 py-2">https://</span>
+              <input value={dominio} onChange={e => setDominio(e.target.value)}
+                placeholder="seu-dominio.com"
+                className="flex-1 bg-transparent text-white px-3 py-2 text-sm outline-none" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-zinc-400 text-xs mb-1 block">Cor primária</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={corPrimaria} onChange={e => setCorPrimaria(e.target.value)}
+                  className="w-8 h-8 rounded border border-zinc-700 cursor-pointer bg-zinc-800" />
+                <input value={corPrimaria} onChange={e => setCorPrimaria(e.target.value)}
+                  className="flex-1 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-xs outline-none font-mono" />
+              </div>
+            </div>
+            <div>
+              <label className="text-zinc-400 text-xs mb-1 block">Cor secundária</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={corSecundaria} onChange={e => setCorSecundaria(e.target.value)}
+                  className="w-8 h-8 rounded border border-zinc-700 cursor-pointer bg-zinc-800" />
+                <input value={corSecundaria} onChange={e => setCorSecundaria(e.target.value)}
+                  className="flex-1 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2 py-1.5 text-xs outline-none font-mono" />
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+              Salvar
+            </button>
+            {salvo && <span className="text-green-400 text-sm">✓ Salvo</span>}
+          </div>
+        </form>
+
+        {/* Preview compacto */}
+        <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden text-xs">
+          <div className="flex">
+            <div className="w-24 bg-zinc-900 border-r border-zinc-800 p-2">
+              <div className="flex items-center gap-1.5 mb-2">
+                <div className="w-5 h-5 rounded flex items-center justify-center font-bold text-black text-xs flex-shrink-0" style={{ backgroundColor: corPrimaria }}>
+                  {nomeMarca.charAt(0)}
+                </div>
+                <div className="text-white text-xs font-bold truncate">{nomeMarca.split(" ")[0]}</div>
+              </div>
+              {["Dashboard", "Agenda", "Clientes"].map(item => (
+                <div key={item} className="text-zinc-500 text-[10px] py-0.5 px-1.5 rounded mb-0.5">{item}</div>
+              ))}
+            </div>
+            <div className="flex-1 p-2">
+              <div className="text-white font-bold text-xs mb-0.5">{nomeMarca}</div>
+              {slogan && <div className="text-zinc-600 text-[10px] italic mb-2">{slogan}</div>}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[{ label: "Faturamento", val: "R$ 1.840", col: corPrimaria }, { label: "Clientes", val: "247", col: corSecundaria }].map(kpi => (
+                  <div key={kpi.label} className="bg-zinc-800 rounded p-1.5 border-t-2" style={{ borderColor: kpi.col }}>
+                    <div className="text-zinc-500 text-[10px]">{kpi.label}</div>
+                    <div className="font-bold text-xs" style={{ color: kpi.col }}>{kpi.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-1">
+                <button className="px-2 py-1 rounded text-[10px] font-bold text-black" style={{ backgroundColor: corPrimaria }}>+ Agendar</button>
+                <button className="px-2 py-1 rounded text-[10px] font-bold text-black" style={{ backgroundColor: corSecundaria }}>Fila</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ConfiguracoesPage() {
   const { data: session } = useSession()
   const isOwner = ["ADMIN", "ORG_OWNER"].includes(session?.user?.role ?? "")
@@ -677,6 +780,11 @@ export default function ConfiguracoesPage() {
           </Secao>
 
           {/* Plano */}
+          <Secao titulo="White Label & Marca" id="white-label" colapsados={colapsados} toggle={toggle}
+            badge={<span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Business</span>}>
+            <WlContainer />
+          </Secao>
+
           <Secao titulo="Plano atual" id="plano" colapsados={colapsados} toggle={toggle}>
             <div className="flex items-center justify-between pt-3">
               <div>

@@ -30,6 +30,7 @@ model Establishment {
   cashbackConfig     Json?
   painelConfig       Json?
   whatsappConfig     Json?
+  caixaConfig        Json?              @map("caixa_config")
   isActive           Boolean            @default(true)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
