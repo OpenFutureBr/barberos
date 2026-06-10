@@ -84,6 +84,72 @@ function Secao({ titulo, id, badge, colapsados, toggle, children }: {
   )
 }
 
+const FONTES = [
+  { nome: "Geist (padrão)", family: "", url: "" },
+  { nome: "Inter", family: "'Inter', sans-serif", url: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" },
+  { nome: "Poppins", family: "'Poppins', sans-serif", url: "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" },
+  { nome: "Raleway", family: "'Raleway', sans-serif", url: "https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700&display=swap" },
+  { nome: "Space Grotesk", family: "'Space Grotesk', sans-serif", url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" },
+  { nome: "Roboto", family: "'Roboto', sans-serif", url: "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" },
+]
+
+function loadFont(url: string) {
+  if (!url) return
+  if (document.querySelector(`link[href="${url}"]`)) return
+  const link = document.createElement("link")
+  link.rel = "stylesheet"
+  link.href = url
+  document.head.appendChild(link)
+}
+
+function FontSelector() {
+  const [fonteAtiva, setFonteAtiva] = useState("")
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("fonte")
+      if (saved) setFonteAtiva(JSON.parse(saved).family ?? "")
+    } catch {}
+  }, [])
+
+  function aplicarFonte(fonte: typeof FONTES[0]) {
+    loadFont(fonte.url)
+    if (fonte.family) {
+      document.documentElement.style.setProperty("--font-override", fonte.family)
+      localStorage.setItem("fonte", JSON.stringify({ family: fonte.family, url: fonte.url }))
+    } else {
+      document.documentElement.style.removeProperty("--font-override")
+      localStorage.removeItem("fonte")
+    }
+    setFonteAtiva(fonte.family)
+  }
+
+  return (
+    <div className="pt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {FONTES.map(f => {
+        const ativa = fonteAtiva === f.family
+        return (
+          <button
+            key={f.nome}
+            type="button"
+            onClick={() => { loadFont(f.url); aplicarFonte(f) }}
+            className={`flex flex-col items-start gap-1.5 px-3 py-2.5 rounded-lg border transition-all text-left ${
+              ativa
+                ? "border-amber-500/50 bg-amber-500/10"
+                : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+            }`}
+          >
+            <span className={`text-xs font-medium ${ativa ? "text-amber-400" : "text-zinc-300"}`}>{f.nome}</span>
+            <span className="text-zinc-500 text-sm leading-tight" style={{ fontFamily: f.family || "inherit" }}>
+              Aa Bb Cc
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function WlContainer() {
   const [nomeMarca, setNomeMarca] = useState("Barbearia Costa")
   const [corPrimaria, setCorPrimaria] = useState("#c9a84c")
@@ -406,6 +472,11 @@ export default function ConfiguracoesPage() {
         </div>
 
         <form onSubmit={handleSalvar} className="space-y-3">
+
+          {/* Fonte do sistema */}
+          <Secao titulo="Fonte do sistema" id="fonte" colapsados={colapsados} toggle={toggle}>
+            <FontSelector />
+          </Secao>
 
           {/* Logo */}
           <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>

@@ -477,8 +477,8 @@ export default function AgendaPage() {
   return (
     <DashboardLayout>
 
-      {/* Navegação */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Navegação — desktop */}
+      <div className="hidden md:flex items-center justify-between mb-4">
         <div>
           <h1 className="text-white text-xl font-bold">Agenda</h1>
           <p className="text-zinc-500 text-sm capitalize">
@@ -486,62 +486,141 @@ export default function AgendaPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filtro de status */}
           <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
             {(["ativos", "todos"] as const).map((f) => (
               <button key={f} onClick={() => setFiltroStatus(f)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                  filtroStatus === f ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
-                }`}>
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${filtroStatus === f ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
                 {f === "ativos" ? "Pendentes" : "Todos"}
               </button>
             ))}
           </div>
-
-          {/* Seletor de profissional */}
-          <select
-            value={profFiltro}
-            onChange={(e) => { setProfFiltro(e.target.value); setInicioJanela(hojeISO) }}
-            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-amber-500 transition-colors"
-          >
+          <select value={profFiltro} onChange={(e) => { setProfFiltro(e.target.value); setInicioJanela(hojeISO) }}
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-amber-500 transition-colors">
             <option value="">Visão geral</option>
             {profissionais.map(p => <option key={p.id} value={p.id}>{p.name?.split(" ")[0]}</option>)}
           </select>
-
           {profFiltro ? (
-            // Navegação da janela de 6 dias
             <>
-              <button onClick={() => setInicioJanela(adicionarDias(iniciJanela, -6))}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">←</button>
-              <button onClick={() => setInicioJanela(hojeISO)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  iniciJanela === hojeISO ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-                }`}>Hoje</button>
-              <button onClick={() => setInicioJanela(adicionarDias(iniciJanela, 6))}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">→</button>
+              <button onClick={() => setInicioJanela(adicionarDias(iniciJanela, -6))} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">←</button>
+              <button onClick={() => setInicioJanela(hojeISO)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${iniciJanela === hojeISO ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"}`}>Hoje</button>
+              <button onClick={() => setInicioJanela(adicionarDias(iniciJanela, 6))} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">→</button>
             </>
           ) : (
-            // Navegação diária
             <>
-              <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, -1))}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">←</button>
-              <button onClick={() => setDataSelecionada(hojeISO)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  isHoje ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-                }`}>Hoje</button>
-              <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, 1))}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">→</button>
+              <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, -1))} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">←</button>
+              <button onClick={() => setDataSelecionada(hojeISO)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isHoje ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"}`}>Hoje</button>
+              <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, 1))} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-sm transition-colors">→</button>
             </>
           )}
         </div>
       </div>
 
+      {/* Navegação — mobile */}
+      <div className="md:hidden mb-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <h1 className="text-white text-lg font-bold">Agenda</h1>
+          <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
+            {(["ativos", "todos"] as const).map((f) => (
+              <button key={f} onClick={() => setFiltroStatus(f)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${filtroStatus === f ? "bg-zinc-700 text-white" : "text-zinc-500"}`}>
+                {f === "ativos" ? "Pendentes" : "Todos"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, -1))}
+            className="bg-zinc-800 text-zinc-300 w-9 h-9 rounded-lg text-sm flex items-center justify-center">←</button>
+          <div className="flex-1 text-center">
+            <div className={`text-sm font-medium capitalize ${isHoje ? "text-amber-400" : "text-white"}`}>
+              {isHoje ? "Hoje" : new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" })}
+            </div>
+          </div>
+          <button onClick={() => setDataSelecionada(hojeISO)}
+            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${isHoje ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-zinc-700 bg-zinc-800 text-zinc-400"}`}>
+            Hoje
+          </button>
+          <button onClick={() => setDataSelecionada(adicionarDias(dataSelecionada, 1))}
+            className="bg-zinc-800 text-zinc-300 w-9 h-9 rounded-lg text-sm flex items-center justify-center">→</button>
+        </div>
+        <select value={profFiltro} onChange={(e) => { setProfFiltro(e.target.value); setInicioJanela(hojeISO) }}
+          className="w-full bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+          <option value="">Todos os profissionais</option>
+          {profissionais.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      {/* ── VISÃO MOBILE — lista do dia ── */}
+      {!loadingProfs && profissionais.length > 0 && (
+        <div className="md:hidden">
+          {loadingAppts ? (
+            <div className="space-y-2">
+              {[1,2,3].map(i => <div key={i} className="h-16 bg-zinc-800 rounded-xl animate-pulse" />)}
+            </div>
+          ) : (() => {
+            const lista = agendamentos
+              .filter(a => {
+                if (filtroStatus === "ativos") return ["SCHEDULED","CONFIRMED","IN_QUEUE","IN_PROGRESS"].includes(a.status)
+                return true
+              })
+              .filter(a => !profFiltro || a.professionalId === profFiltro)
+              .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+            if (lista.length === 0) return (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+                <div className="text-zinc-600 text-sm">Nenhum agendamento {filtroStatus === "ativos" ? "pendente" : ""} para este dia</div>
+              </div>
+            )
+            return (
+              <div className="space-y-2">
+                {lista.map(a => {
+                  const inicio = new Date(a.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  const fim = new Date(a.endTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  const status = statusOverride[a.id] ?? a.status
+                  const cor = status === "DONE" || status === "CANCELLED" || status === "NO_SHOW"
+                    ? "border-l-zinc-600 opacity-60"
+                    : a.serviceType === "HOME_VISIT"
+                    ? "border-l-teal-500"
+                    : "border-l-amber-500"
+                  return (
+                    <button key={a.id} onClick={() => { setApptSelecionado(a); setModalDetalhe(true) }}
+                      className={`w-full text-left bg-zinc-900 border border-zinc-800 border-l-4 ${cor} rounded-xl px-4 py-3 transition-colors hover:bg-zinc-800`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-white font-medium text-sm truncate">{a.client?.name ?? "Cliente"}</span>
+                            {a.serviceType === "HOME_VISIT" && (
+                              <svg className="w-3 h-3 text-teal-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            )}
+                          </div>
+                          <div className="text-zinc-400 text-xs truncate">{a.service?.name}</div>
+                          {!profFiltro && a.professional?.name && (
+                            <div className="text-zinc-600 text-xs mt-0.5">{a.professional.name.split(" ")[0]}</div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="text-zinc-300 text-sm font-mono">{inicio}</span>
+                          <span className="text-zinc-600 text-xs">{fim}</span>
+                          <span className={`text-[10px] font-medium ${statusCor[status] ?? "text-zinc-500"}`}>
+                            {statusLabel[status] ?? status}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── VISÃO DESKTOP ── */}
       {loadingProfs ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">
+        <div className="hidden md:block bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">
           Carregando agenda...
         </div>
       ) : profissionais.length === 0 ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+        <div className="hidden md:block bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
           <div className="text-zinc-600 text-sm mb-2">Nenhum profissional cadastrado</div>
           <a href="/dashboard/equipe" className="text-amber-400 text-sm hover:text-amber-300 transition-colors">
             Cadastrar profissional →
@@ -550,7 +629,7 @@ export default function AgendaPage() {
       ) : profFiltro ? (
 
         /* ── VISÃO SEMANAL DO PROFISSIONAL ── */
-        <div ref={gridRef} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
+        <div ref={gridRef} className="hidden md:block bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
           {/* Cabeçalho com 6 datas — sticky */}
           <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(6, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
@@ -603,7 +682,7 @@ export default function AgendaPage() {
       ) : (
 
         /* ── VISÃO GERAL POR PROFISSIONAL ── */
-        <div ref={gridRef} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
+        <div ref={gridRef} className="hidden md:block bg-zinc-900 border border-zinc-800 rounded-xl overflow-y-auto" style={{ maxHeight: "calc(100vh - 10rem)" }}>
           {/* Cabeçalho profissionais — sticky */}
           <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, 1fr)` }}>
             <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>

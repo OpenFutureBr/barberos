@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
+import DrawerNav from "./DrawerNav"
 
 const NOMES: Record<string, string> = {
   "/dashboard":               "Dashboard",
@@ -38,6 +39,7 @@ export default function Topbar({
 }) {
   const pathname = usePathname()
   const [dataAtual, setDataAtual] = useState("")
+  const [drawerAberto, setDrawerAberto] = useState(false)
 
   useEffect(() => {
     const atualizar = () => {
@@ -59,7 +61,19 @@ export default function Topbar({
   const nome = NOMES[pathname] ?? "BarberOS"
 
   return (
-    <header className="h-11 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-3 fixed top-0 left-0 md:left-48 right-0 z-20">
+    <>
+      <DrawerNav aberto={drawerAberto} onFechar={() => setDrawerAberto(false)} />
+      <header className="h-11 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-3 fixed top-0 left-0 md:left-48 right-0 z-20">
+      {/* Hamburguer — apenas mobile */}
+      <button
+        onClick={() => setDrawerAberto(true)}
+        className="md:hidden text-zinc-400 hover:text-white transition-colors flex-shrink-0"
+        aria-label="Menu"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+      </button>
       <div className="flex-1 flex items-baseline gap-2 min-w-0">
         <span className="text-white text-sm font-bold truncate">{nome}</span>
         {dataAtual && (
@@ -88,5 +102,6 @@ export default function Topbar({
         </button>
       </div>
     </header>
+    </>
   )
 }

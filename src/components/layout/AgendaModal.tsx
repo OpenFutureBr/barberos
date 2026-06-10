@@ -153,7 +153,7 @@ function CamposEndereco({ cep, setCep, rua, setRua, numero, setNumero, bairro, s
         <label className="text-zinc-400 text-xs mb-1 block">CEP *</label>
         <div className="relative">
           <input value={cep} onChange={(e) => handleCep(e.target.value)}
-            required placeholder="00000-000" maxLength={9} className={inputCls} />
+            required placeholder="00000-000" maxLength={9} inputMode="numeric" className={inputCls} />
           {buscandoCep && <span className="absolute right-3 top-2.5 text-zinc-500 text-xs">buscando...</span>}
         </div>
       </div>
@@ -164,7 +164,7 @@ function CamposEndereco({ cep, setCep, rua, setRua, numero, setNumero, bairro, s
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-zinc-400 text-xs mb-1 block">Número *</label>
-          <input value={numero} onChange={(e) => setNumero(e.target.value)} required placeholder="123" className={inputCls} />
+          <input value={numero} onChange={(e) => setNumero(e.target.value)} required placeholder="123" inputMode="numeric" className={inputCls} />
         </div>
         <div>
           <label className="text-zinc-400 text-xs mb-1 block">Bairro *</label>
@@ -728,12 +728,20 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo de atendimento</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div onClick={() => setTipoAtendimento("presencial")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "presencial" ? "border-amber-500/30 bg-amber-500/10" : "border-zinc-700 bg-zinc-800"}`}>
-                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>🏪 Presencial</span>
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "presencial" ? "border-amber-500/30 bg-amber-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                    <svg className={`w-4 h-4 flex-shrink-0 ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/>
+                      <path d="M9 21V12h6v9"/>
+                    </svg>
+                    <span className={`text-xs font-medium ${tipoAtendimento === "presencial" ? "text-amber-400" : "text-zinc-400"}`}>Presencial</span>
                   </div>
                   <div onClick={() => setTipoAtendimento("domicilio")}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "domicilio" ? "border-teal-500/30 bg-teal-500/10" : "border-zinc-700 bg-zinc-800"}`}>
-                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>🚗 Domicílio</span>
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${tipoAtendimento === "domicilio" ? "border-teal-500/30 bg-teal-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                    <svg className={`w-4 h-4 flex-shrink-0 ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                      <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span className={`text-xs font-medium ${tipoAtendimento === "domicilio" ? "text-teal-400" : "text-zinc-400"}`}>Domicílio</span>
                   </div>
                 </div>
               </div>
@@ -744,6 +752,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 <div className="relative">
                   <input value={telefone} onChange={(e) => handleTelefone(e.target.value)}
                     placeholder="(11) 99999-9999" required
+                    inputMode="tel" type="tel"
                     className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
                   {buscandoCliente && <span className="absolute right-3 top-2.5 text-zinc-500 text-xs">buscando...</span>}
                 </div>

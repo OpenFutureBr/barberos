@@ -44,6 +44,7 @@ export default function RootLayout({
       <head>
         {/* runs before first paint — no FOUC */}
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("tema")==="light")document.documentElement.classList.add("light")}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var _f=localStorage.getItem("fonte");if(_f){var _fd=JSON.parse(_f);document.documentElement.style.setProperty("--font-override",_fd.family);if(_fd.url){var _fl=document.createElement("link");_fl.rel="stylesheet";_fl.href=_fd.url;document.head.appendChild(_fl);}}}catch(e){}` }} />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
