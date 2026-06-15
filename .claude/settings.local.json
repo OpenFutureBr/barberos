@@ -53,7 +53,18 @@
       "Read(//c/Users/paulo.leigo/.claude/projects/c--Users-paulo-leigo-barberos/**)",
       "Bash(grep -r \"\\\\/public\\\\/\" src/app --include=\"*.tsx\" --include=\"*.ts\")",
       "Bash(mkdir -p \"c:/Users/paulo.leigo/barberos/src/app/agendar/[slug]\")",
-      "Bash(awk -F: '{print $1}')"
+      "Bash(awk -F: '{print $1}')",
+      "Bash(xargs grep -l \"Mock\\\\|mock\\\\|MOCK\\\\|placeholder.*R\\\\$\\\\|faturamento.*[0-9][0-9][0-9][0-9]\")",
+      "Bash(sed -n '1,30p' src/app/api/financeiro/route.ts)",
+      "Bash(sed -n '1,30p' src/app/api/venda/route.ts)",
+      "Bash(npx dotenv *)",
+      "PowerShell(cd \"c:/Users/paulo.leigo/barberos\"; $f = [System.IO.Path]::GetTempFileName\\(\\) + \".sql\"; \"SELECT username, `\"passwordHash`\", role, `\"isActive`\", name FROM users WHERE username = 'lulu.arruda';\" | Out-File -FilePath $f -Encoding utf8; npx prisma db execute --file $f; Remove-Item $f)",
+      "Bash(node __query_tmp.mjs)",
+      "Bash(rm __query_tmp.mjs)",
+      "Bash(node __create_user.mjs)",
+      "Bash(rm __create_user.mjs)",
+      "Bash(grep -v \"//\\\\|const\\\\|useState\\\\|useEffect\")",
+      "Bash(DATABASE_URL='postgresql://postgres.agimvjzsfrrjkdjpxygm:%40putzERREI123@db.agimvjzsfrrjkdjpxygm.supabase.co:5432/postgres' npx prisma db push)"
     ],
     "additionalDirectories": [
       "c:\\Users\\paulo.leigo\\barberos\\src\\app\\api\\agenda\\comanda",

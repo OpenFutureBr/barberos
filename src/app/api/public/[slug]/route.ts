@@ -19,7 +19,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       city: true,
       state: true,
       businessHours: true,
-      organization: { select: { logoUrl: true } },
+      organizationId: true,
+      organization: { select: { logoUrl: true, iaLicensed: true } },
       services: {
         where: { isActive: true },
         select: {
@@ -55,5 +56,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
 
   // Resolve logo: unit-specific > org-level
   const logoUrl = estab.logoUrl ?? estab.organization?.logoUrl ?? null
-  return NextResponse.json({ ...estab, logoUrl })
+  const iaLicensed = estab.organization?.iaLicensed ?? false
+  return NextResponse.json({ ...estab, logoUrl, iaLicensed })
 }

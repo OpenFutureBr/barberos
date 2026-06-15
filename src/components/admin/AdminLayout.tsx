@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 
 const NAV = [
-  { href: "/admin",              label: "Dashboard",  icon: "◈" },
-  { href: "/admin/empresas",     label: "Empresas",   icon: "🏢" },
-  { href: "/admin/planos",       label: "Planos",     icon: "📋" },
-  { href: "/admin/faturamento",  label: "Faturamento",icon: "💰" },
-  { href: "/admin/permissoes",   label: "Permissões", icon: "🔑" },
+  { href: "/admin",                label: "Dashboard",     icon: "◈" },
+  { href: "/admin/empresas",       label: "Empresas",      icon: "🏢" },
+  { href: "/admin/planos",         label: "Planos",        icon: "📋" },
+  { href: "/admin/faturamento",    label: "Faturamento",   icon: "💰" },
+  { href: "/admin/permissoes",     label: "Permissões",    icon: "🔑" },
+  { href: "/admin/configuracoes",  label: "Config. IA",    icon: "✦" },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

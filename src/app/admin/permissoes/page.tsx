@@ -34,10 +34,10 @@ const ALL_RESOURCES = [
 ]
 
 const ROLES = [
-  { slug: "ORG_MANAGER",   label: "Gerente de Org." },
-  { slug: "UNIT_MANAGER",  label: "Gerente de Unidade" },
-  { slug: "RECEPTIONIST",  label: "Recepcionista" },
-  { slug: "PROFESSIONAL",  label: "Profissional" },
+  { slug: "ORG_MANAGER",   label: "Gerente",          desc: "Gestão completa exceto configurações sensíveis" },
+  { slug: "UNIT_MANAGER",  label: "Gerente de Unidade", desc: "Gestão operacional de uma unidade" },
+  { slug: "RECEPTIONIST",  label: "Recepcionista",    desc: "Agenda, caixa e atendimento ao cliente" },
+  { slug: "PROFESSIONAL",  label: "Profissional",     desc: "Acesso à própria agenda e galeria" },
 ]
 
 const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>> = {
@@ -289,16 +289,24 @@ export default function AdminPermissoesPage() {
         )}
 
         {/* Role tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
           {ROLES.map(r => (
             <button
               key={r.slug}
               onClick={() => setActiveRole(r.slug)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeRole === r.slug ? "bg-amber-500 text-black" : "bg-zinc-800 text-zinc-400 hover:text-white"}`}
+              className={`text-left px-4 py-3 rounded-xl border transition-all ${activeRole === r.slug ? "bg-amber-500/10 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"}`}
             >
-              {r.label}
+              <div className="font-semibold text-sm">{r.label}</div>
+              <div className="text-xs opacity-60 mt-0.5 leading-snug">{(r as any).desc}</div>
             </button>
           ))}
+        </div>
+
+        <div className="mb-3 px-4 py-2 bg-zinc-800/30 border border-zinc-800 rounded-xl">
+          <p className="text-zinc-500 text-xs">
+            <span className="text-white font-medium">Administrador (ORG_OWNER)</span> sempre tem acesso total.
+            Estas permissões são o padrão — podem ser sobrescritas individualmente na página de Equipe.
+          </p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">

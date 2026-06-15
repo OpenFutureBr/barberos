@@ -13,6 +13,7 @@ type Empresa = {
   phone: string | null
   isActive: boolean
   isBlocked: boolean
+  iaLicensed: boolean
   billingStatus: string
   createdAt: string
   lastAccessAt: string | null
@@ -457,12 +458,29 @@ export default function AdminEmpresasPage() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/admin/empresas/${e.id}`}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs transition-colors"
-                      >
-                        Ver detalhes
-                      </Link>
+                      <div className="flex flex-col gap-1.5 items-end">
+                        <button
+                          onClick={async () => {
+                            const next = !e.iaLicensed
+                            await fetch(`/api/admin/org/${e.id}/ia-license`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ iaLicensed: next }),
+                            })
+                            setEmpresas(prev => prev.map(x => x.id === e.id ? { ...x, iaLicensed: next } : x))
+                          }}
+                          title={e.iaLicensed ? "Desativar licença IA" : "Ativar licença IA"}
+                          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all ${e.iaLicensed ? "bg-purple-500/15 text-purple-400 border-purple-500/30 hover:bg-purple-500/25" : "bg-zinc-800 text-zinc-500 border-zinc-700 hover:border-zinc-500"}`}>
+                          <span>{e.iaLicensed ? "✦" : "○"}</span>
+                          IA {e.iaLicensed ? "Ativa" : "Inativa"}
+                        </button>
+                        <Link
+                          href={`/admin/empresas/${e.id}`}
+                          className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs transition-colors"
+                        >
+                          Ver detalhes
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

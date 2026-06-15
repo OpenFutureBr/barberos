@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, lazy, Suspense } from "react"
+import { useSession } from "next-auth/react"
+const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
   const slots: string[] = []
@@ -398,6 +400,10 @@ function ModalCadastroEndereco({ clienteId, clienteNome, onSalvo, onCancelar }: 
 }
 
 export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Props) {
+  const { data: session } = useSession()
+  const planFeatures = (session?.user as any)?.planFeatures as string[] | undefined
+  const iaLicensed = planFeatures?.includes("ia") || planFeatures?.includes("*") || !!(session?.user as any)?.iaLicensed
+
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
@@ -408,6 +414,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [regrasPrecificacao, setRegrasPrecificacao] = useState<any[]>([])
   const [haircuts, setHaircuts] = useState<any[]>([])
   const [haircutId, setHaircutId] = useState("")
+  const [mostrarIaBiotipo, setMostrarIaBiotipo] = useState(false)
 
   const inicial = getDataHoraInicial()
   const hojeISO = getDataSaoPaulo(new Date())
@@ -780,7 +787,19 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
               {/* Serviço — dependente do profissional */}
               <div>
-                <label className="text-zinc-400 text-xs mb-1 block">Serviço *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-zinc-400 text-xs">Serviço *</label>
+                  {iaLicensed && (
+                    <button type="button" onClick={() => setMostrarIaBiotipo(true)}
+                      className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                      </svg>
+                      IA Biotipo
+                    </button>
+                  )}
+                </div>
                 <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} required
                   disabled={!profId}
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors disabled:opacity-50">
@@ -928,6 +947,17 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
           onSalvo={handleEnderecoSalvo}
           onCancelar={() => setMostrarCadastroEndereco(false)}
         />
+      )}
+
+      {/* IA Biotipo */}
+      {mostrarIaBiotipo && (
+        <Suspense fallback={null}>
+          <IaBiotipoModal
+            onFechar={() => setMostrarIaBiotipo(false)}
+            clientId={clienteId || undefined}
+            onSelecionarServico={(svcId) => { setServicoId(svcId); setMostrarIaBiotipo(false) }}
+          />
+        </Suspense>
       )}
 
       {/* Lightbox — foto do serviço */}

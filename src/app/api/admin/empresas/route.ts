@@ -188,6 +188,7 @@ export async function GET() {
 
           isActive: org.isActive,
           isBlocked: org.isBlocked,
+          iaLicensed: org.iaLicensed,
           billingStatus: org.billingStatus,
           createdAt: org.createdAt,
           lastAccessAt: org.lastAccessAt,

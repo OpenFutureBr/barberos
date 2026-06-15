@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, lazy, Suspense } from "react"
 import { useParams } from "next/navigation"
+const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function formatarTelefone(v: string) {
   const n = v.replace(/\D/g, "").slice(0, 11)
@@ -26,6 +27,8 @@ type Estabelecimento = {
   address: string | null
   city: string | null
   state: string | null
+  organizationId: string | null
+  iaLicensed: boolean
   businessHours: any[]
   services: { id: string; name: string; price: number; durationMin: number; photoUrl: string | null; availableHome: boolean }[]
   users: { id: string; name: string; attendsHome: boolean; userServices: { serviceId: string }[] }[]
@@ -60,6 +63,7 @@ export default function AgendarPage() {
   const [salvando, setSalvando] = useState(false)
   const [agendamentoFeito, setAgendamentoFeito] = useState<any>(null)
   const [fotoAberta, setFotoAberta] = useState(false)
+  const [iaBiotipoAberto, setIaBiotipoAberto] = useState(false)
 
   // Carrega estabelecimento
   useEffect(() => {
@@ -284,9 +288,21 @@ export default function AgendarPage() {
         {/* Passo: serviço */}
         {step === "servico" && (
           <div className="space-y-4">
-            <div>
-              <p className="text-zinc-400 text-sm">Olá, <span className="text-white font-medium">{cliente?.name}</span>!</p>
-              <h2 className="text-white font-semibold text-lg mt-0.5">Escolha o serviço</h2>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-zinc-400 text-sm">Olá, <span className="text-white font-medium">{cliente?.name}</span>!</p>
+                <h2 className="text-white font-semibold text-lg mt-0.5">Escolha o serviço</h2>
+              </div>
+              {estab.iaLicensed && (
+                <button type="button" onClick={() => setIaBiotipoAberto(true)}
+                  className="flex items-center gap-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-medium px-3 py-2 rounded-lg border border-purple-500/20 transition-colors">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                  </svg>
+                  IA Biotipo
+                </button>
+              )}
             </div>
 
             {/* Tipo de atendimento */}
@@ -468,6 +484,19 @@ export default function AgendarPage() {
           </div>
         )}
       </div>
+
+      {/* IA Biotipo — somente catálogo no link externo */}
+      {iaBiotipoAberto && estab.iaLicensed && (
+        <Suspense fallback={null}>
+          <IaBiotipoModal
+            onFechar={() => setIaBiotipoAberto(false)}
+            establishmentId={estab.id}
+            clientId={cliente?.id}
+            apenasatalago={true}
+            onSelecionarServico={(svcId) => { setServicoId(svcId); setIaBiotipoAberto(false); setStep("profissional") }}
+          />
+        </Suspense>
+      )}
 
       {/* Lightbox foto do serviço */}
       {fotoAberta && servicoSelecionado?.photoUrl && (
