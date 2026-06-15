@@ -22,7 +22,6 @@ const NOMES: Record<string, string> = {
   "/dashboard/white-label":   "White Label",
   "/dashboard/whatsapp":      "WhatsApp",
   "/dashboard/pix":           "PIX",
-  "/dashboard/media":         "Mídia",
   "/dashboard/precificacao":  "Precificação",
   "/dashboard/fiscal":        "Fiscal",
   "/alterar-senha":           "Alterar Senha",

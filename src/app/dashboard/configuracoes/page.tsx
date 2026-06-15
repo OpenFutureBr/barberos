@@ -337,14 +337,17 @@ export default function ConfiguracoesPage() {
     playlists: { label: string; url: string }[]
     playlistAtivaIdx: number
     slots: { id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]
-  }>({ playlists: [], playlistAtivaIdx: 0, slots: [{ id: "fila", type: "fila", duracao: 30, ativo: true }] })
+  }>({
+    playlists: [],
+    playlistAtivaIdx: 0,
+    slots: [
+      { id: "fila",             type: "fila",             titulo: "Fila de espera",          duracao: 30, ativo: true  },
+      { id: "promocao_propria", type: "promocao_propria", titulo: "Promoção da barbearia",   texto: "", cor: "amber",  duracao: 20, ativo: false },
+      { id: "anuncio_externo",  type: "anuncio_externo",  titulo: "Promoção externa",        texto: "", cor: "purple", duracao: 20, ativo: false },
+    ],
+  })
   const [novaPlaylistLabel, setNovaPlaylistLabel] = useState("")
   const [novaPlaylistUrl, setNovaPlaylistUrl] = useState("")
-  const [novoSlotTipo, setNovoSlotTipo] = useState("promocao")
-  const [novoSlotTitulo, setNovoSlotTitulo] = useState("")
-  const [novoSlotTexto, setNovoSlotTexto] = useState("")
-  const [novoSlotDuracao, setNovoSlotDuracao] = useState("15")
-  const [novoSlotCor, setNovoSlotCor] = useState("amber")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadandoLogo, setUploadandoLogo] = useState(false)
@@ -378,7 +381,17 @@ export default function ConfiguracoesPage() {
         setOrgLogoUrl(d.orgLogoUrl ?? null)
         if (d.businessHours && Array.isArray(d.businessHours)) setBusinessHours(d.businessHours)
         if (d.cashbackConfig && typeof d.cashbackConfig === "object") setCashbackConfig(prev => ({ ...prev, ...d.cashbackConfig }))
-        if (d.painelConfig && typeof d.painelConfig === "object") setPainelConfig(prev => ({ ...prev, ...(d.painelConfig as object) }))
+        if (d.painelConfig && typeof d.painelConfig === "object") {
+          const loaded = d.painelConfig as { playlists?: any[]; playlistAtivaIdx?: number; slots?: any[] }
+          setPainelConfig(prev => ({
+            playlists: loaded.playlists ?? prev.playlists,
+            playlistAtivaIdx: loaded.playlistAtivaIdx ?? prev.playlistAtivaIdx,
+            slots: prev.slots.map(def => {
+              const saved = (loaded.slots ?? []).find((s: any) => s.id === def.id)
+              return saved ? { ...def, ...saved } : def
+            }),
+          }))
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -789,64 +802,66 @@ export default function ConfiguracoesPage() {
             </div>
           </Secao>
 
-          {/* Painel TV — Slots de Conteúdo */}
-          <Secao titulo="Painel TV — Slots de Conteúdo" id="tv-slots" colapsados={colapsados} toggle={toggle}>
-            <p className="text-zinc-600 text-xs pt-3">Configure o que aparece no painel da recepção e por quanto tempo.</p>
-            <div className="space-y-2">
-              {painelConfig.slots.map((s, idx) => (
-                <div key={s.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${s.ativo ? "bg-zinc-800 border-zinc-700" : "bg-zinc-800/40 border-zinc-800 opacity-60"}`}>
-                  <button type="button" onClick={() => setPainelConfig(prev => ({ ...prev, slots: prev.slots.map((sl, i) => i === idx ? { ...sl, ativo: !sl.ativo } : sl) }))}
-                    className={`w-8 h-5 rounded-full flex-shrink-0 relative transition-colors ${s.ativo ? "bg-amber-500" : "bg-zinc-700"}`}>
-                    <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${s.ativo ? "left-4" : "left-0.5"}`} />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white text-xs font-medium">{s.type === "fila" ? "Fila de espera" : s.titulo || "Sem título"}</div>
-                    {s.texto && <div className="text-zinc-500 text-xs truncate">{s.texto}</div>}
+          {/* Painel TV — Painéis de Conteúdo */}
+          <Secao titulo="Painel TV — Painéis de Conteúdo" id="tv-slots" colapsados={colapsados} toggle={toggle}>
+            <p className="text-zinc-600 text-xs pt-3">Gerencie o que aparece no painel inferior da recepção durante a exibição.</p>
+            <div className="space-y-3 pt-1">
+              {[
+                { id: "fila",             icon: "👥", label: "Fila de espera",        desc: "Exibe clientes aguardando em tempo real",     corBorder: "border-green-500/30",  corBg: "bg-green-500/5",  editavel: false },
+                { id: "promocao_propria", icon: "🏷️", label: "Promoção da barbearia", desc: "Cashback, ofertas e promoções próprias",       corBorder: "border-amber-500/30",  corBg: "bg-amber-500/5",  editavel: true, placeholderTexto: "Ex: 10% de cashback em todos os serviços hoje" },
+                { id: "anuncio_externo",  icon: "📢", label: "Promoção externa",       desc: "Anúncio de parceiro ou promoção de terceiros", corBorder: "border-purple-500/30", corBg: "bg-purple-500/5", editavel: true, placeholderTexto: "URL do anúncio ou texto do parceiro" },
+              ].map(meta => {
+                const slot = painelConfig.slots.find(s => s.id === meta.id)
+                if (!slot) return null
+
+                function updateSlot(patch: Partial<typeof slot>) {
+                  const nova = { ...painelConfig, slots: painelConfig.slots.map(s => s.id === meta.id ? { ...s, ...patch } : s) }
+                  setPainelConfig(nova)
+                  return nova
+                }
+
+                return (
+                  <div key={meta.id} className={`rounded-xl border transition-all ${slot.ativo ? `${meta.corBorder} ${meta.corBg}` : "border-zinc-800 bg-zinc-800/20 opacity-60"}`}>
+                    {/* Cabeçalho */}
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <button type="button"
+                        onClick={() => { const nova = updateSlot({ ativo: !slot.ativo }); salvarPainelConfig(nova) }}
+                        className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${slot.ativo ? "bg-amber-500" : "bg-zinc-700"}`}>
+                        <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${slot.ativo ? "left-4" : "left-0.5"}`} />
+                      </button>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-base leading-none">{meta.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-white text-sm font-medium">{meta.label}</div>
+                          <div className="text-zinc-500 text-xs">{meta.desc}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <input type="number" min={5} max={120} value={slot.duracao}
+                          onChange={e => updateSlot({ duracao: parseInt(e.target.value) || 15 })}
+                          onBlur={() => salvarPainelConfig(painelConfig)}
+                          className="w-12 text-center bg-zinc-800 border border-zinc-700 text-white rounded-lg px-1 py-1 text-xs outline-none focus:border-amber-500 transition-colors" />
+                        <span className="text-zinc-600 text-xs">s</span>
+                      </div>
+                    </div>
+
+                    {/* Editor (apenas painéis editáveis e ativos) */}
+                    {meta.editavel && slot.ativo && (
+                      <div className="border-t border-zinc-700/40 px-4 py-3 space-y-2">
+                        <input value={slot.titulo ?? ""} placeholder="Título"
+                          onChange={e => updateSlot({ titulo: e.target.value })}
+                          onBlur={() => salvarPainelConfig(painelConfig)}
+                          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors" />
+                        <textarea value={slot.texto ?? ""} rows={2}
+                          placeholder={meta.placeholderTexto}
+                          onChange={e => updateSlot({ texto: e.target.value })}
+                          onBlur={() => salvarPainelConfig(painelConfig)}
+                          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors resize-none" />
+                      </div>
+                    )}
                   </div>
-                  <div className="text-zinc-600 text-xs flex-shrink-0">{s.duracao}s</div>
-                  {s.type !== "fila" && (
-                    <button type="button" onClick={() => setPainelConfig(prev => ({ ...prev, slots: prev.slots.filter((_, i) => i !== idx) }))}
-                      className="text-zinc-600 hover:text-red-400 text-sm transition-colors flex-shrink-0">✕</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-zinc-800 pt-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <select value={novoSlotTipo} onChange={e => setNovoSlotTipo(e.target.value)} className="bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500">
-                  <option value="promocao">Promoção</option>
-                  <option value="aviso">Aviso / Info</option>
-                  <option value="instagram">Instagram post</option>
-                </select>
-                <div className="flex items-center gap-2">
-                  <input type="number" value={novoSlotDuracao} onChange={e => setNovoSlotDuracao(e.target.value)}
-                    className="w-20 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500" />
-                  <span className="text-zinc-500 text-xs">segundos</span>
-                </div>
-              </div>
-              <input value={novoSlotTitulo} onChange={e => setNovoSlotTitulo(e.target.value)} placeholder="Título do slot"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
-              <textarea value={novoSlotTexto} onChange={e => setNovoSlotTexto(e.target.value)} rows={2} placeholder="Texto ou URL (para Instagram)"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 resize-none" />
-              <div className="flex gap-2">
-                {["amber", "green", "blue", "red", "purple"].map(cor => (
-                  <button key={cor} type="button" onClick={() => setNovoSlotCor(cor)}
-                    className={`w-6 h-6 rounded-full border-2 transition-colors ${novoSlotCor === cor ? "border-white" : "border-transparent"} ${
-                      cor === "amber" ? "bg-amber-500" : cor === "green" ? "bg-green-500" : cor === "blue" ? "bg-blue-500" : cor === "red" ? "bg-red-500" : "bg-purple-500"
-                    }`} />
-                ))}
-                <span className="text-zinc-500 text-xs self-center ml-1">Cor</span>
-              </div>
-              <button type="button"
-                onClick={() => {
-                  if (!novoSlotTitulo.trim()) return
-                  const novo = { id: `${novoSlotTipo}-${Date.now()}`, type: novoSlotTipo, titulo: novoSlotTitulo.trim(), texto: novoSlotTexto.trim(), cor: novoSlotCor, duracao: parseInt(novoSlotDuracao) || 15, ativo: true }
-                  setPainelConfig(prev => ({ ...prev, slots: [...prev.slots, novo] }))
-                  setNovoSlotTitulo(""); setNovoSlotTexto("")
-                }}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2 rounded-lg text-sm border border-zinc-700 transition-colors">
-                + Adicionar slot
-              </button>
+                )
+              })}
             </div>
           </Secao>
 
