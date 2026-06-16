@@ -217,7 +217,7 @@ type ResumoPendencias = {
   totalAVencer: number
 }
 
-type AbaFinanceiro = "dre" | "pendentes" | "repasses" | "evolucao" | "categorias" | "fluxo"
+type AbaFinanceiro = "dre" | "repasses" | "evolucao" | "categorias" | "fluxo"
 
 type FluxoLancamento = { desc: string; valor: number; tipo: string }
 
@@ -588,7 +588,6 @@ export default function FinanceiroPage() {
         {(
           [
             { id: "dre", icon: <IconDRE />, label: "DRE" },
-            { id: "pendentes", icon: <IconPendentes />, label: "Pendentes" },
             { id: "repasses", icon: <IconRepasses />, label: "Repasses" },
             { id: "evolucao", icon: <IconEvolucao />, label: "Evolução" },
             { id: "fluxo", icon: <IconFluxo />, label: "Fluxo" },
@@ -607,11 +606,6 @@ export default function FinanceiroPage() {
             {tab.icon}
             {tab.label}
 
-            {tab.id === "pendentes" && resumoPendencias.quantidade > 0 && (
-              <span className="ml-1 bg-orange-500/20 text-orange-400 border border-orange-500/20 rounded-full px-1.5 py-0.5 text-[10px]">
-                {resumoPendencias.quantidade}
-              </span>
-            )}
           </button>
         ))}
       </div>
@@ -724,8 +718,8 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* Pendentes */}
-      {aba === "pendentes" && (
+      {/* Pendentes — movido para PIX & Cobranças */}
+      {false && aba === ("pendentes" as string) && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
@@ -129,7 +129,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
   )
 }
 
-export default function EstoquePage() {
+function EstoqueInner() {
   const searchParams = useSearchParams()
   const [aba, setAba] = useState<"estoque" | "catalogo" | "pdv" | "movimentos">("estoque")
   const [produtos, setProdutos] = useState<any[]>([])
@@ -272,6 +272,12 @@ export default function EstoquePage() {
   const [loadingVendas, setLoadingVendas] = useState(false)
   const [erroVendas, setErroVendas] = useState("")
   const [filtroDataVendas, setFiltroDataVendas] = useState("")
+
+  // paginação PDV e Movimentos
+  const [perPagePdv, setPerPagePdv] = useState(10)
+  const [pagePdv, setPagePdv] = useState(1)
+  const [perPageMov, setPerPageMov] = useState(10)
+  const [pageMov, setPageMov] = useState(1)
 
   const subgruposDaBase = GRUPOS[grupo] || []
   const todosSubgrupos = [...subgruposDaBase, ...produtos
@@ -646,14 +652,17 @@ export default function EstoquePage() {
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-        {[
-          { id: "estoque", label: "📦 Estoque" },
-          { id: "catalogo", label: "🛍 Catálogo" },
-          { id: "pdv", label: "💳 PDV" },
-          { id: "movimentos", label: "📋 Movimentos" },
-        ].map((tab) => (
+        {([
+          { id: "estoque", label: "Estoque", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
+          { id: "catalogo", label: "Catálogo", icon: "M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9z" },
+          { id: "pdv", label: "PDV", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z" },
+          { id: "movimentos", label: "Movimentos", icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
+        ] as { id: string; label: string; icon: string }[]).map((tab) => (
           <button key={tab.id} onClick={() => setAba(tab.id as any)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${aba === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${aba === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
+            <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+              <path d={tab.icon} />
+            </svg>
             {tab.label}
           </button>
         ))}
@@ -986,60 +995,85 @@ export default function EstoquePage() {
                 Ver todas as vendas →
               </button>
             </div>
-          ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
-                    <th className="text-center px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Qtd</th>
-                    <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Unit.</th>
-                    <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendas.map((v: any, i: number) => {
-                    const cliente = v.reason?.replace(/^Venda — /, "").replace(/^Venda balcão$/, "Balcão") || "Balcão"
-                    const preco = v.unitPrice ?? v.product?.salePrice ?? 0
-                    const totalLinha = preco * v.quantity
-                    const descPct = v.unitPrice && v.product?.salePrice && v.unitPrice < v.product.salePrice
-                      ? ((1 - v.unitPrice / v.product.salePrice) * 100).toFixed(0)
-                      : null
-                    return (
-                      <tr key={v.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === vendas.length - 1 ? "border-0" : ""}`}>
-                        <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
-                          {new Date(v.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                          {vendas.length > 1 && filtroDataVendas === "" && (
-                            <div className="text-zinc-700 text-xs">{new Date(v.createdAt).toLocaleDateString("pt-BR")}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-white text-sm">{v.product?.name || "—"}</td>
-                        <td className="px-4 py-3 text-zinc-400 text-sm">{cliente}</td>
-                        <td className="px-4 py-3 text-center text-zinc-300 text-sm">{v.quantity}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="text-amber-400 text-sm font-mono">R$ {preco.toFixed(2)}</div>
-                          {descPct && <div className="text-orange-400 text-xs">{descPct}% desc</div>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-green-400 font-bold font-mono">
-                          R$ {totalLinha.toFixed(2)}
+          ) : (() => {
+            const totalPagPdv = Math.ceil(vendas.length / perPagePdv)
+            const vendasPag = vendas.slice((pagePdv - 1) * perPagePdv, pagePdv * perPagePdv)
+            return (
+              <>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
+                        <th className="text-center px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Qtd</th>
+                        <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Unit.</th>
+                        <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendasPag.map((v: any, i: number) => {
+                        const cliente = v.reason?.replace(/^Venda — /, "").replace(/^Venda balcão$/, "Balcão") || "Balcão"
+                        const preco = v.unitPrice ?? v.product?.salePrice ?? 0
+                        const totalLinha = preco * v.quantity
+                        const descPct = v.unitPrice && v.product?.salePrice && v.unitPrice < v.product.salePrice
+                          ? ((1 - v.unitPrice / v.product.salePrice) * 100).toFixed(0)
+                          : null
+                        return (
+                          <tr key={v.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === vendasPag.length - 1 ? "border-0" : ""}`}>
+                            <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
+                              {new Date(v.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {vendas.length > 1 && filtroDataVendas === "" && (
+                                <div className="text-zinc-700 text-xs">{new Date(v.createdAt).toLocaleDateString("pt-BR")}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-white text-sm">{v.product?.name || "—"}</td>
+                            <td className="px-4 py-3 text-zinc-400 text-sm">{cliente}</td>
+                            <td className="px-4 py-3 text-center text-zinc-300 text-sm">{v.quantity}</td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="text-amber-400 text-sm font-mono">R$ {preco.toFixed(2)}</div>
+                              {descPct && <div className="text-orange-400 text-xs">{descPct}% desc</div>}
+                            </td>
+                            <td className="px-4 py-3 text-right text-green-400 font-bold font-mono">
+                              R$ {totalLinha.toFixed(2)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot className="border-t border-zinc-700">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2 text-zinc-500 text-xs text-right">Total geral</td>
+                        <td className="px-4 py-2 text-right text-green-400 font-bold font-mono">
+                          R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
                         </td>
                       </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot className="border-t border-zinc-700">
-                  <tr>
-                    <td colSpan={5} className="px-4 py-2 text-zinc-500 text-xs text-right">Total do dia</td>
-                    <td className="px-4 py-2 text-right text-green-400 font-bold font-mono">
-                      R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
+                    </tfoot>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                    {[10, 30, 50].map(n => (
+                      <button key={n} onClick={() => { setPerPagePdv(n); setPagePdv(1) }}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${perPagePdv === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  {totalPagPdv > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setPagePdv(p => Math.max(1, p - 1))} disabled={pagePdv === 1}
+                        className="px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 disabled:opacity-40 hover:text-white transition-colors">‹</button>
+                      <span className="text-zinc-500 text-xs px-2">{pagePdv} / {totalPagPdv}</span>
+                      <button onClick={() => setPagePdv(p => Math.min(totalPagPdv, p + 1))} disabled={pagePdv === totalPagPdv}
+                        className="px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 disabled:opacity-40 hover:text-white transition-colors">›</button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -1053,50 +1087,75 @@ export default function EstoquePage() {
               <div className="text-3xl mb-3">📋</div>
               <div className="text-zinc-500 text-sm">Nenhum movimento registrado ainda</div>
             </div>
-          ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Tipo</th>
-                    <th className="text-center px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Qtd</th>
-                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Motivo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movimentos.map((m, i) => (
-                    <tr key={m.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === movimentos.length - 1 ? "border-0" : ""}`}>
-                      <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
-                        {new Date(m.createdAt).toLocaleDateString("pt-BR")} {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </td>
-                      <td className="px-4 py-3 text-white text-sm">{m.product?.name || "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
-                          {m.type === "ENTRADA" ? "↑ Entrada" : "↓ Saída"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`font-bold font-mono ${m.type === "ENTRADA" ? "text-green-400" : "text-red-400"}`}>
-                          {m.type === "ENTRADA" ? "+" : "-"}{m.quantity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-zinc-500 text-sm">{m.reason || "—"}</div>
-                        {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
-                          <div className="text-orange-400 text-xs mt-0.5">
-                            {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
-                            · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          ) : (() => {
+            const totalPagMov = Math.ceil(movimentos.length / perPageMov)
+            const movPag = movimentos.slice((pageMov - 1) * perPageMov, pageMov * perPageMov)
+            return (
+              <>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Tipo</th>
+                        <th className="text-center px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Qtd</th>
+                        <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movPag.map((m, i) => (
+                        <tr key={m.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === movPag.length - 1 ? "border-0" : ""}`}>
+                          <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
+                            {new Date(m.createdAt).toLocaleDateString("pt-BR")} {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className="px-4 py-3 text-white text-sm">{m.product?.name || "—"}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+                              {m.type === "ENTRADA" ? "↑ Entrada" : "↓ Saída"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-bold font-mono ${m.type === "ENTRADA" ? "text-green-400" : "text-red-400"}`}>
+                              {m.type === "ENTRADA" ? "+" : "-"}{m.quantity}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-zinc-500 text-sm">{m.reason || "—"}</div>
+                            {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
+                              <div className="text-orange-400 text-xs mt-0.5">
+                                {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
+                                · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                    {[10, 30, 50].map(n => (
+                      <button key={n} onClick={() => { setPerPageMov(n); setPageMov(1) }}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${perPageMov === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  {totalPagMov > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setPageMov(p => Math.max(1, p - 1))} disabled={pageMov === 1}
+                        className="px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 disabled:opacity-40 hover:text-white transition-colors">‹</button>
+                      <span className="text-zinc-500 text-xs px-2">{pageMov} / {totalPagMov}</span>
+                      <button onClick={() => setPageMov(p => Math.min(totalPagMov, p + 1))} disabled={pageMov === totalPagMov}
+                        className="px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 disabled:opacity-40 hover:text-white transition-colors">›</button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -1581,4 +1640,8 @@ export default function EstoquePage() {
 
     </DashboardLayout>
   )
+}
+
+export default function EstoquePage() {
+  return <Suspense fallback={null}><EstoqueInner /></Suspense>
 }

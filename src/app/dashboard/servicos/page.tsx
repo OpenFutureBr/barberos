@@ -35,6 +35,9 @@ export default function ServicosPage() {
   const [fotoFile, setFotoFile] = useState<File | null>(null)
   const [uploadandoFoto, setUploadandoFoto] = useState(false)
 
+  // Lightbox
+  const [fotoExpandida, setFotoExpandida] = useState<string | null>(null)
+
   useEffect(() => { buscarServicos() }, [])
 
   async function buscarServicos() {
@@ -148,7 +151,10 @@ export default function ServicosPage() {
         <div className="absolute top-5 left-1 right-0 bottom-0 flex">
           {/* Photo */}
           <div className="w-[22%] flex-shrink-0 p-1.5">
-            <div className="w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800">
+            <div
+              className={`w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800 ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
+              onClick={servico.photoUrl ? (e) => { e.stopPropagation(); setFotoExpandida(servico.photoUrl) } : undefined}
+            >
               {servico.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={servico.photoUrl} alt={servico.name} className="w-full h-full object-cover" />
@@ -256,13 +262,22 @@ export default function ServicosPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            {filtrar(ativos).map(s => <ServiceCard key={s.id} servico={s} />)}
-          </div>
-          {filtrar(ativos).length === 0 && busca && (
-            <p className="text-zinc-600 text-sm text-center py-4">Nenhum serviço encontrado para "{busca}"</p>
-          )}
+        <div className="space-y-6">
+          {(() => {
+            const ativosFiltrados = filtrar(ativos)
+            if (ativosFiltrados.length === 0 && busca) {
+              return <p className="text-zinc-600 text-sm text-center py-4">Nenhum serviço encontrado para "{busca}"</p>
+            }
+            const cats = [...new Set(ativosFiltrados.map(s => s.category || "Geral"))]
+            return cats.map(cat => (
+              <div key={cat}>
+                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {ativosFiltrados.filter(s => (s.category || "Geral") === cat).map(s => <ServiceCard key={s.id} servico={s} />)}
+                </div>
+              </div>
+            ))
+          })()}
           {inativos.length > 0 && filtrar(inativos).length > 0 && (
             <div>
               <p className="text-zinc-600 text-xs uppercase tracking-wider mb-2">Desabilitados</p>
@@ -388,6 +403,21 @@ export default function ServicosPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {fotoExpandida && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setFotoExpandida(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={fotoExpandida} alt="Foto expandida" className="max-w-full max-h-full rounded-xl object-contain" />
+          <button
+            onClick={() => setFotoExpandida(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none"
+          >✕</button>
         </div>
       )}
     </DashboardLayout>

@@ -99,12 +99,6 @@ export default function FilaPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("abrirModalAgenda"))}
-            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-          >
-            + Agendar
-          </button>
           <a href="/dashboard/painel-tv" target="_blank" rel="noopener noreferrer"
             className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors flex items-center gap-1.5">
             <span className="text-base leading-none">▣</span> Painel TV

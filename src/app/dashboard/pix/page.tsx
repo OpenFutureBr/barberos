@@ -44,6 +44,19 @@ type Cobranca = {
   payment: { id: string; method: string; amount: number } | null
 }
 
+type Pendencia = {
+  id: string
+  appointmentId: string
+  status: "PENDING" | "OVERDUE"
+  amount: number
+  dueDate: string | null
+  createdAt: string
+  scheduledAt: string
+  client: { id: string; name: string; phone: string }
+  service: { name: string; price: number }
+  professional: { name: string }
+}
+
 type Config = { pixKey: string | null; name: string; city: string | null; whatsapp: string | null }
 
 // ── Helpers de status ───────────────────────────────────────────────────────
@@ -85,6 +98,10 @@ export default function PixPage() {
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
   const [copiado, setCopiado] = useState(false)
 
+  // pendências
+  const [pendentes, setPendentes] = useState<Pendencia[]>([])
+  const [pendenciaSelecionada, setPendenciaSelecionada] = useState<Pendencia | null>(null)
+
   // modal gerar pix avulso
   const [modalGerar, setModalGerar] = useState(false)
   const [descGerar, setDescGerar] = useState("")
@@ -96,9 +113,11 @@ export default function PixPage() {
     Promise.all([
       fetch("/api/pix/cobrancas").then(r => r.json()),
       fetch("/api/configuracoes").then(r => r.json()),
-    ]).then(([lista, cfg]) => {
+      fetch("/api/financeiro/pendentes").then(r => r.json()),
+    ]).then(([lista, cfg, pends]) => {
       if (Array.isArray(lista)) setCobrancas(lista)
       if (cfg && !cfg.error) setConfig({ pixKey: cfg.pixKey ?? null, name: cfg.name ?? "", city: cfg.city ?? null, whatsapp: cfg.whatsapp ?? null })
+      if (Array.isArray(pends)) setPendentes(pends)
     }).catch(console.error).finally(() => setLoading(false))
   }, [])
 
@@ -247,6 +266,112 @@ export default function PixPage() {
       <PagamentoModal
         dados={dadosPagamento}
         onFechar={() => setDadosPagamento(null)}
+        onConfirmado={fetchDados}
+      />
+
+      {/* ── Pendências ──────────────────────────────────────────── */}
+      {pendentes.length > 0 && (() => {
+        const vencidos = pendentes.filter(p => p.status === "OVERDUE")
+        const aVencer = pendentes.filter(p => p.status === "PENDING")
+        const totalPend = pendentes.reduce((s, p) => s + p.amount, 0)
+        const totalVenc = vencidos.reduce((s, p) => s + p.amount, 0)
+        const totalAVenc = aVencer.reduce((s, p) => s + p.amount, 0)
+        return (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-white font-semibold text-sm">Pendências de pagamento</h2>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-medium">{pendentes.length}</span>
+            </div>
+
+            {/* KPIs */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                <div className="text-zinc-500 text-xs mb-1">Total pendente</div>
+                <div className="text-amber-400 font-bold text-lg font-mono">{fmtMoeda(totalPend)}</div>
+                <div className="text-zinc-600 text-xs">{pendentes.length} cobrança{pendentes.length !== 1 ? "s" : ""}</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                <div className="text-zinc-500 text-xs mb-1">Vencido</div>
+                <div className="text-red-400 font-bold text-lg font-mono">{fmtMoeda(totalVenc)}</div>
+                <div className="text-zinc-600 text-xs">{vencidos.length} cobrança{vencidos.length !== 1 ? "s" : ""}</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                <div className="text-zinc-500 text-xs mb-1">A vencer</div>
+                <div className="text-green-400 font-bold text-lg font-mono">{fmtMoeda(totalAVenc)}</div>
+                <div className="text-zinc-600 text-xs">{aVencer.length} cobrança{aVencer.length !== 1 ? "s" : ""}</div>
+              </div>
+            </div>
+
+            {/* Lista */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-500 text-xs">
+                    <th className="px-4 py-2.5 text-left font-medium">Cliente</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Serviço</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Profissional</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Agendado</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Vencimento</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Valor</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Status</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {pendentes.map(p => {
+                    const isVenc = p.status === "OVERDUE"
+                    return (
+                      <tr key={p.id} className="hover:bg-zinc-800/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="text-white font-medium">{p.client.name}</div>
+                          <div className="text-zinc-500 text-xs">{p.client.phone}</div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-300">{p.service.name}</td>
+                        <td className="px-4 py-3 text-zinc-400 text-xs">{p.professional.name}</td>
+                        <td className="px-4 py-3 text-zinc-500 text-xs font-mono">
+                          {new Date(p.scheduledAt).toLocaleDateString("pt-BR")}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono">
+                          {p.dueDate
+                            ? <span className={isVenc ? "text-red-400" : "text-zinc-400"}>{new Date(p.dueDate).toLocaleDateString("pt-BR")}</span>
+                            : <span className="text-zinc-600">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">{fmtMoeda(p.amount)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${isVenc ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
+                            {isVenc ? "Vencido" : "Pendente"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => setPendenciaSelecionada(p)}
+                            className="text-xs bg-amber-500 hover:bg-amber-400 text-black font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            Marcar pago
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
+
+      <PagamentoModal
+        ocultarPayLater
+        dados={pendenciaSelecionada ? {
+          appointmentId: pendenciaSelecionada.id,
+          clientName: pendenciaSelecionada.client.name,
+          serviceName: pendenciaSelecionada.service.name,
+          professionalName: pendenciaSelecionada.professional.name,
+          amount: pendenciaSelecionada.amount,
+        } : null}
+        endpointOverride="/api/financeiro"
+        bodyExtra={{ action: "marcar-pago", paymentId: pendenciaSelecionada?.id }}
+        onFechar={() => setPendenciaSelecionada(null)}
         onConfirmado={fetchDados}
       />
 
