@@ -12,6 +12,7 @@ const statusLabel: Record<string, string> = {
   DONE: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Não compareceu",
+  WITHDRAWN: "Desistência",
 }
 
 const statusCor: Record<string, string> = {
@@ -22,6 +23,7 @@ const statusCor: Record<string, string> = {
   DONE: "text-zinc-400",
   CANCELLED: "text-red-400",
   NO_SHOW: "text-zinc-500",
+  WITHDRAWN: "text-orange-400",
 }
 
 const corAppt: Record<string, string> = {
@@ -75,6 +77,14 @@ export default function AgendaPage() {
 
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
+
+  // Remarcar modal
+  const [modalRemarcar, setModalRemarcar] = useState(false)
+  const [remarcarData, setRemarcarData] = useState(hojeISO)
+  const [remarcarHora, setRemarcarHora] = useState("09:00")
+  const [remarcarProfId, setRemarcarProfId] = useState("")
+  const [remarcarTipo, setRemarcarTipo] = useState("presencial")
+  const [salvandoRemarcar, setSalvandoRemarcar] = useState(false)
 
   // Comanda do agendamento — persiste em sessionStorage
   const [produtosEstoque, setProdutosEstoque] = useState<any[]>([])
@@ -265,7 +275,45 @@ export default function AgendaPage() {
   }
 
   function isCancelado(a: any) {
-    return a.status === "CANCELLED" || a.status === "NO_SHOW"
+    const s = statusOverride[a.id] ?? a.status
+    return s === "CANCELLED" || s === "NO_SHOW" || s === "WITHDRAWN"
+  }
+
+  function abrirRemarcar(appt: any) {
+    const d = new Date(appt.scheduledAt)
+    setRemarcarData(getDataSaoPaulo(d))
+    setRemarcarHora(`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`)
+    setRemarcarProfId(appt.professionalId ?? "")
+    setRemarcarTipo(appt.serviceType === "HOME_VISIT" ? "domicilio" : "presencial")
+    setModalRemarcar(true)
+  }
+
+  async function handleRemarcar() {
+    if (!apptSelecionado || !remarcarData || !remarcarHora) return
+    setSalvandoRemarcar(true)
+    try {
+      const scheduledAt = new Date(`${remarcarData}T${remarcarHora}:00-03:00`)
+      await fetch("/api/agendamentos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: apptSelecionado.id,
+          scheduledAt: scheduledAt.toISOString(),
+          professionalId: remarcarProfId || apptSelecionado.professionalId,
+          serviceType: remarcarTipo === "domicilio" ? "HOME_VISIT" : "PRESENTIAL",
+          status: "SCHEDULED",
+        }),
+      })
+      setStatusOverride(prev => ({ ...prev, [apptSelecionado.id]: "SCHEDULED" }))
+      cacheAppts.current = {}
+      if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
+      else buscarAgendamentos(remarcarData)
+      if (remarcarData !== dataSelecionada) buscarAgendamentos(dataSelecionada)
+      setModalRemarcar(false)
+      setModalDetalhe(false)
+    } finally {
+      setSalvandoRemarcar(false)
+    }
   }
 
   function isPendente(appt: any): boolean {
@@ -817,6 +865,7 @@ export default function AgendaPage() {
                       <option value="DONE" className="bg-zinc-800 text-white">Concluído</option>
                       <option value="CANCELLED" className="bg-zinc-800 text-white">Cancelado</option>
                       <option value="NO_SHOW" className="bg-zinc-800 text-white">Não compareceu</option>
+                      <option value="WITHDRAWN" className="bg-zinc-800 text-orange-300">Desistência</option>
                     </select>
                   </div>
                 </div>
@@ -903,8 +952,16 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
+                {/* Remarcar */}
+                {(cancelado || statusAtual === "WITHDRAWN") && (
+                  <button onClick={() => abrirRemarcar(apptSelecionado)}
+                    className="w-full bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 font-semibold py-2.5 rounded-xl text-sm border border-blue-500/20 transition-colors">
+                    Remarcar agendamento
+                  </button>
+                )}
+
                 {/* Finalizar cobrança — só quando pendente */}
-                {!cancelado && statusAtual !== "DONE" && (
+                {!cancelado && statusAtual !== "DONE" && statusAtual !== "WITHDRAWN" && (
                   <div className="flex gap-2">
                     <button onClick={() => setModalDetalhe(false)}
                       className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold px-5 py-3.5 rounded-xl text-sm border border-zinc-700 transition-colors">
@@ -921,6 +978,73 @@ export default function AgendaPage() {
           </div>
         )
       })()}
+
+      {/* Modal Remarcar */}
+      {modalRemarcar && apptSelecionado && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4"
+          onClick={() => setModalRemarcar(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+              <div>
+                <h2 className="text-white font-bold">Remarcar Agendamento</h2>
+                <p className="text-zinc-500 text-xs mt-0.5">{apptSelecionado.client?.name} · {apptSelecionado.service?.name}</p>
+              </div>
+              <button onClick={() => setModalRemarcar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Tipo */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-2 block">Tipo</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["presencial","Presencial"],["domicilio","Domicílio"]].map(([v,l]) => (
+                    <button key={v} type="button" onClick={() => setRemarcarTipo(v)}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-colors ${remarcarTipo === v ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-zinc-800 border-zinc-700 text-zinc-400"}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Data */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Nova data</label>
+                <input type="date" value={remarcarData} min={hojeISO}
+                  onChange={e => setRemarcarData(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+              </div>
+              {/* Hora */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Novo horário</label>
+                <select value={remarcarHora} onChange={e => setRemarcarHora(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+                  {Array.from({ length: (22 - 8) * 2 + 1 }, (_, i) => {
+                    const totalMin = 8 * 60 + i * 30
+                    return `${String(Math.floor(totalMin / 60)).padStart(2,"0")}:${String(totalMin % 60).padStart(2,"0")}`
+                  }).map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              {/* Barbeiro */}
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Barbeiro</label>
+                <select value={remarcarProfId} onChange={e => setRemarcarProfId(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+                  {profissionais.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setModalRemarcar(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleRemarcar} disabled={salvandoRemarcar}
+                  className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">
+                  {salvandoRemarcar ? "Salvando..." : "Confirmar remarcação"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </DashboardLayout>
   )

@@ -410,6 +410,12 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [agendamentos, setAgendamentos] = useState<any[]>([])
   const [salvando, setSalvando] = useState(false)
   const [carregando, setCarregando] = useState(false)
+
+  // Acompanhante
+  const [temAcompanhante, setTemAcompanhante] = useState(false)
+  const [acompNome, setAcompNome] = useState("")
+  const [acompProfId, setAcompProfId] = useState("")
+  const [acompServicoId, setAcompServicoId] = useState("")
   const [businessHours, setBusinessHours] = useState<any[]>([])
   const [regrasPrecificacao, setRegrasPrecificacao] = useState<any[]>([])
   const [haircuts, setHaircuts] = useState<any[]>([])
@@ -676,7 +682,18 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     setTipoAtendimento("presencial")
     setHaircutId("")
     setHaircuts([])
+    setTemAcompanhante(false)
+    setAcompNome("")
+    setAcompProfId("")
+    setAcompServicoId("")
   }
+
+  const acompProfSelecionado = profissionais.find(p => p.id === acompProfId)
+  const acompServicosDisponiveis = (() => {
+    if (!acompProfId || !acompProfSelecionado) return servicos.filter(s => s.isActive !== false)
+    const ids = acompProfSelecionado.userServices?.map((us: any) => us.serviceId) || []
+    return ids.length > 0 ? servicos.filter(s => ids.includes(s.id) && s.isActive !== false) : servicos.filter(s => s.isActive !== false)
+  })()
 
   const clienteTemEndereco = !clienteObj || !!clienteObj.homeAddress
 
@@ -703,6 +720,34 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
         alert(result.error || "Erro ao criar agendamento")
         return
       }
+
+      // Acompanhante: cria um guest client e um segundo agendamento
+      if (temAcompanhante && acompNome.trim() && acompServicoId && acompProfId) {
+        const guestRes = await fetch("/api/clientes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: acompNome.trim(),
+            phone: `GUEST-${Date.now()}`,
+            isGuest: true,
+          }),
+        })
+        if (guestRes.ok) {
+          const guest = await guestRes.json()
+          await fetch("/api/agendamentos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: guest.id,
+              professionalId: acompProfId,
+              serviceId: acompServicoId,
+              scheduledAt: scheduledAt.toISOString(),
+              serviceType: tipoAtendimento === "domicilio" ? "HOME_VISIT" : "PRESENTIAL",
+            }),
+          })
+        }
+      }
+
       resetar()
       window.dispatchEvent(new CustomEvent("agendamentoSalvo"))
       onFechar()
@@ -856,6 +901,54 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   </div>
                 </div>
               )}
+
+              {/* Acompanhante */}
+              <div>
+                <div
+                  onClick={() => { setTemAcompanhante(p => !p); setAcompNome(""); setAcompProfId(""); setAcompServicoId("") }}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${temAcompanhante ? "bg-blue-500/10 border-blue-500/30" : "bg-zinc-800 border-zinc-700 hover:border-zinc-600"}`}>
+                  <div className={`w-9 h-5 rounded-full flex items-center transition-all px-0.5 flex-shrink-0 ${temAcompanhante ? "bg-blue-500 justify-end" : "bg-zinc-700 justify-start"}`}>
+                    <div className="w-4 h-4 bg-white rounded-full shadow" />
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${temAcompanhante ? "text-blue-400" : "text-zinc-400"}`}>Vem com acompanhante</div>
+                    <div className="text-zinc-600 text-xs">Pai e filho, dupla — mesmo horário</div>
+                  </div>
+                </div>
+
+                {temAcompanhante && (
+                  <div className="mt-2 bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 space-y-2.5">
+                    <p className="text-blue-400 text-xs font-medium">Acompanhante</p>
+                    <div>
+                      <label className="text-zinc-400 text-xs mb-1 block">Nome do acompanhante *</label>
+                      <input value={acompNome} onChange={e => setAcompNome(e.target.value)}
+                        placeholder="Ex: João Filho"
+                        className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-zinc-600" />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 text-xs mb-1 block">Barbeiro do acompanhante *</label>
+                      <select value={acompProfId} onChange={e => { setAcompProfId(e.target.value); setAcompServicoId("") }}
+                        className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors">
+                        <option value="">Selecionar profissional...</option>
+                        {profissionais.filter(p => p.isActive !== false).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 text-xs mb-1 block">Serviço do acompanhante *</label>
+                      <select value={acompServicoId} onChange={e => setAcompServicoId(e.target.value)}
+                        disabled={!acompProfId}
+                        className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors disabled:opacity-50">
+                        <option value="">{acompProfId ? "Selecionar serviço..." : "Selecione o barbeiro primeiro"}</option>
+                        {acompServicosDisponiveis.map(s => (
+                          <option key={s.id} value={s.id}>{s.name} — R$ {Number(s.price).toFixed(2)} · {s.durationMin}min</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Data + Horário lado a lado */}
               <div className="flex gap-3 items-start">

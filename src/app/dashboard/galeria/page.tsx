@@ -39,6 +39,15 @@ const CATEGORIAS = ["Corte", "Barba", "Combo", "Química", "Tratamento", "Premiu
 const DIFICULDADES = ["Iniciante", "Intermediário", "Avançado", "Expert"]
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
+const categoriaGradient: Record<string, string> = {
+  Corte: "from-blue-700 to-blue-950",
+  Combo: "from-amber-600 to-amber-950",
+  Barba: "from-emerald-700 to-emerald-950",
+  Química: "from-purple-700 to-purple-950",
+  Tratamento: "from-teal-700 to-teal-950",
+  Premium: "from-yellow-600 to-amber-950",
+}
+
 // ── Admin view ───────────────────────────────────────────────────────────────
 
 function AdminGaleria() {
@@ -165,32 +174,65 @@ function AdminGaleria() {
           {groups.map(cat => (
             <div key={cat}>
               <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
-              <div className="grid grid-cols-4 gap-3">
-                {ativos.filter(c => (c.category || "Geral") === cat).map(c => (
-                  <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-colors group">
-                    <div className="h-32 bg-zinc-800 relative overflow-hidden cursor-zoom-in"
-                      onClick={() => c.photoUrl && setFotoExpandida(c.photoUrl)}>
-                      {c.photoUrl
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={c.photoUrl} alt={c.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        : <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">Sem foto</div>}
-                      {c.difficulty && <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-black/70 text-zinc-300 rounded">{c.difficulty}</span>}
-                    </div>
-                    <div className="p-2.5">
-                      <div className="text-white text-sm font-medium truncate">{c.name}</div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {c.durationMin && <span className="text-zinc-600 text-xs">{c.durationMin} min</span>}
-                        {c.tags.length > 0 && <span className="text-zinc-700 text-xs">· {c.tags.slice(0, 2).join(", ")}</span>}
+              <div className="grid grid-cols-3 gap-3">
+                {ativos.filter(c => (c.category || "Geral") === cat).map(c => {
+                  const gradient = categoriaGradient[c.category ?? ""] ?? "from-zinc-600 to-zinc-900"
+                  return (
+                    <div key={c.id}
+                      onClick={() => abrirEditar(c)}
+                      className="relative rounded-lg overflow-hidden border border-zinc-700/60 cursor-pointer group transition-all hover:border-zinc-500 hover:shadow-lg hover:shadow-black/40 select-none"
+                      style={{ aspectRatio: "2.8 / 1" }}
+                    >
+                      <div className="absolute inset-0 bg-zinc-900" />
+                      <div className="absolute inset-0 opacity-[0.03]"
+                        style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "6px 6px" }} />
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
+                      <div className={`absolute top-0 left-1 right-0 h-5 bg-gradient-to-r ${gradient} flex items-center px-2 justify-between`}>
+                        <span className="text-white/70 text-[8px] tracking-[0.15em] uppercase font-medium">Barberos</span>
+                        <span className="text-white/50 text-[8px] tracking-wider uppercase">{c.category || "Geral"}</span>
                       </div>
-                      <div className="flex gap-1.5 mt-2">
-                        <button onClick={() => abrirEditar(c)}
-                          className="flex-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-lg transition-colors">Editar</button>
-                        <button onClick={() => handleDesativar(c.id)}
-                          className="text-xs bg-zinc-800 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 px-2 py-1 rounded-lg transition-colors">✕</button>
+                      <div className="absolute top-5 left-1 right-0 bottom-0 flex">
+                        <div className="w-[22%] flex-shrink-0 p-1.5">
+                          <div
+                            className={`w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800 ${c.photoUrl ? "cursor-zoom-in" : ""}`}
+                            onClick={c.photoUrl ? (e) => { e.stopPropagation(); setFotoExpandida(c.photoUrl!) } : undefined}
+                          >
+                            {c.photoUrl
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={c.photoUrl} alt={c.name} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center"><span className="text-lg opacity-20">✂</span></div>}
+                          </div>
+                        </div>
+                        <div className="w-px bg-zinc-800 my-1.5 flex-shrink-0" />
+                        <div className="flex-1 px-2.5 flex items-center gap-3 min-w-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Estilo</div>
+                            <div className="font-bold text-[11px] leading-tight truncate text-white">{c.name}</div>
+                            {c.tags.length > 0 && <span className="text-[7px] text-zinc-600 mt-0.5 block truncate">{c.tags.slice(0, 3).join(" · ")}</span>}
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0 text-center">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Nível</div>
+                            <div className="font-bold text-xs leading-none text-amber-400">{c.difficulty || "—"}</div>
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0 text-center">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Duração</div>
+                            <div className="text-white font-semibold text-xs leading-none">
+                              {c.durationMin ? <>{c.durationMin}<span className="text-zinc-600 text-[10px]"> min</span></> : "—"}
+                            </div>
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => handleDesativar(c.id)}
+                              className="text-zinc-600 hover:text-red-400 text-sm transition-colors px-1.5 py-0.5">✕</button>
+                          </div>
+                        </div>
                       </div>
+                      <div className="absolute bottom-0 left-1 right-0 h-px bg-zinc-800/60" />
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}
@@ -457,46 +499,78 @@ function OrgGaleria() {
           {groups.map(cat => (
             <div key={cat}>
               <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {visíveis.filter(c => (c.category || "Geral") === cat).map(c => {
                   const enabled = c.orgCorte?.isEnabled
                   const foto = c.orgCorte?.customPhotoUrl ?? c.photoUrl
                   const barbCount = c.orgCorte?.barbeiros?.length ?? 0
+                  const gradient = categoriaGradient[c.category ?? ""] ?? "from-zinc-600 to-zinc-900"
                   return (
                     <div key={c.id}
-                      className={`bg-zinc-900 border rounded-xl overflow-hidden transition-colors ${enabled ? "border-amber-500/30" : "border-zinc-800 hover:border-zinc-600"}`}>
-                      <div className="h-32 bg-zinc-800 relative overflow-hidden cursor-zoom-in"
-                        onClick={() => foto && setFotoExpandida(foto)}>
-                        {foto
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={foto} alt={c.name} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">Sem foto</div>}
-                        {enabled && <div className="absolute inset-0 ring-2 ring-amber-500/30 ring-inset" />}
-                        {c.orgCorte?.customPhotoUrl && (
-                          <span className="absolute top-2 left-2 text-[9px] px-1.5 py-0.5 bg-amber-500/80 text-black rounded font-medium">CUSTOM</span>
-                        )}
+                      className={`relative rounded-lg overflow-hidden border cursor-pointer group transition-all select-none hover:shadow-lg hover:shadow-black/40 ${enabled ? "border-amber-500/40 hover:border-amber-500/60" : "border-zinc-700/60 hover:border-zinc-500"}`}
+                      style={{ aspectRatio: "2.8 / 1" }}
+                      onClick={() => enabled ? setDetalhe(c) : undefined}
+                    >
+                      <div className={`absolute inset-0 bg-zinc-900 ${!enabled ? "opacity-60" : ""}`} />
+                      <div className="absolute inset-0 opacity-[0.03]"
+                        style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "6px 6px" }} />
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
+                      <div className={`absolute top-0 left-1 right-0 h-5 bg-gradient-to-r ${gradient} flex items-center px-2 justify-between`}>
+                        <span className="text-white/70 text-[8px] tracking-[0.15em] uppercase font-medium">Barberos</span>
+                        <span className="text-white/50 text-[8px] tracking-wider uppercase">{c.category || "Geral"}</span>
                       </div>
-                      <div className="p-2.5">
-                        <div className="text-white text-sm font-medium truncate">{c.orgCorte?.customName ?? c.name}</div>
-                        <div className="text-zinc-600 text-xs mt-0.5">{c.durationMin ? `${c.durationMin} min` : ""} {c.difficulty ? `· ${c.difficulty}` : ""}</div>
-                        {enabled && barbCount > 0 && (
-                          <div className="text-amber-400/70 text-xs mt-1">{barbCount} barbeiro{barbCount !== 1 ? "s" : ""}</div>
-                        )}
-                        <div className="flex gap-1.5 mt-2">
-                          <button
-                            onClick={() => toggleCorte(c)}
-                            disabled={togglingId === c.id}
-                            className={`flex-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors ${enabled ? "bg-amber-500/20 text-amber-400 hover:bg-red-500/20 hover:text-red-400" : "bg-zinc-800 text-zinc-400 hover:bg-amber-500/20 hover:text-amber-400"}`}>
-                            {togglingId === c.id ? "..." : enabled ? "Ativado ✓" : "Ativar"}
-                          </button>
-                          {enabled && (
-                            <button onClick={() => setDetalhe(c)}
-                              className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-2 py-1 rounded-lg transition-colors">
-                              ✏
+                      <div className="absolute top-5 left-1 right-0 bottom-0 flex">
+                        <div className="w-[22%] flex-shrink-0 p-1.5">
+                          <div
+                            className={`w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800 relative ${foto ? "cursor-zoom-in" : ""}`}
+                            onClick={foto ? (e) => { e.stopPropagation(); setFotoExpandida(foto) } : undefined}
+                          >
+                            {foto
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={foto} alt={c.name} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center"><span className="text-lg opacity-20">✂</span></div>}
+                            {c.orgCorte?.customPhotoUrl && (
+                              <span className="absolute bottom-0 left-0 right-0 text-center text-[7px] bg-amber-500/80 text-black font-medium py-px">CUSTOM</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="w-px bg-zinc-800 my-1.5 flex-shrink-0" />
+                        <div className="flex-1 px-2.5 flex items-center gap-3 min-w-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Estilo</div>
+                            <div className="font-bold text-[11px] leading-tight truncate text-white">{c.orgCorte?.customName ?? c.name}</div>
+                            {enabled && barbCount > 0 && (
+                              <span className="text-[7px] text-amber-400/70 mt-0.5 block">{barbCount} barbeiro{barbCount !== 1 ? "s" : ""}</span>
+                            )}
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0 text-center">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Nível</div>
+                            <div className="font-bold text-xs leading-none text-amber-400">{c.difficulty || "—"}</div>
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0 text-center">
+                            <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Duração</div>
+                            <div className="text-white font-semibold text-xs leading-none">
+                              {c.durationMin ? <>{c.durationMin}<span className="text-zinc-600 text-[10px]"> min</span></> : "—"}
+                            </div>
+                          </div>
+                          <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
+                          <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => toggleCorte(c)}
+                              disabled={togglingId === c.id}
+                              className={`text-[9px] font-medium px-2 py-1 rounded-lg border transition-colors ${
+                                enabled
+                                  ? "bg-amber-500/20 text-amber-400 border-amber-500/20 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/20"
+                                  : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/20"
+                              }`}>
+                              {togglingId === c.id ? "..." : enabled ? "Ativado ✓" : "Ativar"}
                             </button>
-                          )}
+                          </div>
                         </div>
                       </div>
+                      <div className="absolute bottom-0 left-1 right-0 h-px bg-zinc-800/60" />
                     </div>
                   )
                 })}

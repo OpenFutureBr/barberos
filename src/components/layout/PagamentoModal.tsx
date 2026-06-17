@@ -122,6 +122,7 @@ export default function PagamentoModal({
   const [erro, setErro] = useState("")
   const [confirmando, setConfirmando] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [recibo, setRecibo] = useState<{ clientName: string; serviceName: string; professionalName?: string; scheduledAt?: string; amount: number; metodoLabel: string; hora: string } | null>(null)
   const [config, setConfig] = useState<{
     pixKey: string | null
     name: string
@@ -135,6 +136,7 @@ export default function PagamentoModal({
     setDueDate("")
     setErro("")
     setCopiado(false)
+    setRecibo(null)
 
     fetch("/api/configuracoes")
       .then((r) => r.json())
@@ -149,6 +151,71 @@ export default function PagamentoModal({
   }, [dados])
 
   if (!dados) return null
+
+  // Recibo pós-pagamento
+  if (recibo) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
+          <div className="p-6 text-center border-b border-zinc-800">
+            <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-green-400 text-2xl">✓</span>
+            </div>
+            <h2 className="text-white font-bold text-lg">Pagamento confirmado</h2>
+            <p className="text-zinc-500 text-xs mt-1">{recibo.hora}</p>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="bg-zinc-800 rounded-xl p-4 space-y-2.5">
+              <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">Recibo</div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500 text-sm">Cliente</span>
+                <span className="text-white text-sm font-medium">{recibo.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500 text-sm">Serviço</span>
+                <span className="text-white text-sm">{recibo.serviceName}</span>
+              </div>
+              {recibo.professionalName && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 text-sm">Profissional</span>
+                  <span className="text-white text-sm">{recibo.professionalName}</span>
+                </div>
+              )}
+              {recibo.scheduledAt && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 text-sm">Data</span>
+                  <span className="text-white text-sm">
+                    {new Date(recibo.scheduledAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-zinc-500 text-sm">Forma de pagamento</span>
+                <span className="text-white text-sm">{recibo.metodoLabel}</span>
+              </div>
+              <div className="border-t border-zinc-700 pt-2.5 flex justify-between">
+                <span className="text-white font-bold">Total</span>
+                <span className="text-green-400 font-bold text-lg">{fmtMoeda(recibo.amount)}</span>
+              </div>
+            </div>
+            <p className="text-zinc-600 text-xs text-center">Futuramente disponível: emissão de NFS-e</p>
+            <div className="flex gap-2 pt-1">
+              <button type="button"
+                onClick={() => window.print()}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm border border-zinc-700 transition-colors">
+                Imprimir
+              </button>
+              <button type="button"
+                onClick={onFechar}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2.5 rounded-lg text-sm transition-colors">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const d = dados
 
@@ -242,8 +309,22 @@ export default function PagamentoModal({
         new CustomEvent(isPagarDepois ? "pagamentoPendente" : "pagamentoConfirmado"),
       )
 
-      onFechar()
-      onConfirmado?.(d.appointmentId)
+      if (!isPagarDepois) {
+        const metodoLabel = METODOS.find(m => m.key === metodo)?.label ?? metodo
+        setRecibo({
+          clientName: d.clientName,
+          serviceName: d.serviceName,
+          professionalName: d.professionalName,
+          scheduledAt: d.scheduledAt,
+          amount: d.amount,
+          metodoLabel,
+          hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        })
+        onConfirmado?.(d.appointmentId)
+      } else {
+        onFechar()
+        onConfirmado?.(d.appointmentId)
+      }
     } catch (e) {
       console.error(e)
       setErro(e instanceof Error ? e.message : String(e))
