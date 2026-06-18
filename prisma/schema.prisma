@@ -915,6 +915,7 @@ enum AppointmentStatus {
   DONE
   CANCELLED
   NO_SHOW
+  WITHDRAWN
 }
 
 enum ServiceType {
