@@ -784,16 +784,19 @@ export default function AgendaPage() {
         const statusAtual = statusOverride[apptId] ?? apptSelecionado.status
         const cancelado = statusAtual === "CANCELLED" || statusAtual === "NO_SHOW"
 
-        async function mudarStatus(novoStatus: string) {
-          await fetch("/api/agendamentos", {
+        function mudarStatus(novoStatus: string) {
+          // Atualização otimista: UI muda imediatamente
+          setStatusOverride(prev => ({ ...prev, [apptId]: novoStatus }))
+          fetch("/api/agendamentos", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: apptId, status: novoStatus }),
+          }).then(() => {
+            // Recarrega em background para sincronizar (auto-complete de barbeiro, etc)
+            cacheAppts.current = {}
+            if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
+            else buscarAgendamentos(dataSelecionada)
           })
-          setStatusOverride(prev => ({ ...prev, [apptId]: novoStatus }))
-          cacheAppts.current = {}
-          if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
-          else buscarAgendamentos(dataSelecionada)
         }
 
         const produtosFiltrados = produtosEstoque.filter(p =>

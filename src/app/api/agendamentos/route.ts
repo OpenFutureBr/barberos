@@ -185,8 +185,27 @@ export async function PUT(request: Request) {
     if (body.status !== undefined) data.status = body.status
     if (body.status === "IN_QUEUE") data.arrivedAt = new Date()
     if (body.status === "IN_PROGRESS") data.startedAt = new Date()
+    if (body.status === "DONE") data.finishedAt = new Date()
     if (body.professionalId !== undefined) data.professionalId = body.professionalId
     if (body.scheduledAt !== undefined) data.scheduledAt = new Date(body.scheduledAt)
+
+    // Quando entra em andamento, conclui automaticamente o anterior do mesmo barbeiro
+    if (body.status === "IN_PROGRESS") {
+      const current = await prisma.appointment.findUnique({
+        where: { id: body.id },
+        select: { professionalId: true },
+      })
+      if (current) {
+        await prisma.appointment.updateMany({
+          where: {
+            professionalId: current.professionalId,
+            status: AppointmentStatus.IN_PROGRESS,
+            id: { not: body.id },
+          },
+          data: { status: AppointmentStatus.DONE, finishedAt: new Date() },
+        })
+      }
+    }
 
     const agendamento = await prisma.appointment.update({
       where: { id: body.id },
