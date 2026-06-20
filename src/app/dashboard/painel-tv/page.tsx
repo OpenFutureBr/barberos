@@ -2,6 +2,23 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 
+// ── YouTube IFrame API types
+declare global {
+  interface Window {
+    YT: {
+      Player: new (el: string | HTMLElement, opts: YTPlayerOpts) => YTPlayer
+      PlayerState: Record<string, number>
+    }
+    onYouTubeIframeAPIReady?: () => void
+  }
+}
+interface YTPlayer { nextVideo(): void; destroy(): void }
+interface YTPlayerOpts {
+  videoId?: string
+  playerVars?: Record<string, unknown>
+  events?: { onError?: (e: { data: number; target: YTPlayer }) => void }
+}
+
 type BarbeiroAgora = {
   id: string
   name: string
@@ -24,26 +41,31 @@ type FilaItem = {
   professional: { name: string }
 }
 
+type Slot = {
+  id: string
+  type: string
+  titulo?: string
+  texto?: string
+  cor?: string
+  duracao: number
+  ativo: boolean
+}
+
 type Estab = { name: string; logoUrl: string | null; city: string | null; state: string | null }
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
 
-function buildIframeSrc(url: string): string | null {
+function extractYouTubeInfo(url: string): { type: "playlist" | "video"; id: string } | null {
   if (!url) return null
   const s = url.trim()
-  const playlistMatch = s.match(/[?&]list=([a-zA-Z0-9_-]+)/) ?? (s.match(/^(PL[a-zA-Z0-9_-]+)$/) || null)
-  if (playlistMatch) {
-    return `https://www.youtube.com/embed/videoseries?list=${playlistMatch[1]}&autoplay=1&controls=1&rel=1&modestbranding=1&iv_load_policy=3&fs=1`
-  }
-  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) {
-    return `https://www.youtube.com/embed/${s}?autoplay=1&controls=1&rel=1&modestbranding=1&iv_load_policy=3&fs=1`
-  }
-  const videoMatch = s.match(/(?:youtube\.com\/(?:.*[?&]v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  if (videoMatch) {
-    return `https://www.youtube.com/embed/${videoMatch[1]}?autoplay=1&controls=1&rel=1&modestbranding=1&iv_load_policy=3&fs=1`
-  }
+  const listMatch = s.match(/[?&]list=([a-zA-Z0-9_-]+)/)
+  if (listMatch) return { type: "playlist", id: listMatch[1] }
+  if (/^PL[a-zA-Z0-9_-]+/.test(s)) return { type: "playlist", id: s }
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return { type: "video", id: s }
+  const vMatch = s.match(/(?:youtube\.com\/(?:.*[?&]v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (vMatch) return { type: "video", id: vMatch[1] }
   return null
 }
 
@@ -51,9 +73,7 @@ function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: stri
   const [seg, setSeg] = useState(0)
   const base = startedAt ?? scheduledAt
   useEffect(() => {
-    function calc() {
-      setSeg(Math.max(0, Math.round((Date.now() - new Date(base).getTime()) / 1000)))
-    }
+    function calc() { setSeg(Math.max(0, Math.round((Date.now() - new Date(base).getTime()) / 1000))) }
     calc()
     const t = setInterval(calc, 1000)
     return () => clearInterval(t)
@@ -84,35 +104,35 @@ function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: stri
 
 // Marquee vertical suave — itens duplicados para loop seamless
 function FilaMarquee({ items }: { items: FilaItem[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">
+        Nenhum na fila agora
+      </div>
+    )
+  }
   const SECS_PER_ITEM = 4
-  const duration = items.length * SECS_PER_ITEM
-
-  // Duplica para loop contínuo sem salto
+  const duration = Math.max(items.length * SECS_PER_ITEM, 12)
   const doubled = [...items, ...items]
 
   return (
-    <div className="h-full overflow-hidden relative">
+    <div className="overflow-hidden flex-1 relative">
       <style>{`
         @keyframes scrollQueue {
           0%   { transform: translateY(0); }
           100% { transform: translateY(-50%); }
         }
-        .fila-scroll {
-          animation: scrollQueue ${duration}s linear infinite;
-        }
-        .fila-scroll:hover {
-          animation-play-state: paused;
-        }
+        .fila-scroll { animation: scrollQueue ${duration}s linear infinite; }
+        .fila-scroll:hover { animation-play-state: paused; }
       `}</style>
-
       <div className="fila-scroll flex flex-col">
         {doubled.map((item, i) => {
           const pos = (i % items.length) + 1
           const isNaFila = item.status === "IN_QUEUE"
           return (
             <div key={`${item.id}-${i}`}
-              className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50 flex-shrink-0">
-              <span className={`font-mono text-sm w-6 flex-shrink-0 ${isNaFila ? "text-purple-400 font-bold" : "text-zinc-600"}`}>
+              className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/40 flex-shrink-0">
+              <span className={`font-mono text-sm w-5 flex-shrink-0 ${isNaFila ? "text-purple-400 font-bold" : "text-zinc-600"}`}>
                 {pos}°
               </span>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isNaFila ? "bg-purple-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
@@ -126,9 +146,7 @@ function FilaMarquee({ items }: { items: FilaItem[] }) {
                 <div className={`text-sm font-mono font-bold ${isNaFila ? "text-purple-300" : "text-zinc-400"}`}>
                   {fmtHora(item.scheduledAt)}
                 </div>
-                {isNaFila && (
-                  <div className="text-purple-500 text-xs">Na fila</div>
-                )}
+                {isNaFila && <div className="text-purple-500 text-xs">Na fila</div>}
               </div>
             </div>
           )
@@ -138,15 +156,48 @@ function FilaMarquee({ items }: { items: FilaItem[] }) {
   )
 }
 
+const COR_BORDER: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
+const COR_TEXTO: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
+
+function SlotCard({ slot, filaItems }: { slot: Slot; filaItems: FilaItem[] }) {
+  if (slot.type === "fila") {
+    return (
+      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center gap-2 px-4 pt-2.5 pb-1.5 border-b border-zinc-800/60 flex-shrink-0">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+            Próximos na fila
+            {filaItems.length > 0 && <span className="text-zinc-600 ml-1.5">({filaItems.length})</span>}
+          </span>
+        </div>
+        <FilaMarquee items={filaItems} />
+      </div>
+    )
+  }
+
+  const cls = COR_BORDER[slot.cor ?? "amber"] ?? COR_BORDER.amber
+  const txt = COR_TEXTO[slot.cor ?? "amber"] ?? COR_TEXTO.amber
+
+  return (
+    <div className={`flex-1 border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-4 gap-1.5`}>
+      {slot.titulo && <div className={`text-lg font-bold ${txt}`}>{slot.titulo}</div>}
+      {slot.texto && <div className="text-zinc-300 text-sm leading-relaxed">{slot.texto}</div>}
+    </div>
+  )
+}
+
 export default function PainelTVPage() {
   const [horaStr, setHoraStr] = useState("")
   const [dataStr, setDataStr] = useState("")
   const [estab, setEstab] = useState<Estab | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState("")
-  const [slots, setSlots] = useState<{ id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]>([])
-  const [slotAtivo, setSlotAtivo] = useState(0)
+  const [slots, setSlots] = useState<Slot[]>([])
   const [barbeiros, setBarbeiros] = useState<BarbeiroAgora[]>([])
   const [filaEspera, setFilaEspera] = useState<FilaItem[]>([])
+
+  // YouTube IFrame API
+  const ytContainerRef = useRef<HTMLDivElement>(null)
+  const ytPlayerRef = useRef<YTPlayer | null>(null)
 
   // Relógio
   useEffect(() => {
@@ -157,6 +208,64 @@ export default function PainelTVPage() {
     }, 1000)
     return () => clearInterval(t)
   }, [])
+
+  // Inicializa YouTube IFrame API com auto-skip em vídeos bloqueados
+  useEffect(() => {
+    const info = extractYouTubeInfo(youtubeUrl)
+    if (!info) return
+
+    function initPlayer() {
+      if (!window.YT?.Player || !ytContainerRef.current || !info) return
+      ytPlayerRef.current?.destroy()
+      ytPlayerRef.current = null
+
+      // Cria div filho limpo para o player
+      ytContainerRef.current.innerHTML = '<div id="yt-player-inner" style="width:100%;height:100%"></div>'
+
+      const config: YTPlayerOpts = {
+        playerVars: {
+          autoplay: 1,
+          controls: 1,
+          rel: 0,
+          modestbranding: 1,
+          iv_load_policy: 3,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
+        },
+        events: {
+          onError: (e) => {
+            // 100/101/150 = vídeo indisponível ou bloqueado por direitos autorais
+            if ([100, 101, 150].includes(e.data)) {
+              setTimeout(() => { e.target.nextVideo?.() }, 1500)
+            }
+          },
+        },
+      }
+
+      if (info.type === "playlist") {
+        config.playerVars!.listType = "playlist"
+        config.playerVars!.list = info.id
+      } else {
+        config.videoId = info.id
+      }
+
+      ytPlayerRef.current = new window.YT.Player("yt-player-inner", config)
+    }
+
+    if (window.YT?.Player) {
+      initPlayer()
+    } else {
+      const prev = window.onYouTubeIframeAPIReady
+      window.onYouTubeIframeAPIReady = () => { prev?.(); initPlayer() }
+      if (!document.getElementById("yt-iframe-api")) {
+        const tag = document.createElement("script")
+        tag.id = "yt-iframe-api"
+        tag.src = "https://www.youtube.com/iframe_api"
+        document.head.appendChild(tag)
+      }
+    }
+
+    return () => { ytPlayerRef.current?.destroy(); ytPlayerRef.current = null }
+  }, [youtubeUrl])
 
   // Config
   const fetchConfig = useCallback(() => {
@@ -170,7 +279,7 @@ export default function PainelTVPage() {
         setYoutubeUrl("")
       }
       if (pc?.slots?.length) {
-        setSlots(pc.slots.filter((s: any) => s.ativo))
+        setSlots(pc.slots.filter((s: Slot) => s.ativo))
       }
     }).catch(() => {})
   }, [])
@@ -192,15 +301,7 @@ export default function PainelTVPage() {
     }
   }, [fetchConfig])
 
-  // Slots rotação
-  useEffect(() => {
-    if (slots.length <= 1) return
-    const duracao = (slots[slotAtivo]?.duracao ?? 15) * 1000
-    const t = setTimeout(() => setSlotAtivo(i => (i + 1) % slots.length), duracao)
-    return () => clearTimeout(t)
-  }, [slotAtivo, slots])
-
-  // Barbeiros agora + fila de espera
+  // Barbeiros + fila
   const fetchAgora = useCallback(() => {
     fetch("/api/painel-tv/agora")
       .then(r => r.json())
@@ -211,7 +312,7 @@ export default function PainelTVPage() {
   const fetchFila = useCallback(() => {
     fetch("/api/pix/cobrancas")
       .then(r => r.json())
-      .then((d: any[]) => {
+      .then((d: FilaItem[]) => {
         if (!Array.isArray(d)) return
         const espera = d
           .filter(a => ["SCHEDULED", "CONFIRMED", "IN_QUEUE"].includes(a.status))
@@ -229,7 +330,7 @@ export default function PainelTVPage() {
     return () => { clearInterval(t1); clearInterval(t2) }
   }, [fetchAgora, fetchFila])
 
-  const embedUrl = buildIframeSrc(youtubeUrl)
+  const ytInfo = extractYouTubeInfo(youtubeUrl)
 
   return (
     <div className="bg-zinc-950 text-white overflow-hidden" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -238,18 +339,14 @@ export default function PainelTVPage() {
       <header className="flex items-center justify-between px-8 border-b border-zinc-800/60 flex-shrink-0" style={{ height: "8vh" }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden bg-amber-500 flex items-center justify-center flex-shrink-0">
-            {estab?.logoUrl ? (
+            {estab?.logoUrl
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={estab.logoUrl} alt="Logo" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-black font-bold text-lg">{estab?.name?.charAt(0) ?? "B"}</span>
-            )}
+              ? <img src={estab.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              : <span className="text-black font-bold text-lg">{estab?.name?.charAt(0) ?? "B"}</span>}
           </div>
           <div>
             <div className="text-white font-bold text-lg leading-tight">{estab?.name ?? "BarberOS"}</div>
-            {estab?.city && (
-              <div className="text-zinc-500 text-xs">{estab.city}{estab.state ? ` · ${estab.state}` : ""}</div>
-            )}
+            {estab?.city && <div className="text-zinc-500 text-xs">{estab.city}{estab.state ? ` · ${estab.state}` : ""}</div>}
           </div>
         </div>
 
@@ -264,20 +361,13 @@ export default function PainelTVPage() {
         </div>
       </header>
 
-      {/* ── CONTEÚDO PRINCIPAL (72vh) ── */}
-      <main className="flex gap-5 px-6 py-4 flex-shrink-0" style={{ height: "72vh" }}>
+      {/* ── CONTEÚDO PRINCIPAL (69vh) ── */}
+      <main className="flex gap-5 px-6 py-4 flex-shrink-0" style={{ height: "69vh" }}>
 
-        {/* YouTube — lado esquerdo */}
+        {/* YouTube IFrame API */}
         <div className="flex-1 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
-          {embedUrl ? (
-            <iframe
-              src={embedUrl}
-              className="w-full h-full"
-              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-              allowFullScreen
-              frameBorder="0"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
-            />
+          {ytInfo ? (
+            <div ref={ytContainerRef} className="w-full h-full" />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-4">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-700">
@@ -290,12 +380,11 @@ export default function PainelTVPage() {
           )}
         </div>
 
-        {/* Atendimento agora — lado direito, 2 colunas */}
+        {/* Cards de barbeiro — 2 colunas */}
         <div className="flex flex-col gap-2 flex-shrink-0 overflow-hidden" style={{ width: "38%" }}>
           <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest flex-shrink-0 pb-0.5">
             Atendimento agora
           </div>
-
           {barbeiros.length === 0 ? (
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center text-zinc-600 text-sm flex-shrink-0">
               Nenhum atendimento no momento
@@ -306,36 +395,23 @@ export default function PainelTVPage() {
                 const emAndamento = b.appt?.status === "IN_PROGRESS"
                 return (
                   <div key={b.id}
-                    className={`rounded-xl p-3 border flex-shrink-0 ${
-                      emAndamento
-                        ? "bg-amber-500/10 border-amber-500/30"
-                        : "bg-red-500/5 border-red-500/15 opacity-70"
-                    }`}>
-                    {/* Barbeiro */}
+                    className={`rounded-xl p-3 border flex-shrink-0 ${emAndamento ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/5 border-red-500/15 opacity-70"}`}>
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                        emAndamento ? "bg-amber-500 text-black" : "bg-red-900/60 text-red-300"
-                      }`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${emAndamento ? "bg-amber-500 text-black" : "bg-red-900/60 text-red-300"}`}>
                         {b.name.charAt(0)}
                       </div>
-                      <span className={`text-xs font-semibold uppercase tracking-wide truncate ${
-                        emAndamento ? "text-amber-400" : "text-red-400/70"
-                      }`}>{b.name.split(" ")[0]}</span>
-                      {emAndamento && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-                      )}
-                      {!emAndamento && b.appt && (
-                        <span className="ml-auto text-xs text-red-400/50 font-mono flex-shrink-0">{fmtHora(b.appt.scheduledAt)}</span>
-                      )}
+                      <span className={`text-xs font-semibold uppercase tracking-wide truncate ${emAndamento ? "text-amber-400" : "text-red-400/70"}`}>
+                        {b.name.split(" ")[0]}
+                      </span>
+                      {emAndamento
+                        ? <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                        : b.appt && <span className="ml-auto text-xs text-red-400/50 font-mono flex-shrink-0">{fmtHora(b.appt.scheduledAt)}</span>}
                     </div>
-
-                    {/* Cliente */}
                     {b.appt && (
                       <>
-                        <div className={`font-bold text-sm leading-tight truncate ${
-                          emAndamento ? "text-white" : "text-red-200/50"
-                        }`}>{b.appt.client.name}</div>
-
+                        <div className={`font-bold text-sm leading-tight truncate ${emAndamento ? "text-white" : "text-red-200/50"}`}>
+                          {b.appt.client.name}
+                        </div>
                         {emAndamento && (
                           <ElapsedTimer
                             startedAt={b.appt.startedAt}
@@ -353,65 +429,25 @@ export default function PainelTVPage() {
         </div>
       </main>
 
-      {/* ── BOTTOM (20vh) — fila rotativa ou slot de conteúdo ── */}
-      <div className="flex-shrink-0 px-6 pb-4 flex gap-5" style={{ height: "20vh" }}>
-
-        {/* Fila de espera (abaixo do YouTube) */}
-        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
-          <div className="flex items-center gap-2 px-4 pt-2.5 pb-1.5 border-b border-zinc-800/60 flex-shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-              Próximos na fila
-              {filaEspera.length > 0 && <span className="text-zinc-600 ml-2">({filaEspera.length})</span>}
-            </span>
+      {/* ── SLOTS (todos ativos, lado a lado, igual largura) ── */}
+      <div className="flex-shrink-0 px-6 pb-1 flex gap-3" style={{ height: "20vh" }}>
+        {slots.length > 0 ? (
+          slots.map(slot => <SlotCard key={slot.id} slot={slot} filaItems={filaEspera} />)
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-2 opacity-20">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
+            </div>
           </div>
-          {filaEspera.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">
-              Nenhum na fila agora
-            </div>
-          ) : (
-            <FilaMarquee items={filaEspera} />
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* Slot de conteúdo (abaixo dos cards de barbeiro) */}
-        <div className="flex-shrink-0 flex flex-col" style={{ width: "38%" }}>
-          {slots.length > 0 && slots[slotAtivo] ? (() => {
-            const s = slots[slotAtivo]
-            const corMap: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
-            const textoMap: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
-            const cls = corMap[s.cor ?? "amber"] ?? corMap.amber
-            const txt = textoMap[s.cor ?? "amber"] ?? textoMap.amber
-            if (s.type === "fila") return (
-              <div className="h-full flex items-center justify-center">
-                <div className="flex items-center gap-2 opacity-30">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
-                </div>
-              </div>
-            )
-            return (
-              <div className={`h-full border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-4 gap-1.5`}>
-                {s.titulo && <div className={`text-lg font-bold ${txt}`}>{s.titulo}</div>}
-                {s.texto && <div className="text-zinc-300 text-sm leading-relaxed">{s.texto}</div>}
-                {slots.length > 1 && (
-                  <div className="flex gap-1 mt-1">
-                    {slots.map((_, i) => (
-                      <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === slotAtivo ? "bg-white" : "bg-zinc-600"}`} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })() : (
-            <div className="h-full flex items-center justify-center">
-              <div className="flex items-center gap-2 opacity-30">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* ── RODAPÉ (3vh) ── */}
+      <div className="flex-shrink-0 flex items-center justify-center pb-2" style={{ height: "3vh" }}>
+        <p className="text-zinc-800 text-xs">
+          Desenvolvido por <span className="text-zinc-700">OpenFuture</span> ®
+        </p>
       </div>
 
     </div>

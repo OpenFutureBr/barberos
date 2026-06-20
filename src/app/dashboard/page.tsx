@@ -4,6 +4,17 @@ import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import Link from "next/link"
 
+// Cache de módulo — persiste entre navegações na mesma sessão do browser
+const _cache: {
+  dashData: DashData | null
+  appts: Appt[]
+  caixaData: CaixaData | null
+  evolucao: { mes: number; label: string; valor: number }[]
+  periodKey: string
+  ts: number
+} = { dashData: null, appts: [], caixaData: null, evolucao: [], periodKey: "", ts: 0 }
+const CACHE_TTL = 3 * 60 * 1000 // 3 minutos
+
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
@@ -108,41 +119,56 @@ export default function DashboardPage() {
 
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
 
-  const fetchDados = useCallback(async () => {
+  const fetchDados = useCallback(async (forceRefresh = false) => {
     const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
+    const key = `${from}|${to}`
+
+    // Usa cache se ainda válido e não forçando recarga
+    if (!forceRefresh && _cache.periodKey === key && Date.now() - _cache.ts < CACHE_TTL) {
+      setDados(_cache.dashData)
+      setAppts(_cache.appts)
+      setCaixa(_cache.caixaData)
+      setEvolucao(_cache.evolucao)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     try {
-      // /api/dashboard já inclui agendamentosHoje — elimina chamada duplicada a /api/agendamentos
-      // /api/caixa?resumo=true retorna só status+saldo, sem todas as transações
-      const [dashRes, caixaRes] = await Promise.all([
+      const [dashRes, caixaRes, evoRes] = await Promise.all([
         fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()).catch(() => ({})),
         fetch("/api/caixa?resumo=true").then(r => r.json()).catch(() => ({})),
+        fetch(`/api/financeiro/evolucao?ano=${new Date().getFullYear()}`).then(r => r.json()).catch(() => []),
       ])
-      if (dashRes && !dashRes.error) {
-        setDados(dashRes)
-        if (Array.isArray(dashRes.agendamentosHoje)) setAppts(dashRes.agendamentosHoje)
-      }
-      if (caixaRes && !caixaRes.error) setCaixa(caixaRes)
 
-      // Evolução — não bloqueia os KPIs se falhar
-      fetch(`/api/financeiro/evolucao?ano=${new Date().getFullYear()}`)
-        .then((r) => r.json())
-        .then((d) => { if (Array.isArray(d)) setEvolucao(d) })
-        .catch(() => {})
+      const apptsList = Array.isArray(dashRes?.agendamentosHoje) ? dashRes.agendamentosHoje : []
+      const evo = Array.isArray(evoRes) ? evoRes : []
+
+      if (dashRes && !dashRes.error) { setDados(dashRes); setAppts(apptsList) }
+      if (caixaRes && !caixaRes.error) setCaixa(caixaRes)
+      if (evo.length) setEvolucao(evo)
+
+      // Atualiza cache
+      _cache.dashData = dashRes && !dashRes.error ? dashRes : _cache.dashData
+      _cache.appts = apptsList
+      _cache.caixaData = caixaRes && !caixaRes.error ? caixaRes : _cache.caixaData
+      _cache.evolucao = evo.length ? evo : _cache.evolucao
+      _cache.periodKey = key
+      _cache.ts = Date.now()
     } catch (e) { console.error("[dashboard]", e) }
     finally { setLoading(false) }
   }, [periodo, customFrom, customTo])
 
   useEffect(() => { fetchDados() }, [fetchDados])
   useEffect(() => {
-  window.addEventListener("pagamentoConfirmado", fetchDados)
-  window.addEventListener("pagamentoPendente", fetchDados)
-
-  return () => {
-    window.removeEventListener("pagamentoConfirmado", fetchDados)
-    window.removeEventListener("pagamentoPendente", fetchDados)
-  }
-}, [fetchDados])
+    function onPay() { _cache.ts = 0; fetchDados(true) }
+    window.addEventListener("pagamentoConfirmado", onPay)
+    window.addEventListener("pagamentoPendente", onPay)
+    return () => {
+      window.removeEventListener("pagamentoConfirmado", onPay)
+      window.removeEventListener("pagamentoPendente", onPay)
+    }
+  }, [fetchDados])
 
   const agora = new Date()
   const apptsDone = appts.filter(a => a.status === "DONE" || a.status === "IN_PROGRESS")
@@ -206,7 +232,7 @@ export default function DashboardPage() {
 
           {/* A receber */}
       <Link
-        href="/dashboard/financeiro"
+        href="/dashboard/pix"
         className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden hover:border-orange-500/30 transition-colors block"
       >
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
@@ -226,7 +252,7 @@ export default function DashboardPage() {
         <div className="text-zinc-600 text-xs mt-1">
           {(dados?.pagamentosPendentes ?? 0)} pagamento
           {(dados?.pagamentosPendentes ?? 0) !== 1 ? "s" : ""} pendente
-          {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver financeiro" : ""}
+          {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver cobranças" : ""}
         </div>
       </Link>
       
