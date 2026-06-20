@@ -220,13 +220,16 @@ type ResumoPendencias = {
 type AbaFinanceiro = "dre" | "repasses" | "evolucao" | "categorias" | "fluxo"
 
 type FluxoLancamento = { desc: string; valor: number; tipo: string }
+type FluxoPrevista = { desc: string; valor: number; clienteId: string }
 
 type FluxoDia = {
   data: string
   entradas: FluxoLancamento[]
   saidas: FluxoLancamento[]
+  previstas: FluxoPrevista[]
   totalEntradas: number
   totalSaidas: number
+  totalPrevistas: number
   saldo: number
 }
 
@@ -234,6 +237,7 @@ type FluxoCaixa = {
   days: FluxoDia[]
   totalEntradas: number
   totalSaidas: number
+  totalPrevistas: number
   saldoFinal: number
 }
 
@@ -525,7 +529,7 @@ export default function FinanceiroPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-5 gap-3 mb-4">
         <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
           <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
             Receita total
@@ -581,6 +585,22 @@ export default function FinanceiroPage() {
             </div>
           )}
         </div>
+
+        <button onClick={() => setAba("fluxo")}
+          className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 text-left hover:bg-purple-500/10 transition-colors">
+          <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">
+            Previsto no mês
+          </div>
+
+          {loading ? (
+            <div className="h-8 bg-purple-500/10 rounded animate-pulse" />
+          ) : (
+            <div className="text-purple-400 text-2xl font-bold">
+              {fmtMoeda(fluxo?.totalPrevistas ?? 0)}
+            </div>
+          )}
+          <div className="text-purple-600 text-xs mt-1">assinaturas a vencer</div>
+        </button>
       </div>
 
       {/* Abas */}
@@ -1066,7 +1086,7 @@ export default function FinanceiroPage() {
       {aba === "fluxo" && (
         <div className="space-y-3">
           {/* Resumo do período */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
               <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">Entradas</div>
               {loading ? (
@@ -1093,6 +1113,15 @@ export default function FinanceiroPage() {
                 </div>
               )}
             </div>
+            <div className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4">
+              <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Previsto</div>
+              {loading ? (
+                <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
+              ) : (
+                <div className="text-purple-400 text-xl font-bold">{fmtMoeda(fluxo?.totalPrevistas ?? 0)}</div>
+              )}
+              <div className="text-purple-600/60 text-xs mt-1">assinaturas no mês</div>
+            </div>
           </div>
 
           {/* Timeline diária */}
@@ -1118,6 +1147,7 @@ export default function FinanceiroPage() {
                   const [, mm, dd] = dia.data.split("-")
                   const dataFmt = `${dd}/${mm}`
                   const temSaidas = dia.saidas.length > 0
+                  const temPrevistas = (dia.previstas?.length ?? 0) > 0
                   return (
                     <div key={dia.data} className="p-4 hover:bg-zinc-800/20 transition-colors">
                       {/* Cabeçalho do dia */}
@@ -1166,10 +1196,23 @@ export default function FinanceiroPage() {
                             </span>
                           </div>
                         ))}
+                        {temPrevistas && dia.previstas.map((p, i) => (
+                          <div key={`p-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg border border-dashed border-purple-500/30 bg-purple-500/5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-purple-400/70 text-xs flex-shrink-0">◌</span>
+                              <span className="text-zinc-500 text-xs truncate">{p.desc}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 leading-none flex-shrink-0">previsto</span>
+                            </div>
+                            <span className="text-purple-400/70 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                              +{fmtMoeda(p.valor)}
+                            </span>
+                          </div>
+                        ))}
                         {/* Mini resumo do dia */}
                         <div className="flex justify-end gap-3 pt-1 pr-1">
                           <span className="text-green-500/70 text-xs font-mono">+{fmtMoeda(dia.totalEntradas)}</span>
                           {temSaidas && <span className="text-red-500/70 text-xs font-mono">-{fmtMoeda(dia.totalSaidas)}</span>}
+                          {temPrevistas && <span className="text-purple-400/60 text-xs font-mono">◌{fmtMoeda(dia.totalPrevistas ?? 0)}</span>}
                           <span className={`text-xs font-mono font-bold ${(dia.totalEntradas - dia.totalSaidas) >= 0 ? "text-zinc-300" : "text-red-400"}`}>
                             = {fmtMoeda(dia.totalEntradas - dia.totalSaidas)}
                           </span>
@@ -1184,6 +1227,9 @@ export default function FinanceiroPage() {
                   <div className="flex items-center gap-4">
                     <span className="text-green-400 text-sm font-mono">↑ {fmtMoeda(fluxo.totalEntradas)}</span>
                     <span className="text-red-400 text-sm font-mono">↓ {fmtMoeda(fluxo.totalSaidas)}</span>
+                    {(fluxo.totalPrevistas ?? 0) > 0 && (
+                      <span className="text-purple-400/70 text-sm font-mono">◌ {fmtMoeda(fluxo.totalPrevistas)} previsto</span>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="text-zinc-500 text-xs mb-0.5">Saldo final do período</div>

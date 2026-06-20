@@ -11,6 +11,7 @@ function chaveData(d: Date) {
 }
 
 type Lancamento = { desc: string; valor: number; tipo: string }
+type LancamentoPrevisto = { desc: string; valor: number; clienteId: string }
 
 export async function GET(request: Request) {
   try {
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     const inicio = new Date(ano, mes - 1, 1)
     const fim = new Date(ano, mes, 0, 23, 59, 59)
 
-    const [pagamentos, transacoes] = await Promise.all([
+    const [pagamentos, transacoes, assinaturas] = await Promise.all([
       prisma.payment.findMany({
         where: {
           status: "PAID",
@@ -63,12 +64,29 @@ export async function GET(request: Request) {
         },
         orderBy: { createdAt: "asc" },
       }),
+
+      // Assinaturas ativas cujo próximo vencimento cai no mês
+      prisma.subscription.findMany({
+        where: {
+          status: "ACTIVE",
+          nextBillingAt: { gte: inicio, lte: fim },
+          client: { establishmentId: ESTAB_ID },
+        },
+        select: {
+          id: true,
+          price: true,
+          nextBillingAt: true,
+          clientId: true,
+          client: { select: { name: true } },
+          plan: { select: { name: true } },
+        },
+      }),
     ])
 
-    const dayMap = new Map<string, { entradas: Lancamento[]; saidas: Lancamento[] }>()
+    const dayMap = new Map<string, { entradas: Lancamento[]; saidas: Lancamento[]; previstas: LancamentoPrevisto[] }>()
 
     const getOrCreate = (key: string) => {
-      if (!dayMap.has(key)) dayMap.set(key, { entradas: [], saidas: [] })
+      if (!dayMap.has(key)) dayMap.set(key, { entradas: [], saidas: [], previstas: [] })
       return dayMap.get(key)!
     }
 
@@ -97,12 +115,23 @@ export async function GET(request: Request) {
       else d.saidas.push(item)
     }
 
+    for (const a of assinaturas) {
+      const key = chaveData(new Date(a.nextBillingAt))
+      const d = getOrCreate(key)
+      d.previstas.push({
+        desc: `${a.plan.name} — ${a.client.name}`,
+        valor: arredondar(a.price),
+        clienteId: a.clientId,
+      })
+    }
+
     const days = Array.from(dayMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([data, { entradas, saidas }]) => {
+      .map(([data, { entradas, saidas, previstas }]) => {
         const totalEntradas = arredondar(entradas.reduce((s, e) => s + e.valor, 0))
         const totalSaidas = arredondar(saidas.reduce((s, e) => s + e.valor, 0))
-        return { data, entradas, saidas, totalEntradas, totalSaidas }
+        const totalPrevistas = arredondar(previstas.reduce((s, e) => s + e.valor, 0))
+        return { data, entradas, saidas, previstas, totalEntradas, totalSaidas, totalPrevistas }
       })
 
     let saldoAcumulado = 0
@@ -113,11 +142,13 @@ export async function GET(request: Request) {
 
     const totalEntradas = arredondar(days.reduce((s, d) => s + d.totalEntradas, 0))
     const totalSaidas = arredondar(days.reduce((s, d) => s + d.totalSaidas, 0))
+    const totalPrevistas = arredondar(assinaturas.reduce((s, a) => s + a.price, 0))
 
     return NextResponse.json({
       days: daysComSaldo,
       totalEntradas,
       totalSaidas,
+      totalPrevistas,
       saldoFinal: arredondar(totalEntradas - totalSaidas),
     })
   } catch (e) {
