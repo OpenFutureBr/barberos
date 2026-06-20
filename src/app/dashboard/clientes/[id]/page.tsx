@@ -169,7 +169,30 @@ export default function ClientePerfilPage() {
 
   if (loading) return (
     <DashboardLayout>
-      <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+      <div className="animate-pulse space-y-4">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-zinc-800 flex-shrink-0" />
+          <div className="space-y-2 flex-1">
+            <div className="h-5 bg-zinc-800 rounded-lg w-48" />
+            <div className="h-3 bg-zinc-800 rounded w-32" />
+            <div className="h-3 bg-zinc-800 rounded w-24" />
+          </div>
+          <div className="h-8 w-24 bg-zinc-800 rounded-xl" />
+        </div>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          {[80, 72, 88].map((w, i) => <div key={i} className="h-8 bg-zinc-800 rounded-xl" style={{ width: w }} />)}
+        </div>
+        {/* Cards */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {[1,2,3].map(i => <div key={i} className="h-20 bg-zinc-900 border border-zinc-800 rounded-2xl" />)}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-40 bg-zinc-900 border border-zinc-800 rounded-2xl" />
+          <div className="h-40 bg-zinc-900 border border-zinc-800 rounded-2xl" />
+        </div>
+      </div>
     </DashboardLayout>
   )
 

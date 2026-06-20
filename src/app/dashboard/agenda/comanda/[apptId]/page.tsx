@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import PageSkeleton from "@/components/PageSkeleton"
 
 const metodos = [
   { id: "PIX", label: "PIX", icon: "📱" },
@@ -144,13 +145,7 @@ export default function ComandaPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
-      </DashboardLayout>
-    )
-  }
+  if (loading) return <DashboardLayout><PageSkeleton rows={5} cards={3} /></DashboardLayout>
 
   if (!appt) {
     return (

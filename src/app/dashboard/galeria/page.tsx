@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import PageSkeleton from "@/components/PageSkeleton"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -703,9 +704,7 @@ export default function GaleriaPage() {
   const { data: session, status } = useSession()
   const isAdmin = session?.user?.role === "ADMIN"
 
-  if (status === "loading") {
-    return <DashboardLayout><div className="text-center py-16 text-zinc-600">Carregando...</div></DashboardLayout>
-  }
+  if (status === "loading") return <DashboardLayout><PageSkeleton rows={4} /></DashboardLayout>
 
   return (
     <DashboardLayout>

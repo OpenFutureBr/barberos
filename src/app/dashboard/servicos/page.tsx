@@ -174,7 +174,7 @@ export default function ServicosPage() {
             {/* Nome */}
             <div className="flex-1 min-w-0">
               <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Serviço</div>
-              <div className={`font-bold text-[11px] leading-tight truncate ${dim ? "text-zinc-400" : "text-white"}`}>
+              <div className={`font-bold text-[11px] leading-tight break-words line-clamp-2 ${dim ? "text-zinc-400" : "text-white"}`}>
                 {servico.name}
               </div>
               {servico.availableHome && (

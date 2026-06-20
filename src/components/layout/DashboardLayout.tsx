@@ -9,6 +9,7 @@ import VendaModal, { type CartItem } from "./VendaModal"
 import PagamentoModal, { type DadosPagamento } from "./PagamentoModal"
 import GlobalFAB from "./GlobalFAB"
 import MobileNav from "./MobileNav"
+import NavigationProgress from "@/components/NavigationProgress"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
@@ -72,6 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-zinc-950">
+      <NavigationProgress />
       <Sidebar />
       <Topbar
         onAbrirModal={() => setModalAgendaAberto(true)}

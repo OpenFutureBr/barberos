@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import PageSkeleton from "@/components/PageSkeleton"
 import { clearPwaCache } from "@/lib/clearPwaCache"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
@@ -470,11 +471,7 @@ export default function ConfiguracoesPage() {
 
   const logoSrc = logoPreview || logoUrl
 
-  if (loading) return (
-    <DashboardLayout>
-      <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
-    </DashboardLayout>
-  )
+  if (loading) return <DashboardLayout><PageSkeleton rows={4} /></DashboardLayout>
 
   return (
     <DashboardLayout>
