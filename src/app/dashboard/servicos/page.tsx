@@ -260,7 +260,6 @@ export default function ServicosPage() {
           </button>
         </div>
       </div>
-      </div>
 
       {loading ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 text-sm">Carregando...</div>
