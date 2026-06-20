@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     for (const t of transacoes) {
       const key = chaveData(new Date(t.createdAt))
       const d = getOrCreate(key)
-      const isEntrada = t.type === "RECEITA" || t.type === "ENTRADA" || t.amount > 0
+      const isEntrada = t.type === "RECEITA" || t.type === "ENTRADA"
       const item = {
         desc: t.description ?? t.type,
         valor: arredondar(Math.abs(t.amount)),

@@ -161,7 +161,9 @@ export default function PixPage() {
   })
 
   const totalPago = cobrancas.filter(c => c.payment).reduce((s, c) => s + (c.payment?.amount ?? c.service.price), 0)
-  const totalACobrar = cobrancas.filter(c => !c.payment && c.status === "DONE").reduce((s, c) => s + c.service.price, 0)
+  const totalHojeACobrar = cobrancas.filter(c => !c.payment && c.status === "DONE").reduce((s, c) => s + c.service.price, 0)
+  const totalPendentes = pendentes.reduce((s, p) => s + p.amount, 0)
+  const totalACobrar = totalHojeACobrar + totalPendentes
 
   return (
     <DashboardLayout>
@@ -188,10 +190,14 @@ export default function PixPage() {
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Recebido hoje</div>
           <div className="text-green-400 text-xl font-bold">{fmtMoeda(totalPago)}</div>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500">
+        <button onClick={() => setFiltro("A_COBRAR")}
+          className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 text-left hover:bg-zinc-800/60 transition-colors">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">A cobrar</div>
           <div className="text-amber-400 text-xl font-bold">{fmtMoeda(totalACobrar)}</div>
-        </div>
+          {pendentes.length > 0 && (
+            <div className="text-zinc-600 text-xs mt-0.5">{pendentes.length} pendência{pendentes.length !== 1 ? "s" : ""} anterior{pendentes.length !== 1 ? "es" : ""}</div>
+          )}
+        </button>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Atendimentos</div>
           <div className="text-blue-400 text-xl font-bold">{cobrancas.filter(c => !["CANCELLED","NO_SHOW"].includes(c.status)).length}</div>
@@ -269,8 +275,8 @@ export default function PixPage() {
         onConfirmado={fetchDados}
       />
 
-      {/* ── Pendências ──────────────────────────────────────────── */}
-      {pendentes.length > 0 && (() => {
+      {/* ── Pendências — só visível no filtro "A cobrar" ───────── */}
+      {filtro === "A_COBRAR" && pendentes.length > 0 && (() => {
         const vencidos = pendentes.filter(p => p.status === "OVERDUE")
         const aVencer = pendentes.filter(p => p.status === "PENDING")
         const totalPend = pendentes.reduce((s, p) => s + p.amount, 0)
