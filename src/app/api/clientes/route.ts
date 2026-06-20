@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       prisma.client.count({ where }),
       prisma.client.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: { name: "asc" },
         skip: (page - 1) * perPage,
         take: perPage,
       }),

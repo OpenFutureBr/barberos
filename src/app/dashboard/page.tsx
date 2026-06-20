@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import Link from "next/link"
 
@@ -210,97 +210,95 @@ export default function DashboardPage() {
   }
   function isPast(iso: string) { return new Date(iso) < agora }
 
+  // KPI carousel mobile
+  const kpiRef = useRef<HTMLDivElement>(null)
+  const [activeKPI, setActiveKPI] = useState(0)
+  function handleKPIScroll() {
+    const el = kpiRef.current
+    if (!el) return
+    const cardW = el.scrollWidth / 5
+    setActiveKPI(Math.max(0, Math.min(4, Math.round(el.scrollLeft / cardW))))
+  }
+
+  const kpiCards = [
+    // 0 — Faturamento
+    <div key="fat" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
+      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Faturamento</div>
+      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        : <div className="text-amber-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.faturamento ?? 0)}</div>}
+      <div className="text-zinc-600 text-xs mt-1">serviços + produtos</div>
+    </div>,
+    // 1 — A receber
+    <Link key="rec" href="/dashboard/pix"
+      className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden hover:border-orange-500/30 transition-colors block h-full">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
+      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">A receber</div>
+      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        : <div className="text-orange-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.valorPendente ?? 0)}</div>}
+      <div className="text-zinc-600 text-xs mt-1">
+        {(dados?.pagamentosPendentes ?? 0)} pagamento{(dados?.pagamentosPendentes ?? 0) !== 1 ? "s" : ""} pendente
+        {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver cobranças" : ""}
+      </div>
+    </Link>,
+    // 2 — Atendimentos
+    <div key="atd" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-green-500/60 to-transparent" />
+      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Atendimentos</div>
+      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        : <div className="flex items-end gap-2">
+            <div className="text-green-400 text-2xl font-bold tabular-nums">{dados?.atendimentos ?? 0}</div>
+            {(dados?.pendentes ?? 0) > 0 && <div className="text-amber-400 text-sm font-medium mb-0.5">+{dados?.pendentes} fila</div>}
+          </div>}
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-zinc-600 text-xs">concluídos</span>
+        {(dados?.cancelados ?? 0) > 0 && <span className="text-red-400/60 text-xs">{dados?.cancelados} cancelado{dados?.cancelados !== 1 ? "s" : ""}</span>}
+      </div>
+    </div>,
+    // 3 — Ticket médio
+    <div key="tkt" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Ticket médio</div>
+      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        : <div className="text-blue-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.ticketMedio ?? 0)}</div>}
+      <div className="text-zinc-600 text-xs mt-1">por atendimento</div>
+    </div>,
+    // 4 — Saldo caixa
+    <div key="cx" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
+      <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${caixaAberto ? "via-green-500/60" : "via-zinc-600/40"} to-transparent`} />
+      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Saldo no caixa</div>
+      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
+        : <div className={`text-2xl font-bold tabular-nums ${caixaAberto ? "text-white" : "text-zinc-600"}`}>{fmtMoeda(saldoCaixa)}</div>}
+      <div className="text-zinc-600 text-xs mt-1">saldo atual · {lancamentos.length} lançamentos</div>
+    </div>,
+  ]
+
   return (
     <DashboardLayout>
 
       {/* ── STICKY: KPIs + FILTRO + CAIXA ── */}
       <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
 
-      {/* ── KPIs PRINCIPAIS ── */}
-      <div className="grid grid-cols-5 gap-3 mb-3">
-
-        {/* Faturamento */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
-          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Faturamento</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-            : <div className="text-amber-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.faturamento ?? 0)}</div>
-          }
-          <div className="text-zinc-600 text-xs mt-1">serviços + produtos</div>
+      {/* ── KPIs CAROUSEL MOBILE ── */}
+      <div className="md:hidden mb-3">
+        <div ref={kpiRef} onScroll={handleKPIScroll}
+          className="flex overflow-x-auto snap-x snap-mandatory gap-3 -mx-4 px-4 scrollbar-none">
+          {kpiCards.map((card, i) => (
+            <div key={i} className={`flex-shrink-0 snap-center w-[82vw] transition-all duration-200 ${activeKPI === i ? "opacity-100 scale-100" : "opacity-45 scale-95"}`}>
+              {card}
+            </div>
+          ))}
         </div>
-
-          {/* A receber */}
-      <Link
-        href="/dashboard/pix"
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden hover:border-orange-500/30 transition-colors block"
-      >
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
-
-        <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">
-          A receber
+        <div className="flex justify-center gap-1.5 mt-2">
+          {kpiCards.map((_, i) => (
+            <div key={i} className={`rounded-full transition-all duration-200 ${activeKPI === i ? "w-5 h-1.5 bg-amber-500" : "w-1.5 h-1.5 bg-zinc-700"}`} />
+          ))}
         </div>
+      </div>
 
-        {loading ? (
-          <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        ) : (
-          <div className="text-orange-400 text-2xl font-bold tabular-nums">
-            {fmtMoeda(dados?.valorPendente ?? 0)}
-          </div>
-        )}
-
-        <div className="text-zinc-600 text-xs mt-1">
-          {(dados?.pagamentosPendentes ?? 0)} pagamento
-          {(dados?.pagamentosPendentes ?? 0) !== 1 ? "s" : ""} pendente
-          {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver cobranças" : ""}
-        </div>
-      </Link>
-      
-        {/* Atendimentos */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-green-500/60 to-transparent" />
-          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Atendimentos</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-            : (
-              <div className="flex items-end gap-2">
-                <div className="text-green-400 text-2xl font-bold tabular-nums">{dados?.atendimentos ?? 0}</div>
-                {(dados?.pendentes ?? 0) > 0 && (
-                  <div className="text-amber-400 text-sm font-medium mb-0.5">+{dados?.pendentes} fila</div>
-                )}
-              </div>
-            )
-          }
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-zinc-600 text-xs">concluídos</span>
-            {(dados?.cancelados ?? 0) > 0 && (
-              <span className="text-red-400/60 text-xs">{dados?.cancelados} cancelado{dados?.cancelados !== 1 ? "s" : ""}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Ticket médio */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Ticket médio</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-            : <div className="text-blue-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.ticketMedio ?? 0)}</div>
-          }
-          <div className="text-zinc-600 text-xs mt-1">por atendimento</div>
-        </div>
-
-        {/* Caixa — sempre atual */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden">
-          <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${caixaAberto ? "via-green-500/60" : "via-zinc-600/40"} to-transparent`} />
-          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Saldo no caixa</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-            : <div className={`text-2xl font-bold tabular-nums ${caixaAberto ? "text-white" : "text-zinc-600"}`}>{fmtMoeda(saldoCaixa)}</div>
-          }
-          <div className="text-zinc-600 text-xs mt-1">saldo atual · {lancamentos.length} lançamentos</div>
-        </div>
-
+      {/* ── KPIs DESKTOP GRID ── */}
+      <div className="hidden md:grid md:grid-cols-5 gap-3 mb-3">
+        {kpiCards}
       </div>
 
       {/* ── FILTRO + STATUS CAIXA ── */}
@@ -345,30 +343,30 @@ export default function DashboardPage() {
       {!loading && dados?.split && (dados.split.presencial.atendimentos > 0 || dados.split.domicilio.atendimentos > 0) && (
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0 hidden sm:flex">
               <span className="text-amber-400 text-sm">✂</span>
             </div>
             <div className="flex-1">
               <div className="text-zinc-500 text-xs">Presencial</div>
               <div className="text-white text-sm font-bold">{fmtMoeda(dados.split.presencial.receita)}</div>
+              <div className="text-zinc-600 text-xs">{dados.split.presencial.atendimentos} atend.</div>
             </div>
-            <div className="text-zinc-600 text-xs">{dados.split.presencial.atendimentos} atend.</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 items-center justify-center flex-shrink-0 hidden sm:flex">
               <span className="text-teal-400 text-sm">🚗</span>
             </div>
             <div className="flex-1">
               <div className="text-zinc-500 text-xs">Domicílio</div>
               <div className="text-teal-400 text-sm font-bold">{fmtMoeda(dados.split.domicilio.receita)}</div>
+              <div className="text-zinc-600 text-xs">{dados.split.domicilio.atendimentos} atend.</div>
             </div>
-            <div className="text-zinc-600 text-xs">{dados.split.domicilio.atendimentos} atend.</div>
           </div>
         </div>
       )}
 
       {/* ── LINHA CENTRAL ── */}
-      <div className="grid grid-cols-5 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 mb-4 md:grid-cols-5">
 
         {/* Agenda de hoje */}
         <div className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -466,7 +464,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── LINHA INFERIOR ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
         {/* Evolução mensal */}
         <div className="col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -571,7 +569,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── TOP SERVIÇOS E PRODUTOS ── */}
-      <div className="grid grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
 
         {/* Top serviços */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">

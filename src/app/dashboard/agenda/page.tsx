@@ -126,6 +126,7 @@ export default function AgendaPage() {
   const [profFiltro, setProfFiltro] = useState<string>("") // "" = visão geral
   const [iniciJanela, setInicioJanela] = useState(hojeISO)
   const [filtroStatus, setFiltroStatus] = useState<"ativos" | "todos">("ativos")
+  const [mobileView, setMobileView] = useState<"lista" | "grade">("lista")
 
   const isHoje = dataSelecionada === hojeISO
   const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString("pt-BR", {
@@ -565,8 +566,7 @@ export default function AgendaPage() {
 
       {/* Navegação — mobile */}
       <div className="md:hidden mb-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-white text-lg font-bold">Agenda</h1>
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5">
             {(["ativos", "todos"] as const).map((f) => (
               <button key={f} onClick={() => setFiltroStatus(f)}
@@ -574,6 +574,19 @@ export default function AgendaPage() {
                 {f === "ativos" ? "Pendentes" : "Todos"}
               </button>
             ))}
+          </div>
+          {/* Toggle visão lista/grade */}
+          <div className="flex items-center gap-0.5 bg-zinc-800 border border-zinc-700 rounded-lg p-0.5 ml-auto">
+            <button onClick={() => setMobileView("lista")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${mobileView === "lista" ? "bg-zinc-700 text-white" : "text-zinc-500"}`}>
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+              Lista
+            </button>
+            <button onClick={() => setMobileView("grade")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${mobileView === "grade" ? "bg-zinc-700 text-white" : "text-zinc-500"}`}>
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              Grade
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -596,10 +609,16 @@ export default function AgendaPage() {
           <option value="">Todos os profissionais</option>
           {profissionais.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {mobileView === "grade" && (
+          <div className="flex items-center gap-1.5 text-zinc-600 text-xs">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
+            Gire o celular para melhor visualização
+          </div>
+        )}
       </div>
 
       {/* ── VISÃO MOBILE — lista do dia ── */}
-      {!loadingProfs && profissionais.length > 0 && (
+      {!loadingProfs && profissionais.length > 0 && mobileView === "lista" && (
         <div className="md:hidden">
           {loadingAppts ? (
             <div className="space-y-2">
@@ -612,7 +631,7 @@ export default function AgendaPage() {
                 return true
               })
               .filter(a => !profFiltro || a.professionalId === profFiltro)
-              .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+              .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
             if (lista.length === 0) return (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
                 <div className="text-zinc-600 text-sm">Nenhum agendamento {filtroStatus === "ativos" ? "pendente" : ""} para este dia</div>
@@ -621,8 +640,10 @@ export default function AgendaPage() {
             return (
               <div className="space-y-2">
                 {lista.map(a => {
-                  const inicio = new Date(a.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                  const fim = new Date(a.endTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  const inicioDate = new Date(a.scheduledAt)
+                  const fimDate = new Date(inicioDate.getTime() + (a.service?.durationMin ?? 30) * 60000)
+                  const inicio = inicioDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  const fim = fimDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
                   const status = statusOverride[a.id] ?? a.status
                   const cor = status === "DONE" || status === "CANCELLED" || status === "NO_SHOW"
                     ? "border-l-zinc-600 opacity-60"
@@ -659,6 +680,40 @@ export default function AgendaPage() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* ── VISÃO GRADE MOBILE (timeline igual ao desktop) ── */}
+      {!loadingProfs && profissionais.length > 0 && mobileView === "grade" && (
+        <div className="md:hidden bg-zinc-900 border border-zinc-800 rounded-xl overflow-auto" style={{ maxHeight: "calc(100vh - 14rem)" }}>
+          <div className="sticky top-0 z-20 bg-zinc-900 grid border-b border-zinc-800" style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, minmax(80px,1fr))` }}>
+            <div className="p-2 text-zinc-600 text-xs font-mono text-center border-r border-zinc-800">H</div>
+            {profissionaisExibidos.map((prof) => (
+              <div key={prof.id} className="p-2 flex flex-col items-center gap-1 border-r border-zinc-800 last:border-0">
+                <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-white">{prof.name?.charAt(0)}</div>
+                <span className="text-zinc-300 text-[10px] truncate max-w-[60px]">{prof.name?.split(" ")[0]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="relative">
+            {linhaVermelha !== null && (
+              <div className="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style={{ top: linhaVermelha }}>
+                <div className="w-14 flex-shrink-0 flex justify-end pr-1"><div className="w-2 h-2 rounded-full bg-red-500" /></div>
+                <div className="flex-1 h-px bg-red-500 opacity-70" />
+              </div>
+            )}
+            {horas.map((hora) => (
+              <div key={hora} className="grid border-b border-zinc-800 last:border-0"
+                style={{ gridTemplateColumns: `56px repeat(${profissionaisExibidos.length}, minmax(80px,1fr))`, height: SLOT_HEIGHT }}>
+                <div className="p-2 text-xs font-mono border-r border-zinc-800 flex items-start justify-center pt-2 text-zinc-600">{hora}</div>
+                {profissionaisExibidos.map((prof) => (
+                  <div key={prof.id} className="border-r border-zinc-800 last:border-0">
+                    {renderSlots(hora, prof.id, agendamentos)}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

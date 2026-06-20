@@ -222,34 +222,44 @@ export default function ServicosPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Serviços</h1>
-          <p className="text-zinc-500 text-sm">{ativos.length} ativos{inativos.length > 0 ? `, ${inativos.length} desabilitados` : ""}</p>
+      <div className="mb-4">
+        {/* Desktop header */}
+        <div className="hidden md:flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-xl font-bold">Serviços</h1>
+            <p className="text-zinc-500 text-sm">{ativos.length} ativos{inativos.length > 0 ? `, ${inativos.length} desabilitados` : ""}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+              <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
+                placeholder="Buscar serviço..."
+                className="bg-zinc-900 border border-zinc-800 text-white text-sm rounded-lg pl-8 pr-3 py-2 outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600 w-48" />
+              {busca && <button onClick={() => setBusca("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">✕</button>}
+            </div>
+            <button onClick={handleNovo} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+              + Novo serviço
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        {/* Mobile header — busca + botão */}
+        <div className="md:hidden flex gap-2">
+          <div className="relative flex-1">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
-            <input
-              type="text"
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-              placeholder="Buscar serviço..."
-              className="bg-zinc-900 border border-zinc-800 text-white text-sm rounded-lg pl-8 pr-3 py-2 outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600 w-48"
-            />
-            {busca && (
-              <button onClick={() => setBusca("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
-                ✕
-              </button>
-            )}
+            <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar..."
+              className="w-full bg-zinc-900 border border-zinc-800 text-white text-sm rounded-lg pl-8 pr-3 py-2 outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+            {busca && <button onClick={() => setBusca("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">✕</button>}
           </div>
-          <button onClick={handleNovo}
-            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-            + Novo serviço
+          <button onClick={handleNovo} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+            + Novo
           </button>
         </div>
+      </div>
       </div>
 
       {loading ? (
@@ -269,20 +279,39 @@ export default function ServicosPage() {
               return <p className="text-zinc-600 text-sm text-center py-4">Nenhum serviço encontrado para "{busca}"</p>
             }
             const cats = [...new Set(ativosFiltrados.map(s => s.category || "Geral"))]
-            return cats.map(cat => (
-              <div key={cat}>
-                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {ativosFiltrados.filter(s => (s.category || "Geral") === cat).map(s => <ServiceCard key={s.id} servico={s} />)}
+            return cats.map(cat => {
+              const lista = ativosFiltrados.filter(s => (s.category || "Geral") === cat)
+              return (
+                <div key={cat}>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
+                  {/* Desktop: grid 3 colunas */}
+                  <div className="hidden md:grid md:grid-cols-3 gap-3">
+                    {lista.map(s => <ServiceCard key={s.id} servico={s} />)}
+                  </div>
+                  {/* Mobile: carrossel horizontal, 1 linha */}
+                  <div className="md:hidden flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none snap-x snap-mandatory">
+                    {lista.map(s => (
+                      <div key={s.id} className="flex-shrink-0 snap-center w-[80vw]">
+                        <ServiceCard servico={s} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           })()}
           {inativos.length > 0 && filtrar(inativos).length > 0 && (
             <div>
               <p className="text-zinc-600 text-xs uppercase tracking-wider mb-2">Desabilitados</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="hidden md:grid md:grid-cols-3 gap-3">
                 {filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)}
+              </div>
+              <div className="md:hidden flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none snap-x snap-mandatory">
+                {filtrar(inativos).map(s => (
+                  <div key={s.id} className="flex-shrink-0 snap-center w-[80vw]">
+                    <ServiceCard servico={s} dim />
+                  </div>
+                ))}
               </div>
             </div>
           )}

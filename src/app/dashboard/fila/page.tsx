@@ -138,35 +138,35 @@ export default function FilaPage() {
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex items-start justify-between mb-4 gap-2">
+        <div className="min-w-0">
           <h1 className="text-white text-xl font-bold">Fila de Espera</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
             <p className="text-zinc-500 text-sm">
               {loading
                 ? "Carregando..."
                 : [
                     emAtendimento.length > 0 && `${emAtendimento.length} em atendimento`,
                     fila.length > 0 && `${fila.length} aguardando`,
-                    esperaMedia !== null && `espera média ${esperaMedia} min`,
+                    esperaMedia !== null && `espera ${esperaMedia}min`,
                   ].filter(Boolean).join(" · ") + " · ao vivo"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <a href="/dashboard/painel-tv" target="_blank" rel="noopener noreferrer"
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors flex items-center gap-1.5">
-            <span className="text-base leading-none">▣</span> Painel TV
-          </a>
-        </div>
+        <a href="/dashboard/painel-tv" target="_blank" rel="noopener noreferrer"
+          className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs border border-zinc-700 transition-colors flex items-center gap-1.5">
+          <span className="text-sm leading-none">▣</span>
+          <span className="hidden sm:inline">Painel TV</span>
+          <span className="sm:hidden">TV</span>
+        </a>
       </div>
 
       {/* Em atendimento — grid por barbeiro */}
       {emAtendimento.length > 0 ? (
         <div className="mb-5">
           <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2 px-0.5">Em atendimento agora</p>
-          <div className={`grid gap-3 ${emAtendimento.length === 1 ? "grid-cols-1" : emAtendimento.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className={`grid gap-3 grid-cols-1 ${emAtendimento.length === 2 ? "sm:grid-cols-2" : emAtendimento.length >= 3 ? "sm:grid-cols-3" : ""}`}>
             {emAtendimento.map(a => <CountdownCard key={a.id} appt={a} />)}
           </div>
         </div>
@@ -180,7 +180,8 @@ export default function FilaPage() {
       {fila.length > 0 && (
         <>
           <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2 px-0.5">Aguardando</p>
-          <div className="grid grid-cols-5 gap-3 px-3 mb-2 text-xs text-zinc-600 font-mono uppercase tracking-widest">
+          {/* Cabeçalho — só desktop */}
+          <div className="hidden sm:grid sm:grid-cols-5 gap-3 px-3 mb-2 text-xs text-zinc-600 font-mono uppercase tracking-widest">
             <span>Pos.</span>
             <span className="col-span-2">Cliente</span>
             <span>Horário</span>
@@ -193,50 +194,59 @@ export default function FilaPage() {
               const isNaFila = item.status === "IN_QUEUE"
               const esperandoMin = isNaFila ? minutosDesde(item.arrivedAt ?? item.scheduledAt) : null
               const isProximo = idx === 0
+
+              const espera = isNaFila ? (
+                <span className="text-purple-400 text-xs font-semibold">
+                  {esperandoMin! <= 0 ? "Chegou agora" : `${esperandoMin}min esp.`}
+                </span>
+              ) : mins > 5 ? (
+                <span className="text-zinc-500 text-xs font-mono">~{mins}min</span>
+              ) : mins >= 0 ? (
+                <span className="text-green-400 text-xs font-semibold">Em breve</span>
+              ) : (
+                <span className="text-amber-400 text-xs font-semibold">{Math.abs(mins)}min atraso</span>
+              )
+
               return (
                 <div key={item.id}
-                  className={`grid grid-cols-5 gap-3 p-3 rounded-xl border items-center transition-all ${
-                    isNaFila
-                      ? "bg-purple-500/8 border-purple-500/25"
-                      : isProximo
-                        ? "bg-amber-500/5 border-amber-500/25"
-                        : "bg-zinc-900 border-zinc-800"
+                  className={`p-3 rounded-xl border transition-all ${
+                    isNaFila ? "bg-purple-500/8 border-purple-500/25" : isProximo ? "bg-amber-500/5 border-amber-500/25" : "bg-zinc-900 border-zinc-800"
                   }`}>
 
-                  {/* Posição */}
-                  <div className={`font-bold text-lg font-mono ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
-                    {idx + 1}º
-                  </div>
-
-                  {/* Cliente */}
-                  <div className="col-span-2 flex items-center gap-2 min-w-0">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : "bg-zinc-700"}`}>
+                  {/* Mobile layout */}
+                  <div className="sm:hidden flex items-center gap-3">
+                    <div className={`font-bold text-xl font-mono w-8 flex-shrink-0 ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
+                      {idx + 1}º
+                    </div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : "bg-zinc-700"}`}>
                       {item.client.name.charAt(0)}
                     </div>
-                    <div className="min-w-0">
+                    <div className="flex-1 min-w-0">
                       <div className="text-white text-sm font-medium truncate">{item.client.name}</div>
-                      <div className="text-zinc-500 text-xs truncate">
-                        {item.service.name} · {item.professional.name}
-                      </div>
+                      <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name.split(" ")[0]}</div>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-zinc-400 text-sm font-mono">{fmtHora(item.scheduledAt)}</div>
+                      <div>{espera}</div>
                     </div>
                   </div>
 
-                  {/* Horário */}
-                  <div className="text-zinc-400 text-sm font-mono">{fmtHora(item.scheduledAt)}</div>
-
-                  {/* Espera */}
-                  <div>
-                    {isNaFila ? (
-                      <span className="text-purple-400 text-xs font-semibold">
-                        {esperandoMin! <= 0 ? "Chegou agora" : `${esperandoMin} min esperando`}
-                      </span>
-                    ) : mins > 5 ? (
-                      <span className="text-zinc-500 text-xs font-mono">~{mins} min</span>
-                    ) : mins >= 0 ? (
-                      <span className="text-green-400 text-xs font-semibold">Em breve</span>
-                    ) : (
-                      <span className="text-amber-400 text-xs font-semibold">{Math.abs(mins)} min atraso</span>
-                    )}
+                  {/* Desktop layout */}
+                  <div className="hidden sm:grid sm:grid-cols-5 gap-3 items-center">
+                    <div className={`font-bold text-lg font-mono ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
+                      {idx + 1}º
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2 min-w-0">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : "bg-zinc-700"}`}>
+                        {item.client.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-white text-sm font-medium truncate">{item.client.name}</div>
+                        <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name}</div>
+                      </div>
+                    </div>
+                    <div className="text-zinc-400 text-sm font-mono">{fmtHora(item.scheduledAt)}</div>
+                    <div>{espera}</div>
                   </div>
                 </div>
               )

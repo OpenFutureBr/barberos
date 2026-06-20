@@ -76,7 +76,7 @@ export default function Topbar({
       <div className="flex-1 flex items-baseline gap-2 min-w-0">
         <span className="text-white text-sm font-bold truncate">{nome}</span>
         {dataAtual && (
-          <span className="text-zinc-500 text-xs capitalize">{dataAtual}</span>
+          <span className="hidden md:inline text-zinc-500 text-xs capitalize">{dataAtual}</span>
         )}
       </div>
       <div className="flex items-center gap-2">
