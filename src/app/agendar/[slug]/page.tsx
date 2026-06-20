@@ -19,10 +19,15 @@ function getHoje() {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
 }
 
+type Unidade = { id: string; name: string; slug: string; city: string | null; state: string | null }
+
 type Estabelecimento = {
   id: string
   name: string
   logoUrl: string | null
+  orgName: string | null
+  orgLogoUrl: string | null
+  unidades: Unidade[]
   phone: string | null
   address: string | null
   city: string | null
@@ -174,15 +179,31 @@ export default function AgendarPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       {/* Header */}
-      <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-4 flex items-center gap-3">
-        {estab.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={estab.logoUrl} alt={estab.name} className="w-10 h-10 rounded-full object-cover" />
-        )}
-        <div>
-          <h1 className="text-white font-semibold text-base leading-tight">{estab.name}</h1>
-          {estab.city && <p className="text-zinc-400 text-xs">{estab.city}{estab.state ? `, ${estab.state}` : ""}</p>}
+      <div className="bg-zinc-900 border-b border-zinc-800">
+        <div className="px-4 py-4 flex items-center gap-3">
+          {estab.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={estab.logoUrl} alt={estab.name} className="w-10 h-10 rounded-full object-cover" />
+          )}
+          <div className="flex-1 min-w-0">
+            {estab.orgName && estab.orgName !== estab.name && (
+              <div className="text-zinc-500 text-xs mb-0.5">{estab.orgName}</div>
+            )}
+            <h1 className="text-white font-semibold text-base leading-tight">{estab.name}</h1>
+            {estab.city && <p className="text-zinc-400 text-xs">{estab.city}{estab.state ? `, ${estab.state}` : ""}</p>}
+          </div>
         </div>
+        {estab.unidades.length > 0 && (
+          <div className="px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-none">
+            <span className="text-zinc-600 text-xs flex-shrink-0 self-center">Outras unidades:</span>
+            {estab.unidades.map(u => (
+              <a key={u.id} href={`/agendar/${u.slug}`}
+                className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-amber-500/40 hover:text-amber-400 transition-colors whitespace-nowrap">
+                {u.name}{u.city ? ` · ${u.city}` : ""}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">

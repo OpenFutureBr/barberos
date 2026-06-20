@@ -62,13 +62,31 @@ export default function PrecificacaoPage() {
   const [salvando, setSalvando] = useState(false)
   const [erroMsg, setErroMsg] = useState("")
 
+  const [iaSugestoes, setIaSugestoes] = useState<string>("")
+  const [iaLoading, setIaLoading] = useState(false)
+  const [iaErro, setIaErro] = useState("")
+
+  async function consultarIA() {
+    setIaLoading(true)
+    setIaSugestoes("")
+    setIaErro("")
+    try {
+      const res = await fetch("/api/ia/precificacao", { method: "POST" })
+      const d = await res.json()
+      if (d.error) setIaErro(d.error)
+      else setIaSugestoes(d.sugestoes ?? "")
+    } finally {
+      setIaLoading(false)
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       fetch("/api/precificacao").then(r => r.json()),
       fetch("/api/servicos").then(r => r.json()),
     ]).then(([r, s]) => {
       if (Array.isArray(r)) setRegras(r)
-      if (Array.isArray(s)) setServicos(s.filter((sv: Servico) => sv.isActive))
+      if (Array.isArray(s)) setServicos(s.filter((sv: Servico) => sv.isActive !== false))
     }).catch(console.error)
     .finally(() => setLoading(false))
   }, [])
@@ -200,10 +218,21 @@ export default function PrecificacaoPage() {
                   </div>
                 </div>
               ))}
-              <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl px-4 py-3 mt-3">
-                <div className="text-zinc-600 text-xs text-center">
-                  Integração com IA para sugestão de preços — em breve
+              <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-purple-400 text-xs font-mono uppercase tracking-widest">⬡ Sugestão IA</span>
+                  <button onClick={consultarIA} disabled={iaLoading}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50 text-purple-300 text-xs px-3 py-1.5 rounded-lg border border-purple-500/20 transition-colors">
+                    {iaLoading ? "Analisando..." : "Analisar preços"}
+                  </button>
                 </div>
+                {iaErro && <div className="text-red-400 text-xs">{iaErro}</div>}
+                {iaLoading && <div className="text-zinc-500 text-xs animate-pulse">IA analisando movimentos dos últimos 90 dias...</div>}
+                {iaSugestoes ? (
+                  <div className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{iaSugestoes}</div>
+                ) : !iaLoading && !iaErro ? (
+                  <div className="text-zinc-600 text-xs">Clique em "Analisar preços" para obter sugestões baseadas nos seus atendimentos reais.</div>
+                ) : null}
               </div>
             </div>
           )}

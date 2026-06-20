@@ -442,6 +442,30 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [mostrarCadastro, setMostrarCadastro] = useState(false)
   const [mostrarCadastroEndereco, setMostrarCadastroEndereco] = useState(false)
 
+  // IA consulta no agendamento
+  const [iaAgendLoading, setIaAgendLoading] = useState(false)
+  const [iaAgendTexto, setIaAgendTexto] = useState("")
+  const [iaAgendErro, setIaAgendErro] = useState("")
+
+  async function consultarIaAgendamento() {
+    if (!clienteId || !servicoId) return
+    setIaAgendLoading(true)
+    setIaAgendTexto("")
+    setIaAgendErro("")
+    try {
+      const res = await fetch("/api/ia/agendamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clienteId, servicoId }),
+      })
+      const d = await res.json()
+      if (d.error) setIaAgendErro(d.error)
+      else setIaAgendTexto(d.insight ?? "")
+    } finally {
+      setIaAgendLoading(false)
+    }
+  }
+
   // Profissional selecionado completo (com schedules e userServices)
   const profSelecionado = profissionais.find(p => p.id === profId)
   const descansoMin = profSelecionado?.breakBetweenAppts ?? 10
@@ -899,6 +923,25 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Consulta IA — aparece quando cliente + serviço selecionados */}
+              {iaLicensed && clienteId && servicoId && (
+                <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-purple-400 text-xs font-mono tracking-wider">⬡ Consulta IA</span>
+                    <button type="button" onClick={consultarIaAgendamento} disabled={iaAgendLoading}
+                      className="text-xs px-2.5 py-1 rounded-md bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/20 disabled:opacity-50 transition-colors">
+                      {iaAgendLoading ? "Analisando..." : "Ver insight"}
+                    </button>
+                  </div>
+                  {iaAgendErro && <p className="text-red-400 text-xs">{iaAgendErro}</p>}
+                  {iaAgendTexto ? (
+                    <p className="text-zinc-300 text-xs leading-relaxed">{iaAgendTexto}</p>
+                  ) : !iaAgendLoading && !iaAgendErro ? (
+                    <p className="text-zinc-600 text-xs">Histórico e preferências do cliente para este serviço.</p>
+                  ) : null}
                 </div>
               )}
 

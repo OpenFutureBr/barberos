@@ -49,9 +49,14 @@ type HistoricoItem = {
   valor: number; descricao: string; createdAt: string
 }
 
+const LIMITES = [10, 30, 50] as const
+type Limite = typeof LIMITES[number]
+
 export default function CashbackPage() {
   const [aba, setAba] = useState<"ranking" | "historico">("ranking")
   const [loading, setLoading] = useState(true)
+  const [loadingHist, setLoadingHist] = useState(false)
+  const [limite, setLimite] = useState<Limite>(30)
 
   const [saldoAtivo, setSaldoAtivo] = useState(0)
   const [totalEarned, setTotalEarned] = useState(0)
@@ -60,7 +65,7 @@ export default function CashbackPage() {
   const [historico, setHistorico] = useState<HistoricoItem[]>([])
 
   useEffect(() => {
-    fetch("/api/cashback")
+    fetch("/api/cashback?limit=30")
       .then(r => r.json())
       .then(d => {
         if (d.error) return
@@ -73,6 +78,20 @@ export default function CashbackPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  function fetchHistorico(lim: Limite) {
+    setLoadingHist(true)
+    fetch(`/api/cashback?limit=${lim}`)
+      .then(r => r.json())
+      .then(d => { if (!d.error) setHistorico(Array.isArray(d.historico) ? d.historico : []) })
+      .catch(console.error)
+      .finally(() => setLoadingHist(false))
+  }
+
+  function mudarLimite(lim: Limite) {
+    setLimite(lim)
+    fetchHistorico(lim)
+  }
 
   return (
     <DashboardLayout>
@@ -169,8 +188,18 @@ export default function CashbackPage() {
 
       {/* Histórico */}
       {aba === "historico" && (
+        <div>
+          <div className="flex items-center justify-end gap-1 mb-2">
+            <span className="text-zinc-600 text-xs mr-1">Exibir:</span>
+            {LIMITES.map(l => (
+              <button key={l} onClick={() => mudarLimite(l)}
+                className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${limite === l ? "bg-amber-500/15 text-amber-400 border-amber-500/25" : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-          {loading ? (
+          {loading || loadingHist ? (
             <div className="p-8 text-center text-zinc-600 text-sm">Carregando...</div>
           ) : historico.length === 0 ? (
             <div className="p-8 text-center text-zinc-600 text-sm">Nenhuma transação registrada</div>
@@ -200,6 +229,7 @@ export default function CashbackPage() {
               </tbody>
             </table>
           )}
+        </div>
         </div>
       )}
 

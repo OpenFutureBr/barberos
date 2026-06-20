@@ -38,6 +38,8 @@ export default function ClientesIAPage() {
   const [mensagemIA, setMensagemIA] = useState<{ clienteId: string; texto: string } | null>(null)
   const [gerandoMsg, setGerandoMsg] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
 
   useEffect(() => {
     fetch("/api/ia/clientes")
@@ -73,6 +75,31 @@ export default function ClientesIAPage() {
       setCopiado(true)
       setTimeout(() => setCopiado(false), 2500)
     })
+  }
+
+  async function enviarViaApi(cliente: ClienteIA, texto: string) {
+    setEnviando(true)
+    try {
+      const res = await fetch("/api/whatsapp/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telefone: cliente.telefone,
+          mensagem: texto,
+          clientId: cliente.id,
+          clientName: cliente.nome,
+        }),
+      })
+      const d = await res.json()
+      if (d.ok) {
+        setEnviado(true)
+        setTimeout(() => setEnviado(false), 3000)
+      } else {
+        alert(d.error || "Erro ao enviar mensagem")
+      }
+    } finally {
+      setEnviando(false)
+    }
   }
 
   const filtrados = clientes
@@ -255,11 +282,12 @@ export default function ClientesIAPage() {
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${copiado ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"}`}>
                       {copiado ? "✓ Copiado!" : "Copiar"}
                     </button>
-                    <a href={`https://wa.me/55${clienteRecuperando.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(mensagemIA.texto)}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center bg-green-500/15 hover:bg-green-500/25 text-green-400 font-medium py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                      WhatsApp →
-                    </a>
+                    <button
+                      onClick={() => enviarViaApi(clienteRecuperando, mensagemIA.texto)}
+                      disabled={enviando || enviado}
+                      className={`flex-1 flex items-center justify-center font-medium py-2.5 rounded-lg text-sm border transition-colors disabled:opacity-60 ${enviado ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-green-500/15 hover:bg-green-500/25 text-green-400 border-green-500/20"}`}>
+                      {enviado ? "✓ Enviado!" : enviando ? "Enviando..." : "Enviar →"}
+                    </button>
                   </div>
                   <button onClick={() => gerarMensagem(clienteRecuperando)}
                     className="w-full text-zinc-600 hover:text-zinc-400 text-xs py-1.5 transition-colors">

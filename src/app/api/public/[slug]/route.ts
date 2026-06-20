@@ -20,7 +20,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       state: true,
       businessHours: true,
       organizationId: true,
-      organization: { select: { logoUrl: true, iaLicensed: true } },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          iaLicensed: true,
+          establishments: {
+            where: { isActive: true },
+            select: { id: true, name: true, slug: true, city: true, state: true },
+            orderBy: { name: "asc" },
+          },
+        },
+      },
       services: {
         where: { isActive: true },
         select: {
@@ -54,8 +66,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     return NextResponse.json({ error: "Estabelecimento não encontrado" }, { status: 404 })
   }
 
-  // Resolve logo: unit-specific > org-level
   const logoUrl = estab.logoUrl ?? estab.organization?.logoUrl ?? null
   const iaLicensed = estab.organization?.iaLicensed ?? false
-  return NextResponse.json({ ...estab, logoUrl, iaLicensed })
+
+  // Unidades irmãs (mesma org, excluindo a atual)
+  const unidades = (estab.organization?.establishments ?? []).filter(u => u.id !== estab.id)
+
+  return NextResponse.json({
+    ...estab,
+    logoUrl,
+    iaLicensed,
+    orgName: estab.organization?.name ?? null,
+    orgLogoUrl: estab.organization?.logoUrl ?? null,
+    unidades,
+  })
 }
