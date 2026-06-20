@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 
 type BarbeiroAgora = {
   id: string
@@ -13,6 +13,15 @@ type BarbeiroAgora = {
     client: { name: string }
     service: { durationMin: number | null }
   } | null
+}
+
+type FilaItem = {
+  id: string
+  status: string
+  scheduledAt: string
+  client: { name: string }
+  service: { name: string }
+  professional: { name: string }
 }
 
 type Estab = { name: string; logoUrl: string | null; city: string | null; state: string | null }
@@ -40,12 +49,10 @@ function buildIframeSrc(url: string): string | null {
 
 function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: string | null; scheduledAt: string; durationMin: number | null }) {
   const [seg, setSeg] = useState(0)
-  // Usa startedAt se disponível (momento exato que foi marcado Em andamento), senão scheduledAt
   const base = startedAt ?? scheduledAt
   useEffect(() => {
     function calc() {
-      const elapsed = Math.max(0, Math.round((Date.now() - new Date(base).getTime()) / 1000))
-      setSeg(elapsed)
+      setSeg(Math.max(0, Math.round((Date.now() - new Date(base).getTime()) / 1000)))
     }
     calc()
     const t = setInterval(calc, 1000)
@@ -57,15 +64,75 @@ function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: stri
   const rm = Math.floor(restante / 60)
   const rs = restante % 60
   const progresso = Math.min(100, (seg / dur) * 100)
+  const atrasado = restante === 0
 
   return (
-    <div className="mt-2">
+    <div className="mt-1.5">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-zinc-500 text-xs">Restante</span>
-        <span className="text-amber-400 font-bold text-sm font-mono">{String(rm).padStart(2, "0")}:{String(rs).padStart(2, "0")}</span>
+        <span className="text-zinc-600 text-xs">Restante</span>
+        <span className={`font-bold text-xs font-mono ${atrasado ? "text-red-400" : "text-amber-400"}`}>
+          {String(rm).padStart(2, "0")}:{String(rs).padStart(2, "0")}
+        </span>
       </div>
       <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-        <div className="h-full bg-amber-500 rounded-full transition-all duration-1000" style={{ width: `${progresso}%` }} />
+        <div className={`h-full rounded-full transition-all duration-1000 ${atrasado ? "bg-red-500" : "bg-amber-500"}`}
+          style={{ width: `${progresso}%` }} />
+      </div>
+    </div>
+  )
+}
+
+// Marquee vertical suave — itens duplicados para loop seamless
+function FilaMarquee({ items }: { items: FilaItem[] }) {
+  const SECS_PER_ITEM = 4
+  const duration = items.length * SECS_PER_ITEM
+
+  // Duplica para loop contínuo sem salto
+  const doubled = [...items, ...items]
+
+  return (
+    <div className="h-full overflow-hidden relative">
+      <style>{`
+        @keyframes scrollQueue {
+          0%   { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+        .fila-scroll {
+          animation: scrollQueue ${duration}s linear infinite;
+        }
+        .fila-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
+      <div className="fila-scroll flex flex-col">
+        {doubled.map((item, i) => {
+          const pos = (i % items.length) + 1
+          const isNaFila = item.status === "IN_QUEUE"
+          return (
+            <div key={`${item.id}-${i}`}
+              className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50 flex-shrink-0">
+              <span className={`font-mono text-sm w-6 flex-shrink-0 ${isNaFila ? "text-purple-400 font-bold" : "text-zinc-600"}`}>
+                {pos}°
+              </span>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isNaFila ? "bg-purple-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
+                {item.client.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-white text-sm font-semibold truncate leading-tight">{item.client.name}</div>
+                <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className={`text-sm font-mono font-bold ${isNaFila ? "text-purple-300" : "text-zinc-400"}`}>
+                  {fmtHora(item.scheduledAt)}
+                </div>
+                {isNaFila && (
+                  <div className="text-purple-500 text-xs">Na fila</div>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -79,6 +146,7 @@ export default function PainelTVPage() {
   const [slots, setSlots] = useState<{ id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]>([])
   const [slotAtivo, setSlotAtivo] = useState(0)
   const [barbeiros, setBarbeiros] = useState<BarbeiroAgora[]>([])
+  const [filaEspera, setFilaEspera] = useState<FilaItem[]>([])
 
   // Relógio
   useEffect(() => {
@@ -90,7 +158,7 @@ export default function PainelTVPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Configurações: playlist ativa + slots — re-busca a cada 30s para detectar mudança de playlist
+  // Config
   const fetchConfig = useCallback(() => {
     fetch("/api/configuracoes").then(r => r.json()).then(d => {
       setEstab({ name: d.name ?? "BarberOS", logoUrl: d.logoUrl ?? null, city: d.city ?? null, state: d.state ?? null })
@@ -110,7 +178,6 @@ export default function PainelTVPage() {
   useEffect(() => {
     fetchConfig()
     const t = setInterval(fetchConfig, 30000)
-
     function onLogo(e: Event) { setEstab(prev => prev ? { ...prev, logoUrl: (e as CustomEvent).detail } : prev) }
     function onEstab(e: Event) {
       const d = (e as CustomEvent).detail
@@ -125,7 +192,7 @@ export default function PainelTVPage() {
     }
   }, [fetchConfig])
 
-  // Rotação dos slots de conteúdo
+  // Slots rotação
   useEffect(() => {
     if (slots.length <= 1) return
     const duracao = (slots[slotAtivo]?.duracao ?? 15) * 1000
@@ -133,7 +200,7 @@ export default function PainelTVPage() {
     return () => clearTimeout(t)
   }, [slotAtivo, slots])
 
-  // "Atendimento agora" — atualiza a cada 10 segundos
+  // Barbeiros agora + fila de espera
   const fetchAgora = useCallback(() => {
     fetch("/api/painel-tv/agora")
       .then(r => r.json())
@@ -141,11 +208,26 @@ export default function PainelTVPage() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => { fetchAgora() }, [fetchAgora])
+  const fetchFila = useCallback(() => {
+    fetch("/api/pix/cobrancas")
+      .then(r => r.json())
+      .then((d: any[]) => {
+        if (!Array.isArray(d)) return
+        const espera = d
+          .filter(a => ["SCHEDULED", "CONFIRMED", "IN_QUEUE"].includes(a.status))
+          .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+          .slice(0, 8)
+        setFilaEspera(espera)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchAgora(); fetchFila() }, [fetchAgora, fetchFila])
   useEffect(() => {
-    const t = setInterval(fetchAgora, 10000)
-    return () => clearInterval(t)
-  }, [fetchAgora])
+    const t1 = setInterval(fetchAgora, 10000)
+    const t2 = setInterval(fetchFila, 15000)
+    return () => { clearInterval(t1); clearInterval(t2) }
+  }, [fetchAgora, fetchFila])
 
   const embedUrl = buildIframeSrc(youtubeUrl)
 
@@ -171,13 +253,11 @@ export default function PainelTVPage() {
           </div>
         </div>
 
-        {/* Relógio */}
         <div className="text-center absolute left-1/2 -translate-x-1/2">
           <div className="text-white font-bold text-2xl font-mono tracking-wider">{horaStr}</div>
           <div className="text-zinc-500 text-xs capitalize">{dataStr}</div>
         </div>
 
-        {/* Indicador de atualização */}
         <div className="flex items-center gap-1.5 opacity-40">
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           <span className="text-zinc-600 text-xs">ao vivo</span>
@@ -210,56 +290,52 @@ export default function PainelTVPage() {
           )}
         </div>
 
-        {/* Atendimento agora — lado direito */}
-        <div className="flex flex-col gap-3 flex-shrink-0 overflow-y-auto" style={{ width: "38%" }}>
-          <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest flex-shrink-0">
+        {/* Atendimento agora — lado direito, 2 colunas */}
+        <div className="flex flex-col gap-2 flex-shrink-0 overflow-hidden" style={{ width: "38%" }}>
+          <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest flex-shrink-0 pb-0.5">
             Atendimento agora
           </div>
 
           {barbeiros.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center text-zinc-600 text-sm flex-shrink-0">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center text-zinc-600 text-sm flex-shrink-0">
               Nenhum atendimento no momento
             </div>
           ) : (
-            <div className="space-y-3 overflow-y-auto flex-1">
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto flex-1 content-start">
               {barbeiros.map(b => {
                 const emAndamento = b.appt?.status === "IN_PROGRESS"
                 return (
                   <div key={b.id}
-                    className={`rounded-2xl p-4 border flex-shrink-0 ${
+                    className={`rounded-xl p-3 border flex-shrink-0 ${
                       emAndamento
                         ? "bg-amber-500/10 border-amber-500/30"
                         : "bg-red-500/5 border-red-500/15 opacity-70"
                     }`}>
-                    {/* Cabeçalho: barbeiro */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    {/* Barbeiro */}
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                         emAndamento ? "bg-amber-500 text-black" : "bg-red-900/60 text-red-300"
                       }`}>
                         {b.name.charAt(0)}
                       </div>
-                      <span className={`text-xs font-semibold uppercase tracking-wide ${
+                      <span className={`text-xs font-semibold uppercase tracking-wide truncate ${
                         emAndamento ? "text-amber-400" : "text-red-400/70"
-                      }`}>{b.name}</span>
+                      }`}>{b.name.split(" ")[0]}</span>
                       {emAndamento && (
-                        <span className="ml-auto text-xs text-amber-500 font-mono flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
-                          Em andamento
-                        </span>
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
                       )}
-                      {!emAndamento && (
-                        <span className="ml-auto text-xs text-red-400/50 font-mono">{fmtHora(b.appt!.scheduledAt)}</span>
+                      {!emAndamento && b.appt && (
+                        <span className="ml-auto text-xs text-red-400/50 font-mono flex-shrink-0">{fmtHora(b.appt.scheduledAt)}</span>
                       )}
                     </div>
 
-                    {/* Dados do cliente */}
+                    {/* Cliente */}
                     {b.appt && (
                       <>
-                        <div className={`font-bold text-base leading-tight truncate ${
+                        <div className={`font-bold text-sm leading-tight truncate ${
                           emAndamento ? "text-white" : "text-red-200/50"
                         }`}>{b.appt.client.name}</div>
 
-                        {/* Timer só para em andamento */}
                         {emAndamento && (
                           <ElapsedTimer
                             startedAt={b.appt.startedAt}
@@ -277,43 +353,65 @@ export default function PainelTVPage() {
         </div>
       </main>
 
-      {/* ── SLOT DE CONTEÚDO (20vh) ── */}
-      <div className="flex-shrink-0 px-6 pb-4" style={{ height: "20vh" }}>
-        {slots.length > 0 && slots[slotAtivo] ? (() => {
-          const s = slots[slotAtivo]
-          const corMap: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
-          const textoMap: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
-          const cls = corMap[s.cor ?? "amber"] ?? corMap.amber
-          const txt = textoMap[s.cor ?? "amber"] ?? textoMap.amber
-          if (s.type === "fila") return (
+      {/* ── BOTTOM (20vh) — fila rotativa ou slot de conteúdo ── */}
+      <div className="flex-shrink-0 px-6 pb-4 flex gap-5" style={{ height: "20vh" }}>
+
+        {/* Fila de espera (abaixo do YouTube) */}
+        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
+          <div className="flex items-center gap-2 px-4 pt-2.5 pb-1.5 border-b border-zinc-800/60 flex-shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+              Próximos na fila
+              {filaEspera.length > 0 && <span className="text-zinc-600 ml-2">({filaEspera.length})</span>}
+            </span>
+          </div>
+          {filaEspera.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">
+              Nenhum na fila agora
+            </div>
+          ) : (
+            <FilaMarquee items={filaEspera} />
+          )}
+        </div>
+
+        {/* Slot de conteúdo (abaixo dos cards de barbeiro) */}
+        <div className="flex-shrink-0 flex flex-col" style={{ width: "38%" }}>
+          {slots.length > 0 && slots[slotAtivo] ? (() => {
+            const s = slots[slotAtivo]
+            const corMap: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
+            const textoMap: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
+            const cls = corMap[s.cor ?? "amber"] ?? corMap.amber
+            const txt = textoMap[s.cor ?? "amber"] ?? textoMap.amber
+            if (s.type === "fila") return (
+              <div className="h-full flex items-center justify-center">
+                <div className="flex items-center gap-2 opacity-30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
+                </div>
+              </div>
+            )
+            return (
+              <div className={`h-full border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-4 gap-1.5`}>
+                {s.titulo && <div className={`text-lg font-bold ${txt}`}>{s.titulo}</div>}
+                {s.texto && <div className="text-zinc-300 text-sm leading-relaxed">{s.texto}</div>}
+                {slots.length > 1 && (
+                  <div className="flex gap-1 mt-1">
+                    {slots.map((_, i) => (
+                      <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === slotAtivo ? "bg-white" : "bg-zinc-600"}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })() : (
             <div className="h-full flex items-center justify-center">
               <div className="flex items-center gap-2 opacity-30">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
               </div>
             </div>
-          )
-          return (
-            <div className={`h-full border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-8 gap-2`}>
-              {s.titulo && <div className={`text-2xl font-bold ${txt}`}>{s.titulo}</div>}
-              {s.texto && <div className="text-zinc-300 text-base leading-relaxed">{s.texto}</div>}
-              {slots.length > 1 && (
-                <div className="flex gap-1 mt-2">
-                  {slots.map((_, i) => (
-                    <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === slotAtivo ? "bg-white" : "bg-zinc-600"}`} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })() : (
-          <div className="h-full flex items-center justify-center">
-            <div className="flex items-center gap-2 opacity-30">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-zinc-600 text-xs">BarberOS · Painel TV</span>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
     </div>
