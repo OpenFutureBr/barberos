@@ -216,8 +216,9 @@ export default function DashboardPage() {
   function handleKPIScroll() {
     const el = kpiRef.current
     if (!el) return
-    const cardW = el.scrollWidth / 5
-    setActiveKPI(Math.max(0, Math.min(4, Math.round(el.scrollLeft / cardW))))
+    const maxScroll = el.scrollWidth - el.clientWidth
+    if (maxScroll <= 0) return
+    setActiveKPI(Math.max(0, Math.min(4, Math.round((el.scrollLeft / maxScroll) * 4))))
   }
 
   const kpiCards = [
@@ -282,9 +283,12 @@ export default function DashboardPage() {
       {/* ── KPIs CAROUSEL MOBILE ── */}
       <div className="md:hidden mb-3">
         <div ref={kpiRef} onScroll={handleKPIScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory gap-3 -mx-4 px-4 scrollbar-none">
+          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-4"
+          style={{ paddingInline: "13vw", scrollPaddingInline: "13vw", gap: "10px" }}>
           {kpiCards.map((card, i) => (
-            <div key={i} className={`flex-shrink-0 snap-center w-[82vw] transition-all duration-200 ${activeKPI === i ? "opacity-100 scale-100" : "opacity-45 scale-95"}`}>
+            <div key={i}
+              className={`flex-shrink-0 snap-center transition-all duration-200 ${activeKPI === i ? "opacity-100 scale-100" : "opacity-40 scale-95"}`}
+              style={{ width: "74vw" }}>
               {card}
             </div>
           ))}
@@ -365,8 +369,261 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── LINHA CENTRAL ── */}
-      <div className="grid grid-cols-1 gap-4 mb-4 md:grid-cols-5">
+      {/* ── MOBILE: ordem personalizada ── */}
+      <div className="md:hidden flex flex-col gap-4 mb-4">
+
+        {/* 1. Faturamento mensal */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-zinc-300 text-sm font-semibold">Faturamento mensal</div>
+              <div className="text-zinc-600 text-xs mt-0.5">{new Date().getFullYear()}</div>
+            </div>
+            {!loading && mesAtual > 0 && (
+              <div className={`flex items-center gap-1 text-sm font-semibold ${varMes >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {varMes >= 0 ? "↑" : "↓"} {Math.abs(varMes).toFixed(1)}%
+                <span className="text-zinc-600 text-xs font-normal ml-1">vs mês ant.</span>
+              </div>
+            )}
+          </div>
+          {loading ? (
+            <div className="h-24 bg-zinc-800 rounded-lg animate-pulse" />
+          ) : (
+            <div className="flex items-end gap-1.5 h-24">
+              {evoFiltrado.map((e, i) => {
+                const isAtual = i === evoFiltrado.length - 1
+                const h = e.valor > 0 ? Math.max(8, Math.round((e.valor / maxEvo) * 100)) : 4
+                return (
+                  <div key={e.mes} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full flex items-end" style={{ height: "80px" }}>
+                      <div
+                        className={`w-full rounded-t transition-all ${isAtual ? "bg-amber-500" : e.valor > 0 ? "bg-zinc-700 hover:bg-zinc-600" : "bg-zinc-800"}`}
+                        style={{ height: `${h}%` }}
+                        title={e.valor > 0 ? fmtMoeda(e.valor) : "Sem dados"}
+                      />
+                    </div>
+                    <div className={`text-xs font-mono ${isAtual ? "text-amber-400 font-bold" : "text-zinc-600"}`}>{e.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {!loading && mesAtual > 0 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+              <span className="text-zinc-500 text-xs">Este mês</span>
+              <span className="text-amber-400 font-bold font-mono">{fmtMoeda(mesAtual)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Top serviços */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Top serviços</div>
+            <span className="text-zinc-700 text-xs">no período</span>
+          </div>
+          {loading ? (
+            <div className="p-4 space-y-2">{[1,2,3].map(i=><div key={i} className="h-8 bg-zinc-800 rounded animate-pulse"/>)}</div>
+          ) : !dados?.topServicos?.length ? (
+            <div className="p-6 text-center text-zinc-700 text-sm">Sem dados no período</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {dados.topServicos.map((s, i) => {
+                const max = dados.topServicos[0].count
+                return (
+                  <div key={s.nome}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-600 text-xs w-4">{i+1}</span>
+                        <span className="text-zinc-200 text-sm">{s.nome}</span>
+                        <span className="text-zinc-600 text-xs">{s.count}×</span>
+                      </div>
+                      <span className="text-zinc-400 text-xs font-mono">{fmtMoeda(s.receita)}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-zinc-600"}`}
+                        style={{ width: `${(s.count / max) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 3. Top produtos */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Top produtos vendidos</div>
+            <span className="text-zinc-700 text-xs">no período</span>
+          </div>
+          {loading ? (
+            <div className="p-4 space-y-2">{[1,2,3].map(i=><div key={i} className="h-8 bg-zinc-800 rounded animate-pulse"/>)}</div>
+          ) : !dados?.topProdutos?.length ? (
+            <div className="p-6 text-center text-zinc-700 text-sm">Sem vendas de produtos no período</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {dados.topProdutos.map((p, i) => {
+                const max = dados.topProdutos[0].qtd
+                return (
+                  <div key={p.nome}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-600 text-xs w-4">{i+1}</span>
+                        <span className="text-zinc-200 text-sm">{p.nome}</span>
+                        <span className="text-zinc-600 text-xs">{p.qtd} un.</span>
+                      </div>
+                      <span className="text-zinc-400 text-xs font-mono">{fmtMoeda(p.receita)}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${i === 0 ? "bg-blue-500" : "bg-zinc-600"}`}
+                        style={{ width: `${(p.qtd / max) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Clientes este mês */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Clientes este mês</div>
+          <div className="flex items-end justify-between">
+            {loading
+              ? <div className="h-7 w-16 bg-zinc-800 rounded animate-pulse" />
+              : <div className="text-white text-2xl font-bold">{dados?.mesAtualClientes ?? 0}</div>
+            }
+            {!loading && dados && dados.mesAnteriorClientes > 0 && (
+              <div className={`text-xs font-semibold mb-1 ${dados.mesAtualClientes >= dados.mesAnteriorClientes ? "text-green-400" : "text-red-400"}`}>
+                {fmtPct(((dados.mesAtualClientes - dados.mesAnteriorClientes) / dados.mesAnteriorClientes) * 100)}
+              </div>
+            )}
+          </div>
+          <div className="text-zinc-700 text-xs mt-1">
+            {!loading && dados ? `${dados.mesAnteriorClientes} mês anterior` : ""}
+          </div>
+        </div>
+
+        {/* 5. Clientes VIP */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Clientes VIP</div>
+          {loading
+            ? <div className="h-7 w-12 bg-zinc-800 rounded animate-pulse" />
+            : <div className="text-purple-400 text-2xl font-bold">{dados?.clientesVip ?? 0}</div>
+          }
+          <Link href="/dashboard/clientes" className="text-zinc-700 hover:text-zinc-500 text-xs mt-1 block transition-colors">
+            Ver base →
+          </Link>
+        </div>
+
+        {/* 6. Ações rápidas */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+          <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Ações rápidas</div>
+          <div className="space-y-1.5">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("abrirModalAgenda"))}
+              className="w-full text-left text-sm text-zinc-300 hover:text-white py-1.5 px-2.5 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+            >
+              <span className="text-amber-500">◈</span> Novo agendamento
+            </button>
+            <Link href="/dashboard/pix"
+              className="w-full text-left text-sm text-zinc-300 hover:text-white py-1.5 px-2.5 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2">
+              <span className="text-green-500">◈</span> Gerar PIX
+            </Link>
+            <Link href="/dashboard/caixa"
+              className="w-full text-left text-sm text-zinc-300 hover:text-white py-1.5 px-2.5 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2">
+              <span className="text-blue-500">◈</span> Lançar no caixa
+            </Link>
+          </div>
+        </div>
+
+        {/* 7. Agenda de hoje */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Agenda de hoje</div>
+            <Link href="/dashboard/agenda" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Ver completa →</Link>
+          </div>
+          {loading ? (
+            <div className="p-5 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-zinc-800 rounded-lg animate-pulse" />)}</div>
+          ) : apptsProximos.length === 0 && apptsDone.length === 0 ? (
+            <div className="p-8 text-center text-zinc-700 text-sm">Nenhum agendamento hoje</div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {apptsDone.slice(-2).map(a => (
+                <div key={a.id} className="flex items-center gap-4 px-5 py-3 opacity-50">
+                  <div className="w-10 text-right text-zinc-600 text-xs font-mono flex-shrink-0">{fmtHoraAppt(a.scheduledAt)}</div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-zinc-400 text-sm truncate">{a.client.name}</span>
+                    <span className="text-zinc-600 text-xs ml-2">{a.service.name}</span>
+                  </div>
+                  <div className="text-green-400 text-xs font-mono flex-shrink-0 line-through">{fmtMoeda(a.payment?.amount ?? a.service.price)}</div>
+                </div>
+              ))}
+              {apptsProximos.map((a, idx) => {
+                const isNext = idx === 0
+                return (
+                  <div key={a.id} className={`flex items-center gap-4 px-5 py-3 ${isNext ? "bg-amber-500/5" : ""}`}>
+                    <div className={`w-10 text-right text-xs font-mono flex-shrink-0 ${isNext ? "text-amber-400 font-bold" : "text-zinc-500"}`}>{fmtHoraAppt(a.scheduledAt)}</div>
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isNext ? "bg-amber-500 animate-pulse" : "bg-zinc-700"}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm font-medium ${isNext ? "text-white" : "text-zinc-300"}`}>{a.client.name}</span>
+                      <span className="text-zinc-600 text-xs ml-2">{a.service.name}</span>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-zinc-500 text-xs font-mono">{a.professional.name.split(" ")[0]}</div>
+                    </div>
+                    <div className={`text-xs font-mono flex-shrink-0 ${isNext ? "text-amber-400" : "text-zinc-600"}`}>{fmtMoeda(a.service.price)}</div>
+                  </div>
+                )
+              })}
+              {apptsProximos.length === 0 && (
+                <div className="px-5 py-4 text-zinc-700 text-sm">Sem próximos agendamentos</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 8. Barbeiros hoje */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+            <div className="text-zinc-300 text-sm font-semibold">Barbeiros hoje</div>
+            <span className="text-zinc-700 text-xs">{apptsDone.length} atend.</span>
+          </div>
+          {loading ? (
+            <div className="p-5 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-zinc-800 rounded animate-pulse" />)}</div>
+          ) : barbeiros.length === 0 ? (
+            <div className="p-8 text-center text-zinc-700 text-sm">Nenhum atendimento concluído</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {barbeiros.map((b, idx) => (
+                <div key={b.nome}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className={`text-xs font-bold w-4 ${idx === 0 ? "text-amber-400" : "text-zinc-600"}`}>#{idx+1}</div>
+                      <span className="text-white text-sm font-medium">{b.nome.split(" ")[0]}</span>
+                      <span className="text-zinc-600 text-xs">{b.atend} corte{b.atend !== 1 ? "s" : ""}</span>
+                    </div>
+                    <span className="text-zinc-300 text-sm font-mono">{fmtMoeda(b.receita)}</span>
+                  </div>
+                  <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${idx === 0 ? "bg-amber-500" : "bg-zinc-600"}`}
+                      style={{ width: `${(b.receita / maxReceita) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>{/* fim mobile */}
+
+      {/* ── DESKTOP: layout em grade ── */}
+      <div className="hidden md:block">
+
+      {/* Linha central */}
+      <div className="grid grid-cols-5 gap-4 mb-4">
 
         {/* Agenda de hoje */}
         <div className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -464,7 +721,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── LINHA INFERIOR ── */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-3 gap-4">
 
         {/* Evolução mensal */}
         <div className="col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -569,7 +826,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── TOP SERVIÇOS E PRODUTOS ── */}
-      <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-4 mt-4">
 
         {/* Top serviços */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -642,6 +899,8 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      </div>{/* fim desktop */}
 
       </div>{/* fim mt-4 */}
 
