@@ -47,6 +47,7 @@ html.light img,
 html.light picture,
 html.light video,
 html.light canvas,
+html.light iframe,
 html.light [data-no-invert] {
   filter: invert(1) hue-rotate(180deg) !important;
 }

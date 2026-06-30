@@ -337,14 +337,13 @@ export default function ConfiguracoesPage() {
   const [painelConfig, setPainelConfig] = useState<{
     playlists: { label: string; url: string }[]
     playlistAtivaIdx: number
-    slots: { id: string; type: string; titulo?: string; texto?: string; cor?: string; duracao: number; ativo: boolean }[]
+    slots: { id: string; type: string; cor?: string; ativo: boolean; anuncios: { id: string; titulo: string; texto: string; duracao: number }[] }[]
   }>({
     playlists: [],
     playlistAtivaIdx: 0,
     slots: [
-      { id: "fila",             type: "fila",             titulo: "Fila de espera",          duracao: 30, ativo: true  },
-      { id: "promocao_propria", type: "promocao_propria", titulo: "Promoção da barbearia",   texto: "", cor: "amber",  duracao: 20, ativo: false },
-      { id: "anuncio_externo",  type: "anuncio_externo",  titulo: "Promoção externa",        texto: "", cor: "purple", duracao: 20, ativo: false },
+      { id: "promocao_propria", type: "promocao_propria", cor: "amber",  ativo: false, anuncios: [] },
+      { id: "anuncio_externo",  type: "anuncio_externo",  cor: "purple", ativo: false, anuncios: [] },
     ],
   })
   const [novaPlaylistLabel, setNovaPlaylistLabel] = useState("")
@@ -389,7 +388,14 @@ export default function ConfiguracoesPage() {
             playlistAtivaIdx: loaded.playlistAtivaIdx ?? prev.playlistAtivaIdx,
             slots: prev.slots.map(def => {
               const saved = (loaded.slots ?? []).find((s: any) => s.id === def.id)
-              return saved ? { ...def, ...saved } : def
+              if (!saved) return def
+              // Migra formato antigo (anúncio único: titulo/texto/duracao) para lista de anúncios
+              const anuncios = Array.isArray(saved.anuncios)
+                ? saved.anuncios
+                : (saved.titulo || saved.texto)
+                  ? [{ id: `${def.id}_1`, titulo: saved.titulo ?? "", texto: saved.texto ?? "", duracao: saved.duracao ?? 15 }]
+                  : def.anuncios
+              return { ...def, ativo: saved.ativo ?? def.ativo, cor: saved.cor ?? def.cor, anuncios }
             }),
           }))
         }
@@ -801,12 +807,11 @@ export default function ConfiguracoesPage() {
 
           {/* Painel TV — Painéis de Conteúdo */}
           <Secao titulo="Painel TV — Painéis de Conteúdo" id="tv-slots" colapsados={colapsados} toggle={toggle}>
-            <p className="text-zinc-600 text-xs pt-3">Gerencie o que aparece no painel inferior da recepção durante a exibição.</p>
+            <p className="text-zinc-600 text-xs pt-3">Gerencie os anúncios exibidos no painel inferior da recepção. Cada painel pode ter vários anúncios, alternando entre si.</p>
             <div className="space-y-3 pt-1">
               {[
-                { id: "fila",             icon: "👥", label: "Fila de espera",        desc: "Exibe clientes aguardando em tempo real",     corBorder: "border-green-500/30",  corBg: "bg-green-500/5",  editavel: false },
-                { id: "promocao_propria", icon: "🏷️", label: "Promoção da barbearia", desc: "Cashback, ofertas e promoções próprias",       corBorder: "border-amber-500/30",  corBg: "bg-amber-500/5",  editavel: true, placeholderTexto: "Ex: 10% de cashback em todos os serviços hoje" },
-                { id: "anuncio_externo",  icon: "📢", label: "Promoção externa",       desc: "Anúncio de parceiro ou promoção de terceiros", corBorder: "border-purple-500/30", corBg: "bg-purple-500/5", editavel: true, placeholderTexto: "URL do anúncio ou texto do parceiro" },
+                { id: "promocao_propria", icon: "🏷️", label: "Promoção da barbearia", desc: "Cashback, ofertas e promoções próprias",       corBorder: "border-amber-500/30",  corBg: "bg-amber-500/5",  placeholderTexto: "Ex: 10% de cashback em todos os serviços hoje" },
+                { id: "anuncio_externo",  icon: "📢", label: "Promoção externa",       desc: "Anúncio de parceiro ou promoção de terceiros", corBorder: "border-purple-500/30", corBg: "bg-purple-500/5", placeholderTexto: "URL do anúncio ou texto do parceiro" },
               ].map(meta => {
                 const slot = painelConfig.slots.find(s => s.id === meta.id)
                 if (!slot) return null
@@ -815,6 +820,18 @@ export default function ConfiguracoesPage() {
                   const nova = { ...painelConfig, slots: painelConfig.slots.map(s => s.id === meta.id ? { ...s, ...patch } : s) }
                   setPainelConfig(nova)
                   return nova
+                }
+                function updateAnuncio(anuncioId: string, patch: Partial<{ titulo: string; texto: string; duracao: number }>) {
+                  return updateSlot({ anuncios: slot!.anuncios.map(a => a.id === anuncioId ? { ...a, ...patch } : a) })
+                }
+                function addAnuncio() {
+                  const novo = { id: `${meta.id}_${Date.now()}`, titulo: "", texto: "", duracao: 15 }
+                  const nova = updateSlot({ anuncios: [...slot!.anuncios, novo] })
+                  salvarPainelConfig(nova)
+                }
+                function removeAnuncio(anuncioId: string) {
+                  const nova = updateSlot({ anuncios: slot!.anuncios.filter(a => a.id !== anuncioId) })
+                  salvarPainelConfig(nova)
                 }
 
                 return (
@@ -833,27 +850,42 @@ export default function ConfiguracoesPage() {
                           <div className="text-zinc-500 text-xs">{meta.desc}</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <input type="number" min={5} max={120} value={slot.duracao}
-                          onChange={e => updateSlot({ duracao: parseInt(e.target.value) || 15 })}
-                          onBlur={() => salvarPainelConfig(painelConfig)}
-                          className="w-12 text-center bg-zinc-800 border border-zinc-700 text-white rounded-lg px-1 py-1 text-xs outline-none focus:border-amber-500 transition-colors" />
-                        <span className="text-zinc-600 text-xs">s</span>
-                      </div>
+                      <span className="text-zinc-600 text-xs flex-shrink-0">{slot.anuncios.length} anúncio{slot.anuncios.length === 1 ? "" : "s"}</span>
                     </div>
 
-                    {/* Editor (apenas painéis editáveis e ativos) */}
-                    {meta.editavel && slot.ativo && (
+                    {/* Editor (apenas painéis ativos) */}
+                    {slot.ativo && (
                       <div className="border-t border-zinc-700/40 px-4 py-3 space-y-2">
-                        <input value={slot.titulo ?? ""} placeholder="Título"
-                          onChange={e => updateSlot({ titulo: e.target.value })}
-                          onBlur={() => salvarPainelConfig(painelConfig)}
-                          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors" />
-                        <textarea value={slot.texto ?? ""} rows={2}
-                          placeholder={meta.placeholderTexto}
-                          onChange={e => updateSlot({ texto: e.target.value })}
-                          onBlur={() => salvarPainelConfig(painelConfig)}
-                          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors resize-none" />
+                        {slot.anuncios.map((anuncio, idx) => (
+                          <div key={anuncio.id} className="flex gap-2 items-start bg-zinc-900/40 rounded-lg p-2">
+                            <div className="flex-1 space-y-2 min-w-0">
+                              <input value={anuncio.titulo} placeholder={`Título do anúncio ${idx + 1}`}
+                                onChange={e => updateAnuncio(anuncio.id, { titulo: e.target.value })}
+                                onBlur={() => salvarPainelConfig(painelConfig)}
+                                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors" />
+                              <textarea value={anuncio.texto} rows={2}
+                                placeholder={meta.placeholderTexto}
+                                onChange={e => updateAnuncio(anuncio.id, { texto: e.target.value })}
+                                onBlur={() => salvarPainelConfig(painelConfig)}
+                                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600 transition-colors resize-none" />
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5 flex-shrink-0 pt-1">
+                              <div className="flex items-center gap-1">
+                                <input type="number" min={5} max={120} value={anuncio.duracao}
+                                  onChange={e => updateAnuncio(anuncio.id, { duracao: parseInt(e.target.value) || 15 })}
+                                  onBlur={() => salvarPainelConfig(painelConfig)}
+                                  className="w-12 text-center bg-zinc-800 border border-zinc-700 text-white rounded-lg px-1 py-1 text-xs outline-none focus:border-amber-500 transition-colors" />
+                                <span className="text-zinc-600 text-xs">s</span>
+                              </div>
+                              <button type="button" onClick={() => removeAnuncio(anuncio.id)}
+                                className="text-red-400/70 hover:text-red-400 text-xs px-1">remover</button>
+                            </div>
+                          </div>
+                        ))}
+                        <button type="button" onClick={addAnuncio}
+                          className="text-amber-400 hover:text-amber-300 text-xs font-medium px-1">
+                          + Adicionar anúncio (15s por padrão)
+                        </button>
                       </div>
                     )}
                   </div>

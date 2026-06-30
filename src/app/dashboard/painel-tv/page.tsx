@@ -41,14 +41,19 @@ type FilaItem = {
   professional: { name: string }
 }
 
+type Anuncio = {
+  id: string
+  titulo: string
+  texto: string
+  duracao: number
+}
+
 type Slot = {
   id: string
   type: string
-  titulo?: string
-  texto?: string
   cor?: string
-  duracao: number
   ativo: boolean
+  anuncios: Anuncio[]
 }
 
 type Estab = { name: string; logoUrl: string | null; city: string | null; state: string | null }
@@ -156,32 +161,111 @@ function FilaMarquee({ items }: { items: FilaItem[] }) {
   )
 }
 
+// Alterna entre "atendimento atual" (10s) e "fila de espera" (40s)
+const ATENDIMENTO_MS = 10000
+const FILA_MS = 40000
+
+function AtendimentoFilaPanel({ barbeiros, filaItems }: { barbeiros: BarbeiroAgora[]; filaItems: FilaItem[] }) {
+  const [modo, setModo] = useState<"atendimento" | "fila">("atendimento")
+
+  useEffect(() => {
+    const t = setTimeout(
+      () => setModo(m => (m === "atendimento" ? "fila" : "atendimento")),
+      modo === "atendimento" ? ATENDIMENTO_MS : FILA_MS
+    )
+    return () => clearTimeout(t)
+  }, [modo])
+
+  return (
+    <div className="flex flex-col gap-2 flex-shrink-0 overflow-hidden" style={{ width: "38%" }}>
+      <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest flex-shrink-0 pb-0.5">
+        {modo === "atendimento" ? "Atendimento agora" : "Próximos na fila"}
+      </div>
+      {modo === "atendimento" ? (
+        barbeiros.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center text-zinc-600 text-sm flex-shrink-0">
+            Nenhum atendimento no momento
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 overflow-y-auto flex-1 content-start">
+            {barbeiros.map(b => {
+              const emAndamento = b.appt?.status === "IN_PROGRESS"
+              return (
+                <div key={b.id}
+                  className={`rounded-xl p-3 border flex-shrink-0 ${emAndamento ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/5 border-red-500/15 opacity-70"}`}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${emAndamento ? "bg-amber-500 text-black" : "bg-red-900/60 text-red-300"}`}>
+                      {b.name.charAt(0)}
+                    </div>
+                    <span className={`text-xs font-semibold uppercase tracking-wide truncate ${emAndamento ? "text-amber-400" : "text-red-400/70"}`}>
+                      {b.name.split(" ")[0]}
+                    </span>
+                    {emAndamento
+                      ? <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                      : b.appt && <span className="ml-auto text-xs text-red-400/50 font-mono flex-shrink-0">{fmtHora(b.appt.scheduledAt)}</span>}
+                  </div>
+                  {b.appt && (
+                    <>
+                      <div className={`font-bold text-sm leading-tight truncate ${emAndamento ? "text-white" : "text-red-200/50"}`}>
+                        {b.appt.client.name}
+                      </div>
+                      {emAndamento && (
+                        <ElapsedTimer
+                          startedAt={b.appt.startedAt}
+                          scheduledAt={b.appt.scheduledAt}
+                          durationMin={b.appt.service.durationMin}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      ) : (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col flex-1">
+          <FilaMarquee items={filaItems} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 const COR_BORDER: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/10", green: "border-green-500/40 bg-green-500/10", blue: "border-blue-500/40 bg-blue-500/10", red: "border-red-500/40 bg-red-500/10", purple: "border-purple-500/40 bg-purple-500/10" }
 const COR_TEXTO: Record<string, string> = { amber: "text-amber-300", green: "text-green-300", blue: "text-blue-300", red: "text-red-300", purple: "text-purple-300" }
 
-function SlotCard({ slot, filaItems }: { slot: Slot; filaItems: FilaItem[] }) {
-  if (slot.type === "fila") {
-    return (
-      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center gap-2 px-4 pt-2.5 pb-1.5 border-b border-zinc-800/60 flex-shrink-0">
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-          <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-            Próximos na fila
-            {filaItems.length > 0 && <span className="text-zinc-600 ml-1.5">({filaItems.length})</span>}
-          </span>
-        </div>
-        <FilaMarquee items={filaItems} />
-      </div>
-    )
-  }
+function SlotCard({ slot }: { slot: Slot }) {
+  const anuncios = slot.anuncios
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    if (anuncios.length <= 1) return
+    const duracao = (anuncios[idx % anuncios.length]?.duracao ?? 15) * 1000
+    const t = setTimeout(() => setIdx(i => (i + 1) % anuncios.length), duracao)
+    return () => clearTimeout(t)
+  }, [idx, anuncios])
 
   const cls = COR_BORDER[slot.cor ?? "amber"] ?? COR_BORDER.amber
   const txt = COR_TEXTO[slot.cor ?? "amber"] ?? COR_TEXTO.amber
 
+  if (anuncios.length === 0) {
+    return <div className={`flex-1 border rounded-2xl ${cls} opacity-30`} />
+  }
+
+  const anuncio = anuncios[idx % anuncios.length]
+
   return (
     <div className={`flex-1 border rounded-2xl ${cls} flex flex-col items-center justify-center text-center px-4 gap-1.5`}>
-      {slot.titulo && <div className={`text-lg font-bold ${txt}`}>{slot.titulo}</div>}
-      {slot.texto && <div className="text-zinc-300 text-sm leading-relaxed">{slot.texto}</div>}
+      {anuncio.titulo && <div className={`text-lg font-bold ${txt}`}>{anuncio.titulo}</div>}
+      {anuncio.texto && <div className="text-zinc-300 text-sm leading-relaxed">{anuncio.texto}</div>}
+      {anuncios.length > 1 && (
+        <div className="flex gap-1 mt-1">
+          {anuncios.map((a, i) => (
+            <div key={a.id} className={`w-1.5 h-1.5 rounded-full ${i === idx % anuncios.length ? "bg-white" : "bg-white/20"}`} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -380,59 +464,14 @@ export default function PainelTVPage() {
           )}
         </div>
 
-        {/* Cards de barbeiro — 2 colunas */}
-        <div className="flex flex-col gap-2 flex-shrink-0 overflow-hidden" style={{ width: "38%" }}>
-          <div className="text-zinc-500 text-xs font-mono uppercase tracking-widest flex-shrink-0 pb-0.5">
-            Atendimento agora
-          </div>
-          {barbeiros.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center text-zinc-600 text-sm flex-shrink-0">
-              Nenhum atendimento no momento
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto flex-1 content-start">
-              {barbeiros.map(b => {
-                const emAndamento = b.appt?.status === "IN_PROGRESS"
-                return (
-                  <div key={b.id}
-                    className={`rounded-xl p-3 border flex-shrink-0 ${emAndamento ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/5 border-red-500/15 opacity-70"}`}>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${emAndamento ? "bg-amber-500 text-black" : "bg-red-900/60 text-red-300"}`}>
-                        {b.name.charAt(0)}
-                      </div>
-                      <span className={`text-xs font-semibold uppercase tracking-wide truncate ${emAndamento ? "text-amber-400" : "text-red-400/70"}`}>
-                        {b.name.split(" ")[0]}
-                      </span>
-                      {emAndamento
-                        ? <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-                        : b.appt && <span className="ml-auto text-xs text-red-400/50 font-mono flex-shrink-0">{fmtHora(b.appt.scheduledAt)}</span>}
-                    </div>
-                    {b.appt && (
-                      <>
-                        <div className={`font-bold text-sm leading-tight truncate ${emAndamento ? "text-white" : "text-red-200/50"}`}>
-                          {b.appt.client.name}
-                        </div>
-                        {emAndamento && (
-                          <ElapsedTimer
-                            startedAt={b.appt.startedAt}
-                            scheduledAt={b.appt.scheduledAt}
-                            durationMin={b.appt.service.durationMin}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        {/* Atendimento atual ↔ Fila de espera (revezamento 10s / 40s) */}
+        <AtendimentoFilaPanel barbeiros={barbeiros} filaItems={filaEspera} />
       </main>
 
-      {/* ── SLOTS (todos ativos, lado a lado, igual largura) ── */}
+      {/* ── SLOTS (anúncios ativos, lado a lado, igual largura) ── */}
       <div className="flex-shrink-0 px-6 pb-1 flex gap-3" style={{ height: "20vh" }}>
         {slots.length > 0 ? (
-          slots.map(slot => <SlotCard key={slot.id} slot={slot} filaItems={filaEspera} />)
+          slots.map(slot => <SlotCard key={slot.id} slot={slot} />)
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="flex items-center gap-2 opacity-20">
