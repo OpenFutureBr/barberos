@@ -64,12 +64,8 @@ const faqs = [
     ],
   },
   {
-    categoria: "Galeria & Serviços",
+    categoria: "Serviços",
     itens: [
-      {
-        q: "O que é a Galeria de Cortes?",
-        r: "É um catálogo global de estilos e cortes gerenciado pela plataforma. Como organização, você pode ativar os estilos que seu estabelecimento oferece e atribuir cada estilo a barbeiros específicos. Você também pode adicionar uma foto própria para substituir a foto padrão.",
-      },
       {
         q: "Como adicionar um serviço?",
         r: "Vá em Gestão → Serviços e clique em '+ Novo serviço'. Preencha nome, categoria, preço e duração. Você pode vincular foto e ativar/desativar o serviço a qualquer momento.",

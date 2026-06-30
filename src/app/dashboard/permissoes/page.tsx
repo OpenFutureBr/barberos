@@ -2,35 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
-
-const ALL_RESOURCES = [
-  { group: "Principal",   slug: "dashboard",    label: "Dashboard" },
-  { group: "Principal",   slug: "agenda",       label: "Agenda" },
-  { group: "Principal",   slug: "fila",         label: "Fila de Espera" },
-  { group: "Principal",   slug: "painel_tv",    label: "Painel TV" },
-  { group: "Gestão",      slug: "clientes",     label: "Clientes" },
-  { group: "Gestão",      slug: "servicos",     label: "Serviços" },
-  { group: "Gestão",      slug: "galeria",      label: "Galeria de Cortes" },
-  { group: "Gestão",      slug: "equipe",       label: "Equipe" },
-  { group: "Gestão",      slug: "estoque",      label: "Estoque" },
-  { group: "Gestão",      slug: "ia_estoque",   label: "IA Estoque" },
-  { group: "Gestão",      slug: "domicilio",    label: "Domicílio" },
-  { group: "Gestão",      slug: "ia_biotipo",   label: "IA Biotipo" },
-  { group: "Financeiro",  slug: "pix",          label: "PIX & Cobranças" },
-  { group: "Financeiro",  slug: "caixa",        label: "Caixa" },
-  { group: "Financeiro",  slug: "financeiro",   label: "Financeiro" },
-  { group: "Financeiro",  slug: "fiscal",       label: "Fiscal & NF-e" },
-  { group: "Financeiro",  slug: "precificacao", label: "Precificação" },
-  { group: "Fidelidade",  slug: "cashback",     label: "Cashback" },
-  { group: "Fidelidade",  slug: "assinaturas",  label: "Assinaturas" },
-  { group: "Fidelidade",  slug: "clientes_ia",  label: "Central IA" },
-  { group: "Comunicação", slug: "whatsapp",     label: "WhatsApp" },
-  { group: "Escala",      slug: "unidades",     label: "Multi-unidades" },
-  { group: "Escala",      slug: "white_label",  label: "White-label" },
-  { group: "Escala",      slug: "media",        label: "BarberOS Media" },
-  { group: "Sistema",     slug: "configuracoes",label: "Configurações" },
-  { group: "Sistema",     slug: "api_docs",     label: "API Docs" },
-]
+import { RESOURCES as ALL_RESOURCES } from "@/lib/resources"
 
 // Roles ORG_OWNER can configure (not ADMIN or ORG_OWNER themselves)
 const ROLES = [

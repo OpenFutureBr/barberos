@@ -9,7 +9,6 @@ const NOMES: Record<string, string> = {
   "/dashboard/agenda":        "Agenda",
   "/dashboard/fila":          "Fila de Espera",
   "/dashboard/clientes":      "Clientes",
-  "/dashboard/galeria":       "Galeria de Cortes",
   "/dashboard/equipe":        "Equipe",
   "/dashboard/estoque":       "Estoque & Produtos",
   "/dashboard/domicilio":     "Domicílio",

@@ -46,7 +46,6 @@ model Establishment {
   cashbackConfigs    CashbackConfig[]
   serviceUnits       ServiceUnit[]
   whatsappLogs       WhatsAppLog[]
-  estabCorteBarbeiros EstabCorteBarbeiro[]
   organizationId     String?            @map("organization_id")
   organization       Organization?      @relation(fields: [organizationId], references: [id])
 
@@ -94,7 +93,6 @@ model User {
   isFirstLogin      Boolean          @default(true)
   kitItems          KitItem[]
   sessions          Session[]
-  estabCorteBarbeiros EstabCorteBarbeiro[]
   establishment     Establishment?   @relation(fields: [establishmentId], references: [id])
   permissions       UserPermission[]
   organizationId    String?          @map("organization_id")
@@ -403,6 +401,7 @@ model Transaction {
   @@index([cashRegisterId, type, createdAt], map: "idx_transactions_cashRegisterId_type_createdAt")
   @@index([type, createdAt], map: "idx_transactions_type_createdAt")
   @@index([method], map: "idx_transactions_method")
+  @@index([description], map: "idx_transactions_description")
   @@map("transactions")
 }
 
@@ -653,62 +652,6 @@ model PlatformConfig {
   @@map("platform_config")
 }
 
-// ── Galeria Global de Cortes ────────────────────────────────────────────────
-
-model GaleriaCorte {
-  id           String     @id @default(cuid())
-  name         String
-  description  String?
-  photoUrl     String?
-  instagramUrl String?    @map("instagram_url")
-  category     String?
-  tags         String[]
-  difficulty   String?
-  durationMin  Int?       @map("duration_min")
-  instructions String?
-  sortOrder    Int        @default(0) @map("sort_order")
-  isActive     Boolean    @default(true) @map("is_active")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  orgCortes    OrgCorte[]
-
-  @@index([isActive], map: "idx_galeria_cortes_isActive")
-  @@index([category], map: "idx_galeria_cortes_category")
-  @@map("galeria_cortes")
-}
-
-model OrgCorte {
-  id             String     @id @default(cuid())
-  galeriaCorteId String     @map("galeria_corte_id")
-  organizationId String     @map("organization_id")
-  isEnabled      Boolean    @default(true) @map("is_enabled")
-  customName     String?    @map("custom_name")
-  customPhotoUrl String?    @map("custom_photo_url")
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
-  galeriaCorte   GaleriaCorte @relation(fields: [galeriaCorteId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  barbeiros      EstabCorteBarbeiro[]
-
-  @@unique([galeriaCorteId, organizationId], map: "uq_org_corte_galeria_org")
-  @@index([organizationId, isEnabled], map: "idx_org_cortes_org_enabled")
-  @@map("org_cortes")
-}
-
-model EstabCorteBarbeiro {
-  id              String        @id @default(cuid())
-  orgCorteId      String        @map("org_corte_id")
-  establishmentId String        @map("establishment_id")
-  userId          String        @map("user_id")
-  orgCorte        OrgCorte      @relation(fields: [orgCorteId], references: [id], onDelete: Cascade)
-  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([orgCorteId, establishmentId, userId], map: "uq_estab_corte_barbeiro")
-  @@index([orgCorteId, establishmentId], map: "idx_estab_corte_barbeiro_corte_estab")
-  @@map("estab_corte_barbeiros")
-}
-
 model Organization {
   id         String  @id @default(cuid())
   name       String
@@ -745,7 +688,6 @@ model Organization {
   usageMetrics            UsageMetric[]
   storageUsage            StorageUsage?
   rolePermissionTemplates RolePermissionTemplate[]
-  orgCortes               OrgCorte[]
 
   @@index([isActive, isBlocked], map: "idx_organizations_isActive_isBlocked")
   @@index([billingStatus], map: "idx_organizations_billingStatus")
