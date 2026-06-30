@@ -150,6 +150,8 @@ export async function GET(request: Request) {
       totalSaidas,
       totalPrevistas,
       saldoFinal: arredondar(totalEntradas - totalSaidas),
+    }, {
+      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" },
     })
   } catch (e) {
     console.error("[GET /api/financeiro/fluxo]", e)

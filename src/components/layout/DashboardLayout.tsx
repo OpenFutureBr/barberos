@@ -27,6 +27,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then(r => r.json())
       .then(d => { if (!d.error) setCache("configuracoes", d) })
       .catch(() => {})
+    // Precificação (usada no modal de agendamento)
+    fetch("/api/precificacao")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCache("precificacao", d) })
+      .catch(() => {})
+    // Agendamentos de hoje (data padrão ao abrir o modal de agendamento)
+    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
+    fetch(`/api/agendamentos?data=${hoje}`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d) })
+      .catch(() => {})
   }, [])
 
   // Carrinho persistente — não some ao fechar o modal

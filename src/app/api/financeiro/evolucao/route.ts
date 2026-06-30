@@ -16,45 +16,41 @@ export async function GET(request: Request) {
     const anoInicio = new Date(ano, 0, 1)
     const anoFim = new Date(ano, 11, 31, 23, 59, 59)
 
-    const [pagamentos, transacoesAssinatura] = await Promise.all([
-      // Pagamentos de agendamentos
-      prisma.payment.findMany({
-        where: {
-          status: "PAID",
-          appointment: {
-            establishmentId: ESTAB_ID,
-            scheduledAt: { gte: anoInicio, lte: anoFim },
-          },
-        },
-        select: {
-          amount: true,
-          appointment: { select: { scheduledAt: true } },
-        },
-      }),
+    // Duas queries SQL agregadas — retornam no máximo 12 linhas cada
+    const [pgPagamentos, pgAssinaturas] = await Promise.all([
+      prisma.$queryRaw<{ mes: number; total: number }[]>`
+        SELECT
+          EXTRACT(MONTH FROM a.scheduled_at)::int AS mes,
+          COALESCE(SUM(p.amount), 0)::float8      AS total
+        FROM payments p
+        JOIN appointments a ON p.appointment_id = a.id
+        WHERE p.status = 'PAID'
+          AND a.establishment_id = ${ESTAB_ID}
+          AND a.scheduled_at >= ${anoInicio}
+          AND a.scheduled_at <= ${anoFim}
+        GROUP BY mes
+        ORDER BY mes
+      `,
 
-      // Pagamentos de assinaturas (registrados como Transaction)
-      prisma.transaction.findMany({
-        where: {
-          type: "RECEITA",
-          description: { startsWith: "Assinatura ·" },
-          createdAt: { gte: anoInicio, lte: anoFim },
-          cashRegister: { establishmentId: ESTAB_ID },
-        },
-        select: { amount: true, createdAt: true },
-      }),
+      prisma.$queryRaw<{ mes: number; total: number }[]>`
+        SELECT
+          EXTRACT(MONTH FROM t.created_at)::int AS mes,
+          COALESCE(SUM(t.amount), 0)::float8    AS total
+        FROM transactions t
+        JOIN cash_registers cr ON t.cash_register_id = cr.id
+        WHERE t.type = 'RECEITA'
+          AND t.description LIKE 'Assinatura ·%'
+          AND t.created_at >= ${anoInicio}
+          AND t.created_at <= ${anoFim}
+          AND cr.establishment_id = ${ESTAB_ID}
+        GROUP BY mes
+        ORDER BY mes
+      `,
     ])
 
     const totalPorMes = new Array(12).fill(0)
-
-    for (const p of pagamentos) {
-      const mes = new Date(p.appointment.scheduledAt).getMonth()
-      totalPorMes[mes] += p.amount
-    }
-
-    for (const t of transacoesAssinatura) {
-      const mes = new Date(t.createdAt).getMonth()
-      totalPorMes[mes] += t.amount
-    }
+    for (const row of pgPagamentos)  totalPorMes[Number(row.mes) - 1] += Number(row.total)
+    for (const row of pgAssinaturas) totalPorMes[Number(row.mes) - 1] += Number(row.total)
 
     const evolucao = MESES.map((label, i) => ({
       mes: i + 1,
@@ -62,7 +58,9 @@ export async function GET(request: Request) {
       valor: Math.round(totalPorMes[i] * 100) / 100,
     }))
 
-    return NextResponse.json(evolucao)
+    return NextResponse.json(evolucao, {
+      headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=600" },
+    })
   } catch (error) {
     console.error("[GET /api/financeiro/evolucao]", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })

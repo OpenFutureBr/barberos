@@ -42,7 +42,9 @@ export async function GET(request: Request) {
       orderBy: { scheduledAt: "asc" },
     })
 
-    return NextResponse.json(agendamentos)
+    return NextResponse.json(agendamentos, {
+      headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" },
+    })
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
