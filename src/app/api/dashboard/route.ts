@@ -3,9 +3,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { ClientSegment, AppointmentStatus, SubscriptionStatus } from "@prisma/client"
 
-function arredondar(valor: number) {
-  return Math.round(valor * 100) / 100
-}
+function arredondar(v: number) { return Math.round(v * 100) / 100 }
 
 function parsePeriodo(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -37,7 +35,6 @@ export async function GET(request: Request) {
     const mesAnteriorStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const mesAnteriorEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
 
-    // Só busca agenda de hoje quando o período selecionado inclui hoje
     const periodoIncluiHoje = toDate >= hojeInicio
 
     const [
@@ -48,16 +45,9 @@ export async function GET(request: Request) {
       pagamentosPendentes,
       assinaturasVencidas,
       receitaAssinaturasPeriodo,
-      // ── SQL agregados ─────────────────────────────────────────────────────
-      pgStatus,
-      pgRevenue,
-      pgTopServicos,
-      pgTopProfissionais,
-      pgPorMetodo,
-      pgProdutos,
+      appointments,
+      stockMovements,
     ] = await Promise.all([
-
-      // ── queries já eficientes (inalteradas) ───────────────────────────────
 
       prisma.client.count({
         where: { establishmentId: ESTAB_ID, segment: ClientSegment.VIP },
@@ -94,159 +84,124 @@ export async function GET(request: Request) {
       }),
 
       prisma.subscription.aggregate({
-        where: { status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.OVERDUE] }, nextBillingAt: { lte: now }, client: { establishmentId: ESTAB_ID } },
+        where: {
+          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.OVERDUE] },
+          nextBillingAt: { lte: now },
+          client: { establishmentId: ESTAB_ID },
+        },
         _count: { id: true },
         _sum:   { price: true },
       }),
 
       prisma.transaction.aggregate({
-        where: { type: "RECEITA", description: { startsWith: "Assinatura ·" }, createdAt: { gte: fromDate, lte: toDate }, cashRegister: { establishmentId: ESTAB_ID } },
+        where: {
+          type: "RECEITA",
+          description: { startsWith: "Assinatura ·" },
+          createdAt: { gte: fromDate, lte: toDate },
+          cashRegister: { establishmentId: ESTAB_ID },
+        },
         _sum: { amount: true },
       }),
 
-      // ── SQL agregados: substituem dois findMany que traziam linhas brutas ──
+      // Agendamentos do período para agregação
+      prisma.appointment.findMany({
+        where: { establishmentId: ESTAB_ID, scheduledAt: { gte: fromDate, lte: toDate } },
+        select: {
+          status: true,
+          serviceType: true,
+          service:      { select: { name: true, price: true } },
+          payment:      { select: { amount: true, method: true, status: true } },
+          professional: { select: { id: true, name: true } },
+        },
+      }),
 
-      // Contagem por status → porStatus, pendentes, cancelados
-      prisma.$queryRaw<{ status: string; count: number }[]>`
-        SELECT status::text, COUNT(*)::int AS count
-        FROM appointments
-        WHERE establishment_id = ${ESTAB_ID}
-          AND scheduled_at >= ${fromDate}
-          AND scheduled_at <= ${toDate}
-        GROUP BY status
-      `,
-
-      // Receita e atendimentos por tipo de serviço → split, receitaServicos, faturamentoRecebido
-      prisma.$queryRaw<{ service_type: string; atendimentos: number; receita: number; receita_paga: number }[]>`
-        SELECT
-          a.service_type,
-          COUNT(*)::int                                                         AS atendimentos,
-          COALESCE(SUM(COALESCE(p.amount, s.price)), 0)::float8               AS receita,
-          COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'PAID'), 0)::float8 AS receita_paga
-        FROM appointments a
-        JOIN services s ON a.service_id = s.id
-        LEFT JOIN payments p ON p.appointment_id = a.id
-        WHERE a.establishment_id = ${ESTAB_ID}
-          AND a.scheduled_at >= ${fromDate}
-          AND a.scheduled_at <= ${toDate}
-          AND a.status = 'DONE'
-        GROUP BY a.service_type
-      `,
-
-      // Top 5 serviços
-      prisma.$queryRaw<{ nome: string; count: number; receita: number }[]>`
-        SELECT
-          s.name                                                               AS nome,
-          COUNT(*)::int                                                        AS count,
-          COALESCE(SUM(COALESCE(p.amount, s.price)), 0)::float8              AS receita
-        FROM appointments a
-        JOIN services s ON a.service_id = s.id
-        LEFT JOIN payments p ON p.appointment_id = a.id
-        WHERE a.establishment_id = ${ESTAB_ID}
-          AND a.scheduled_at >= ${fromDate}
-          AND a.scheduled_at <= ${toDate}
-          AND a.status = 'DONE'
-        GROUP BY s.name
-        ORDER BY count DESC
-        LIMIT 5
-      `,
-
-      // Top 5 profissionais
-      prisma.$queryRaw<{ profissionalId: string; nome: string; atendimentos: number; receita: number }[]>`
-        SELECT
-          a.professional_id                                                    AS "profissionalId",
-          u.name                                                               AS nome,
-          COUNT(*)::int                                                        AS atendimentos,
-          COALESCE(SUM(COALESCE(p.amount, s.price)), 0)::float8              AS receita
-        FROM appointments a
-        JOIN users u ON a.professional_id = u.id
-        JOIN services s ON a.service_id = s.id
-        LEFT JOIN payments p ON p.appointment_id = a.id
-        WHERE a.establishment_id = ${ESTAB_ID}
-          AND a.scheduled_at >= ${fromDate}
-          AND a.scheduled_at <= ${toDate}
-          AND a.status = 'DONE'
-        GROUP BY a.professional_id, u.name
-        ORDER BY receita DESC
-        LIMIT 5
-      `,
-
-      // Receita por método de pagamento
-      prisma.$queryRaw<{ method: string; total: number }[]>`
-        SELECT
-          p.method::text                                                       AS method,
-          COALESCE(SUM(p.amount), 0)::float8                                 AS total
-        FROM appointments a
-        JOIN payments p ON p.appointment_id = a.id
-        WHERE a.establishment_id = ${ESTAB_ID}
-          AND a.scheduled_at >= ${fromDate}
-          AND a.scheduled_at <= ${toDate}
-          AND a.status = 'DONE'
-        GROUP BY p.method
-      `,
-
-      // Movimentos de produto agrupados por nome (sem LIMIT — produtos por estab são poucos)
-      prisma.$queryRaw<{ nome: string; qtd: number; receita: number }[]>`
-        SELECT
-          pr.name                                                              AS nome,
-          SUM(sm.quantity)::int                                               AS qtd,
-          COALESCE(SUM(sm.quantity * sm.unit_price), 0)::float8              AS receita
-        FROM stock_movements sm
-        JOIN products pr ON sm.product_id = pr.id
-        WHERE sm.type = 'SAIDA'
-          AND sm.created_at >= ${fromDate}
-          AND sm.created_at <= ${toDate}
-          AND pr.establishment_id = ${ESTAB_ID}
-        GROUP BY pr.name
-        ORDER BY qtd DESC
-      `,
+      // Movimentos de estoque do período
+      prisma.stockMovement.findMany({
+        where: {
+          type: "SAIDA",
+          createdAt: { gte: fromDate, lte: toDate },
+          product: { establishmentId: ESTAB_ID },
+        },
+        select: {
+          quantity: true,
+          unitPrice: true,
+          product: { select: { name: true } },
+        },
+      }),
     ])
 
-    // ── Derivações a partir dos resultados já agregados ────────────────────
+    // ── Agregação JS ──────────────────────────────────────────────────────────
+
+    const PENDING_SET = new Set<string>(["SCHEDULED", "CONFIRMED", "IN_QUEUE", "IN_PROGRESS"])
+    const CANCEL_SET  = new Set<string>(["CANCELLED", "NO_SHOW"])
+
+    const doneAppts = appointments.filter(a => a.status === AppointmentStatus.DONE)
+    const pendentes = appointments.filter(a => PENDING_SET.has(a.status)).length
+    const cancelados = appointments.filter(a => CANCEL_SET.has(a.status)).length
 
     const porStatus: Record<string, number> = {}
-    for (const r of pgStatus) porStatus[r.status] = Number(r.count)
+    for (const a of appointments) porStatus[a.status] = (porStatus[a.status] ?? 0) + 1
 
-    const PENDING_SET = new Set(["SCHEDULED", "CONFIRMED", "IN_QUEUE", "IN_PROGRESS"])
-    const CANCEL_SET  = new Set(["CANCELLED", "NO_SHOW"])
-    const pendentes = pgStatus.filter(r => PENDING_SET.has(r.status)).reduce((s, r) => s + Number(r.count), 0)
-    const cancelados = pgStatus.filter(r => CANCEL_SET.has(r.status)).reduce((s, r) => s + Number(r.count), 0)
-
-    const atendimentos    = pgRevenue.reduce((s, r) => s + Number(r.atendimentos), 0)
-    const receitaServicos = pgRevenue.reduce((s, r) => s + Number(r.receita), 0)
-    const receitaProdutos = pgProdutos.reduce((s, r) => s + Number(r.receita), 0)
+    const atendimentos    = doneAppts.length
+    const receitaServicos = doneAppts.reduce((s, a) => s + (a.payment?.amount ?? a.service.price), 0)
+    const receitaProdutos = stockMovements.reduce((s, m) => s + m.quantity * (m.unitPrice ?? 0), 0)
     const receitaAssinaturas = receitaAssinaturasPeriodo._sum.amount ?? 0
-
     const faturamento        = receitaServicos + receitaProdutos + receitaAssinaturas
-    const ticketMedio        = atendimentos > 0 ? faturamento / atendimentos : 0
     const faturamentoRecebido =
-      pgRevenue.reduce((s, r) => s + Number(r.receita_paga), 0)
+      doneAppts.reduce((s, a) => s + (a.payment?.status === "PAID" ? (a.payment?.amount ?? 0) : 0), 0)
       + receitaProdutos + receitaAssinaturas
+    const ticketMedio = atendimentos > 0 ? faturamento / atendimentos : 0
 
-    const presencialRows = pgRevenue.filter(r => r.service_type !== "HOME_VISIT")
-    const domicilioRows  = pgRevenue.filter(r => r.service_type === "HOME_VISIT")
+    const presencialAppts = doneAppts.filter(a => a.serviceType !== "HOME_VISIT")
+    const domicilioAppts  = doneAppts.filter(a => a.serviceType === "HOME_VISIT")
 
-    const topServicos = pgTopServicos.map(r => ({
-      nome: r.nome,
-      count: Number(r.count),
-      receita: arredondar(Number(r.receita)),
-    }))
+    // Top serviços
+    const svcMap: Record<string, { nome: string; count: number; receita: number }> = {}
+    for (const a of doneAppts) {
+      const nome = a.service.name
+      if (!svcMap[nome]) svcMap[nome] = { nome, count: 0, receita: 0 }
+      svcMap[nome].count++
+      svcMap[nome].receita += a.payment?.amount ?? a.service.price
+    }
+    const topServicos = Object.values(svcMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+      .map(s => ({ ...s, receita: arredondar(s.receita) }))
 
-    const topProdutos = pgProdutos.slice(0, 5).map(r => ({
-      nome: r.nome,
-      qtd: Number(r.qtd),
-      receita: arredondar(Number(r.receita)),
-    }))
+    // Top produtos
+    const prodMap: Record<string, { nome: string; qtd: number; receita: number }> = {}
+    for (const m of stockMovements) {
+      const nome = m.product.name
+      if (!prodMap[nome]) prodMap[nome] = { nome, qtd: 0, receita: 0 }
+      prodMap[nome].qtd += m.quantity
+      prodMap[nome].receita += m.quantity * (m.unitPrice ?? 0)
+    }
+    const topProdutos = Object.values(prodMap)
+      .sort((a, b) => b.qtd - a.qtd)
+      .slice(0, 5)
+      .map(p => ({ ...p, receita: arredondar(p.receita) }))
 
-    const topProfissionais = pgTopProfissionais.map(r => ({
-      profissionalId: r.profissionalId,
-      nome: r.nome,
-      atendimentos: Number(r.atendimentos),
-      receita: arredondar(Number(r.receita)),
-    }))
+    // Top profissionais
+    const profMap: Record<string, { profissionalId: string; nome: string; atendimentos: number; receita: number }> = {}
+    for (const a of doneAppts) {
+      const { id, name } = a.professional
+      if (!profMap[id]) profMap[id] = { profissionalId: id, nome: name, atendimentos: 0, receita: 0 }
+      profMap[id].atendimentos++
+      profMap[id].receita += a.payment?.amount ?? a.service.price
+    }
+    const topProfissionais = Object.values(profMap)
+      .sort((a, b) => b.receita - a.receita)
+      .slice(0, 5)
+      .map(p => ({ ...p, receita: arredondar(p.receita) }))
 
+    // Por método de pagamento
     const porMetodoPagamento: Record<string, number> = {}
-    for (const r of pgPorMetodo) porMetodoPagamento[r.method] = arredondar(Number(r.total))
+    for (const a of doneAppts) {
+      if (a.payment?.status === "PAID" && a.payment.method) {
+        const m = String(a.payment.method)
+        porMetodoPagamento[m] = arredondar((porMetodoPagamento[m] ?? 0) + (a.payment.amount ?? 0))
+      }
+    }
 
     const pagamentosPendentesCount = pagamentosPendentes._count.id + assinaturasVencidas._count.id
     const valorPendente = (pagamentosPendentes._sum.amount ?? 0) + (assinaturasVencidas._sum.price ?? 0)
@@ -270,7 +225,7 @@ export async function GET(request: Request) {
       pagamentosPendentes: pagamentosPendentesCount,
       valorPendente:       arredondar(valorPendente),
 
-      mesAtualClientes:   apptsMesAtual.length,
+      mesAtualClientes:    apptsMesAtual.length,
       mesAnteriorClientes: apptsMesAnterior.length,
 
       topServicos,
@@ -284,12 +239,12 @@ export async function GET(request: Request) {
 
       split: {
         presencial: {
-          atendimentos: presencialRows.reduce((s, r) => s + Number(r.atendimentos), 0),
-          receita:      arredondar(presencialRows.reduce((s, r) => s + Number(r.receita), 0)),
+          atendimentos: presencialAppts.length,
+          receita:      arredondar(presencialAppts.reduce((s, a) => s + (a.payment?.amount ?? a.service.price), 0)),
         },
         domicilio: {
-          atendimentos: domicilioRows.reduce((s, r) => s + Number(r.atendimentos), 0),
-          receita:      arredondar(domicilioRows.reduce((s, r) => s + Number(r.receita), 0)),
+          atendimentos: domicilioAppts.length,
+          receita:      arredondar(domicilioAppts.reduce((s, a) => s + (a.payment?.amount ?? a.service.price), 0)),
         },
       },
     }, {
