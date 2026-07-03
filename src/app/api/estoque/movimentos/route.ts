@@ -1,13 +1,18 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-
-
+import { auth } from "@/lib/auth"
 
 
 export async function GET() {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
+    // Escopo por estabelecimento — StockMovement não tem establishmentId direto,
+    // então filtramos pela relação com Product (multi-tenant fix).
     const movimentos = await prisma.stockMovement.findMany({
+      where: { product: { establishmentId: estabId } },
       include: { product: { select: { name: true, category: true, salePrice: true } } },
       orderBy: { createdAt: "desc" },
       take: 200,

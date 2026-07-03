@@ -13,7 +13,9 @@ export async function GET() {
       where: { establishmentId: estabId },
       include: {
         schedules: true,
-        userServices: { include: { service: true } },
+        // Só id/nome do serviço são usados na tela de equipe — evita trazer
+        // preço, duração, foto etc. de cada serviço vinculado ao profissional.
+        userServices: { select: { serviceId: true, service: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: "desc" },
     })

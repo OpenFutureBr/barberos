@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 
 const statusLabel: Record<string, string> = {
   SCHEDULED: "Pendente",
@@ -161,12 +162,18 @@ export default function AgendaPage() {
   const [businessHours, setBusinessHours] = useState<any[]>([])
 
   useEffect(() => {
+    const cfgCache = getCache("configuracoes")
+    if (cfgCache && Array.isArray(cfgCache.businessHours)) setBusinessHours(cfgCache.businessHours)
+
     Promise.all([
       fetch("/api/equipe").then(r => r.json()),
-      fetch("/api/configuracoes").then(r => r.json()),
+      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
     ]).then(([profs, cfg]) => {
       setProfissionais(Array.isArray(profs) ? profs : [])
-      if (Array.isArray(cfg?.businessHours)) setBusinessHours(cfg.businessHours)
+      if (!cfgCache && Array.isArray(cfg?.businessHours)) {
+        setBusinessHours(cfg.businessHours)
+        setCache("configuracoes", cfg)
+      }
       setLoadingProfs(false)
     }).catch(console.error)
   }, [])
@@ -405,15 +412,30 @@ export default function AgendaPage() {
     finally { setDragAppt(null); setDragOverKey(null); setMovendo(false) }
   }
 
+  // renderSlots chama getApptsDaHora uma vez por (hora, profissional) — em uma
+  // grade de ~15 horas × N profissionais isso repetia o .filter() do array
+  // inteiro dezenas de vezes por render. Agrupa por "hora|profissionalId" uma
+  // única vez por array de agendamentos (cache por referência via WeakMap, que
+  // se invalida sozinha quando o array muda de referência) e faz lookup O(1).
+  const gruposApptsRef = useRef<WeakMap<any[], Map<string, any[]>>>(new WeakMap())
+
   function getApptsDaHora(hora: string, profId: string, appts: any[]) {
+    let grupos = gruposApptsRef.current.get(appts)
+    if (!grupos) {
+      grupos = new Map<string, any[]>()
+      for (const a of appts) {
+        const chave = `${new Date(a.scheduledAt).getHours()}|${a.professionalId}`
+        const lista = grupos.get(chave)
+        if (lista) lista.push(a)
+        else grupos.set(chave, [a])
+      }
+      gruposApptsRef.current.set(appts, grupos)
+    }
+
     const [horaNum] = hora.split(":").map(Number)
-    return appts.filter((a) => {
-      const date = new Date(a.scheduledAt)
-      if (date.getHours() !== horaNum || a.professionalId !== profId) return false
-      const cancelado = isCancelado(a)
-      if (filtroStatus === "ativos") return !cancelado
-      return true
-    })
+    const bucket = grupos.get(`${horaNum}|${profId}`) ?? []
+    if (filtroStatus === "ativos") return bucket.filter((a) => !isCancelado(a))
+    return bucket
   }
 
   function handleSlotClick(h: string, pId: string, data?: string) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { setCache } from "@/lib/prefetch-cache"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -15,29 +15,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
-  // Prefetch silencioso de dados frequentes ao carregar o dashboard
+  // Prefetch silencioso de dados frequentes ao carregar o dashboard.
+  // DashboardLayout remonta a cada navegação (não há app/dashboard/layout.tsx
+  // compartilhado), então sem checar o cache antes isso refazia os 4 fetches
+  // a cada troca de página mesmo com dado fresco de segundos atrás.
   useEffect(() => {
     // Clientes (primeira página) — maior gargalo atual
-    fetch("/api/clientes?page=1&perPage=30")
-      .then(r => r.json())
-      .then(d => { if (!d.error) setCache("clientes:1:30:", d) })
-      .catch(() => {})
+    if (!getCache("clientes:1:30:")) {
+      fetch("/api/clientes?page=1&perPage=30")
+        .then(r => r.json())
+        .then(d => { if (!d.error) setCache("clientes:1:30:", d) })
+        .catch(() => {})
+    }
     // Configurações (usada em muitos modais)
-    fetch("/api/configuracoes")
-      .then(r => r.json())
-      .then(d => { if (!d.error) setCache("configuracoes", d) })
-      .catch(() => {})
+    if (!getCache("configuracoes")) {
+      fetch("/api/configuracoes")
+        .then(r => r.json())
+        .then(d => { if (!d.error) setCache("configuracoes", d) })
+        .catch(() => {})
+    }
     // Precificação (usada no modal de agendamento)
-    fetch("/api/precificacao")
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setCache("precificacao", d) })
-      .catch(() => {})
+    if (!getCache("precificacao")) {
+      fetch("/api/precificacao")
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setCache("precificacao", d) })
+        .catch(() => {})
+    }
     // Agendamentos de hoje (data padrão ao abrir o modal de agendamento)
     const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
-    fetch(`/api/agendamentos?data=${hoje}`)
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d) })
-      .catch(() => {})
+    if (!getCache(`agendamentos:${hoje}`)) {
+      fetch(`/api/agendamentos?data=${hoje}`)
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d) })
+        .catch(() => {})
+    }
   }, [])
 
   // Carrinho persistente — não some ao fechar o modal

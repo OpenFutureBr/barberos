@@ -380,7 +380,13 @@ export async function GET(request: Request) {
 
     const { inicio, fim } = inicioFimMes(ano, mes)
 
-    const [appointments, movements, pendentes] = await Promise.all([
+    // Evolução anual — calculado abaixo, mas o intervalo não depende das
+    // outras queries, então já entra no mesmo Promise.all (era uma 2ª leva
+    // sequencial antes).
+    const anoInicio = new Date(ano, 0, 1)
+    const anoFim = new Date(ano, 11, 31, 23, 59, 59)
+
+    const [appointments, movements, pendentes, anoAppts, anoMovs] = await Promise.all([
       prisma.appointment.findMany({
         where: {
           establishmentId: ESTAB_ID,
@@ -472,6 +478,45 @@ export async function GET(request: Request) {
           },
         ],
       }),
+
+      prisma.appointment.findMany({
+        where: {
+          establishmentId: ESTAB_ID,
+          status: "DONE" as any,
+          scheduledAt: {
+            gte: anoInicio,
+            lte: anoFim,
+          },
+        },
+        include: {
+          service: {
+            select: {
+              price: true,
+            },
+          },
+          payment: {
+            select: {
+              amount: true,
+              status: true,
+            },
+          },
+        },
+      }),
+
+      prisma.stockMovement.findMany({
+        where: {
+          createdAt: {
+            gte: anoInicio,
+            lte: anoFim,
+          },
+          type: "SAIDA",
+        },
+        select: {
+          quantity: true,
+          unitPrice: true,
+          createdAt: true,
+        },
+      }),
     ])
 
     /**
@@ -541,51 +586,7 @@ export async function GET(request: Request) {
       }
     })
 
-    // Evolução anual
-    const anoInicio = new Date(ano, 0, 1)
-    const anoFim = new Date(ano, 11, 31, 23, 59, 59)
-
-    const [anoAppts, anoMovs] = await Promise.all([
-      prisma.appointment.findMany({
-        where: {
-          establishmentId: ESTAB_ID,
-          status: "DONE" as any,
-          scheduledAt: {
-            gte: anoInicio,
-            lte: anoFim,
-          },
-        },
-        include: {
-          service: {
-            select: {
-              price: true,
-            },
-          },
-          payment: {
-            select: {
-              amount: true,
-              status: true,
-            },
-          },
-        },
-      }),
-
-      prisma.stockMovement.findMany({
-        where: {
-          createdAt: {
-            gte: anoInicio,
-            lte: anoFim,
-          },
-          type: "SAIDA",
-        },
-        select: {
-          quantity: true,
-          unitPrice: true,
-          createdAt: true,
-        },
-      }),
-    ])
-
+    // Evolução anual (anoAppts/anoMovs já buscados acima, em paralelo com o resto)
     const evolucao = MESES_LABEL.map((label, i) => {
       const appts = anoAppts.filter((a) => new Date(a.scheduledAt).getMonth() === i)
       const movs = anoMovs.filter((m) => new Date(m.createdAt).getMonth() === i)

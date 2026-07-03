@@ -1,12 +1,14 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
-
-
-
+import { auth } from "@/lib/auth"
 
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const data = searchParams.get("data") // YYYY-MM-DD, opcional
 
@@ -18,8 +20,9 @@ export async function GET(request: Request) {
     } : {}
 
     // Busca os movimentos de SAIDA (que têm a info de cliente no campo reason)
+    // Escopo por estabelecimento via relação com Product (multi-tenant fix).
     const vendas = await prisma.stockMovement.findMany({
-      where: { ...where, type: "SAIDA" },
+      where: { ...where, type: "SAIDA", product: { establishmentId: estabId } },
       include: { product: { select: { name: true, salePrice: true, category: true } } },
       orderBy: { createdAt: "desc" },
       take: 200,

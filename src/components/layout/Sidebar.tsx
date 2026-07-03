@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { roleLabel } from "@/lib/role-labels"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -88,14 +89,21 @@ export default function Sidebar() {
   }
 
   useEffect(() => {
-    fetch("/api/configuracoes")
-      .then(r => r.json())
-      .then(d => {
-        // Prefer unit logo, fall back to org logo
-        setLogoUrl(d?.logoUrl ?? d?.orgLogoUrl ?? null)
-        if (d?.name) setEstabNome(d.name)
-      })
-      .catch(() => {})
+    const aplicar = (d: any) => {
+      // Prefer unit logo, fall back to org logo
+      setLogoUrl(d?.logoUrl ?? d?.orgLogoUrl ?? null)
+      if (d?.name) setEstabNome(d.name)
+    }
+
+    const cfgCache = getCache("configuracoes")
+    if (cfgCache) {
+      aplicar(cfgCache)
+    } else {
+      fetch("/api/configuracoes")
+        .then(r => r.json())
+        .then(d => { if (!d.error) setCache("configuracoes", d); aplicar(d) })
+        .catch(() => {})
+    }
 
     function onLogo(e: Event) { setLogoUrl((e as CustomEvent).detail) }
     function onEstab(e: Event) {

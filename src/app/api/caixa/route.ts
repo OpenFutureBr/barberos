@@ -61,16 +61,15 @@ export async function GET(request: Request) {
       })
     }
 
-    const caixa = await getCaixaHoje(ESTAB)
-
     const hoje = new Date()
     const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
     const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
 
     /**
-     * Pagamentos confirmados hoje.
+     * Pagamentos confirmados hoje, movimentos de estoque de hoje e o caixa do dia
+     * não dependem uns dos outros — buscados em paralelo (antes eram sequenciais).
      *
-     * Regra:
+     * Regra dos pagamentos:
      * - Só entra no caixa se status = PAID
      * - Não entra se tiver dueDate, porque pagamento "Pagar depois"
      *   será lançado no caixa via Transaction quando for quitado no Financeiro.
@@ -79,84 +78,95 @@ export async function GET(request: Request) {
      * - pendente entrar no caixa antes de receber
      * - duplicidade quando uma pendência é marcada como paga
      */
-    const pagamentos = await prisma.payment.findMany({
-      where: {
-        status: "PAID",
-        dueDate: null,
-        createdAt: {
-          gte: inicio,
-          lte: fim,
+    const [caixa, pagamentos, movimentos] = await Promise.all([
+      getCaixaHoje(ESTAB),
+
+      prisma.payment.findMany({
+        where: {
+          status: "PAID",
+          dueDate: null,
+          createdAt: {
+            gte: inicio,
+            lte: fim,
+          },
         },
-      },
-      include: {
-        appointment: {
-          include: {
-            client: {
-              select: {
-                name: true,
+        include: {
+          appointment: {
+            include: {
+              client: {
+                select: {
+                  name: true,
+                },
               },
-            },
-            service: {
-              select: {
-                name: true,
-                price: true,
+              service: {
+                select: {
+                  name: true,
+                  price: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    })
+        orderBy: {
+          createdAt: "asc",
+        },
+      }),
+
+      // Todos os movimentos SAIDA com unitPrice hoje
+      prisma.stockMovement.findMany({
+        where: {
+          createdAt: {
+            gte: inicio,
+            lte: fim,
+          },
+          type: "SAIDA",
+          unitPrice: {
+            not: null,
+          },
+        },
+        include: {
+          product: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      }),
+    ])
 
     /**
-     * Todos os pagamentos vinculados aos movimentos de hoje.
+     * Pagamentos vinculados aos agendamentos dos movimentos de hoje.
      * Usado para saber se um movimento de produto pertence a uma comanda
-     * que já tem pagamento/pendência vinculada.
+     * que já tem pagamento/pendência vinculada (inclusive pago em outro dia,
+     * caso de "Pagar depois").
+     *
+     * Antes buscava TODOS os pagamentos do estabelecimento (histórico inteiro);
+     * agora restringe pelo conjunto de appointmentId que aparece nos movimentos
+     * de hoje — mesmo resultado, sem varrer o histórico completo.
      *
      * Assim o produto da comanda não aparece como venda avulsa indevida.
      */
-    const pagamentosDeAgendamentos = await prisma.payment.findMany({
-      where: {
-        appointment: {
-          establishmentId: ESTAB,
-        },
-      },
-      select: {
-        appointmentId: true,
-        status: true,
-        dueDate: true,
-      },
-    })
+    const apptIdsDosMovimentos = [
+      ...new Set(movimentos.map((m) => m.appointmentId).filter((id): id is string => !!id)),
+    ]
+
+    const pagamentosDeAgendamentos = apptIdsDosMovimentos.length
+      ? await prisma.payment.findMany({
+          where: { appointmentId: { in: apptIdsDosMovimentos } },
+          select: {
+            appointmentId: true,
+            status: true,
+            dueDate: true,
+          },
+        })
+      : []
 
     const appointmentIdsComQualquerPagamento = new Set(
       pagamentosDeAgendamentos.map((p) => p.appointmentId),
     )
-
-    // Todos os movimentos SAIDA com unitPrice hoje
-    const movimentos = await prisma.stockMovement.findMany({
-      where: {
-        createdAt: {
-          gte: inicio,
-          lte: fim,
-        },
-        type: "SAIDA",
-        unitPrice: {
-          not: null,
-        },
-      },
-      include: {
-        product: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    })
 
     // Agrupa produtos por appointmentId apenas para pagamentos imediatos exibidos no caixa
     const prodsPorAppt: Record<string, { nome: string; qty: number; valor: number }[]> = {}

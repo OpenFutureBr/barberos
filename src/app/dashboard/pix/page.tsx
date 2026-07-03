@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -110,13 +111,17 @@ export default function PixPage() {
 
   const fetchDados = useCallback(() => {
     setLoading(true)
+    const cfgCache = getCache("configuracoes")
     Promise.all([
       fetch("/api/pix/cobrancas").then(r => r.json()),
-      fetch("/api/configuracoes").then(r => r.json()),
+      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
       fetch("/api/financeiro/pendentes").then(r => r.json()),
     ]).then(([lista, cfg, pends]) => {
       if (Array.isArray(lista)) setCobrancas(lista)
-      if (cfg && !cfg.error) setConfig({ pixKey: cfg.pixKey ?? null, name: cfg.name ?? "", city: cfg.city ?? null, whatsapp: cfg.whatsapp ?? null })
+      if (cfg && !cfg.error) {
+        setConfig({ pixKey: cfg.pixKey ?? null, name: cfg.name ?? "", city: cfg.city ?? null, whatsapp: cfg.whatsapp ?? null })
+        if (!cfgCache) setCache("configuracoes", cfg)
+      }
       if (Array.isArray(pends)) setPendentes(pends)
     }).catch(console.error).finally(() => setLoading(false))
   }, [])

@@ -24,26 +24,40 @@ export async function GET() {
 
     const agora = new Date()
 
-    // Reseta cortesUsados se mudou o mês; marca OVERDUE se venceu sem renovação
-    for (const a of assinantes) {
-      const updates: Record<string, any> = {}
+    // Reseta cortesUsados se mudou o mês; marca OVERDUE se venceu sem renovação.
+    // Antes disparava um UPDATE por assinante (sequencial); agora agrupa os ids
+    // por tipo de mudança e faz no máximo 2 updateMany em paralelo.
+    const idsResetMes: string[] = []
+    const idsOverdue: string[] = []
 
+    for (const a of assinantes) {
       if (a.mesReferencia !== mesAtual) {
-        updates.cortesUsados = 0
-        updates.mesReferencia = mesAtual
+        idsResetMes.push(a.id)
         a.cortesUsados = 0
         a.mesReferencia = mesAtual
       }
 
       if (a.status === "ACTIVE" && new Date(a.nextBillingAt) <= agora) {
-        updates.status = "OVERDUE"
+        idsOverdue.push(a.id)
         ;(a as any).status = "OVERDUE"
       }
-
-      if (Object.keys(updates).length > 0) {
-        await prisma.subscription.update({ where: { id: a.id }, data: updates }).catch(() => {})
-      }
     }
+
+    await Promise.all([
+      idsResetMes.length
+        ? prisma.subscription.updateMany({
+            where: { id: { in: idsResetMes } },
+            data: { cortesUsados: 0, mesReferencia: mesAtual },
+          }).catch(() => {})
+        : null,
+      idsOverdue.length
+        ? prisma.subscription.updateMany({
+            where: { id: { in: idsOverdue } },
+            data: { status: "OVERDUE" },
+          }).catch(() => {})
+        : null,
+    ])
+
     return NextResponse.json(assinantes)
   } catch (error) {
     console.error("[GET /api/assinaturas/assinantes]", error)

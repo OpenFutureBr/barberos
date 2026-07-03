@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
@@ -611,15 +611,18 @@ function EstoqueInner() {
     await buscarProdutos()
   }
 
-  const produtosFiltrados = produtos.filter(p =>
+  // Memoizado — antes recalculava esses 4 filter/reduce sobre `produtos` a
+  // cada render da página (ex.: digitar em qualquer modal aberto), mesmo sem
+  // `produtos`/`busca` terem mudado.
+  const produtosFiltrados = useMemo(() => produtos.filter(p =>
     p.isActive && (p.name?.toLowerCase().includes(busca.toLowerCase()) || p.barcode?.includes(busca))
-  )
-  const criticos = produtos.filter(p => p.isActive && p.stock <= p.minStock).length
-  const totalEstoque = produtos.filter(p => p.isActive).reduce((s: number, p: any) => s + (p.stock * p.costPrice), 0)
+  ), [produtos, busca])
+  const criticos = useMemo(() => produtos.filter(p => p.isActive && p.stock <= p.minStock).length, [produtos])
+  const totalEstoque = useMemo(() => produtos.filter(p => p.isActive).reduce((s: number, p: any) => s + (p.stock * p.costPrice), 0), [produtos])
 
   // Produtos do DB que NÃO estão no catálogo pré-definido (criados manualmente)
-  const nomesCatalogo = new Set(catalogoProdutos.map(p => p.name))
-  const meusProdutos = produtos.filter(p => !nomesCatalogo.has(p.name))
+  const nomesCatalogo = useMemo(() => new Set(catalogoProdutos.map(p => p.name)), [])
+  const meusProdutos = useMemo(() => produtos.filter(p => !nomesCatalogo.has(p.name)), [produtos, nomesCatalogo])
 
   return (
     <DashboardLayout>
@@ -745,14 +748,32 @@ function EstoqueInner() {
         // Grupos disponíveis para as abas
         const gruposDisponiveis = ["Todos", ...Object.keys(GRUPOS).filter(g => catalogoProdutos.some(p => p.category === g)), ...(meusProdutos.length ? ["Meus Produtos"] : [])]
 
-        // Ordenação dos itens
+        // Ordenação dos itens.
+        // Antes: para cada comparação do sort, refazia produtos.find() (O(n))
+        // e getStats() (percorre stockMovements) para os dois lados — em uma
+        // ordenação O(n log n) isso repetia o mesmo cálculo várias vezes para
+        // o mesmo produto. Agora indexa produtos por nome e cacheia getStats
+        // por produto antes de ordenar — mesmo resultado, sem recomputação.
         function sortarItens<T extends any[]>(itens: T, ehDbItem: boolean): T {
           if (!sortCol) return itens
+
+          let produtoPorNome: Map<string, any> | null = null
+          if (!ehDbItem) {
+            produtoPorNome = new Map()
+            for (const p of produtos) if (!produtoPorNome.has(p.name)) produtoPorNome.set(p.name, p)
+          }
+          const statsCache = new Map<any, ReturnType<typeof getStats>>()
+          const getStatsCached = (prod: any) => {
+            if (!prod) return null
+            if (!statsCache.has(prod)) statsCache.set(prod, getStats(prod))
+            return statsCache.get(prod)
+          }
+
           return [...itens].sort((a, b) => {
-            const dbA = ehDbItem ? a : (produtos.find(p => p.name === a.name) ?? null)
-            const dbB = ehDbItem ? b : (produtos.find(p => p.name === b.name) ?? null)
-            const stA = getStats(dbA)
-            const stB = getStats(dbB)
+            const dbA = ehDbItem ? a : (produtoPorNome!.get(a.name) ?? null)
+            const dbB = ehDbItem ? b : (produtoPorNome!.get(b.name) ?? null)
+            const stA = getStatsCached(dbA)
+            const stB = getStatsCached(dbB)
             let va: any, vb: any
             switch (sortCol) {
               case "nome":    va = a.name ?? ""; vb = b.name ?? ""; break

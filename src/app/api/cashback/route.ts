@@ -13,12 +13,19 @@ export async function GET(req: Request) {
 
     const clientes = await prisma.client.findMany({
       where: { establishmentId: estabId, isActive: true },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        cashbackBalance: true,
+        loyaltyLevel: true,
         loyaltyAccount: {
-          include: {
+          select: {
+            totalEarned: true,
+            totalRedeemed: true,
             transactions: {
               orderBy: { createdAt: "desc" },
               take: limite,
+              select: { id: true, type: true, amount: true, description: true, createdAt: true },
             },
           },
         },

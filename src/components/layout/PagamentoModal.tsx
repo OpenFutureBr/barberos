@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 
 // ── PIX payload (EMV / BACEN) ──────────────────────────────────────────────
 
@@ -138,16 +139,22 @@ export default function PagamentoModal({
     setCopiado(false)
     setRecibo(null)
 
-    fetch("/api/configuracoes")
-      .then((r) => r.json())
-      .then((d) =>
-        setConfig({
-          pixKey: d.pixKey ?? null,
-          name: d.name ?? "",
-          city: d.city ?? null,
-        }),
-      )
-      .catch(() => {})
+    const aplicar = (d: any) =>
+      setConfig({
+        pixKey: d.pixKey ?? null,
+        name: d.name ?? "",
+        city: d.city ?? null,
+      })
+
+    const cfgCache = getCache("configuracoes")
+    if (cfgCache) {
+      aplicar(cfgCache)
+    } else {
+      fetch("/api/configuracoes")
+        .then((r) => r.json())
+        .then((d) => { if (!d.error) setCache("configuracoes", d); aplicar(d) })
+        .catch(() => {})
+    }
   }, [dados])
 
   if (!dados) return null
