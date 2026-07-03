@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+
+// Endpoint de automação de faturamento — pode ser chamado por um admin logado
+// ou por um cron job externo headless. Sem sessão de usuário, exige o header
+// x-cron-secret batendo com process.env.CRON_SECRET. Sem CRON_SECRET configurado,
+// só admin logado passa (fail closed — antes não havia nenhuma checagem aqui).
+async function autorizado(req: Request) {
+  const cronSecret = process.env.CRON_SECRET
+  const headerSecret = req.headers.get("x-cron-secret")
+  if (cronSecret && headerSecret === cronSecret) return true
+
+  const session = await auth()
+  return (session?.user as any)?.role === "ADMIN"
+}
 
 async function upsertMetric(organizationId: string, metric: string, value: number, referenceMonth: string) {
   const existing = await prisma.usageMetric.findFirst({
@@ -18,6 +32,8 @@ async function upsertMetric(organizationId: string, metric: string, value: numbe
  * Pode ser chamado manualmente pelo admin ou via cron job externo.
  */
 export async function POST(req: Request) {
+  if (!(await autorizado(req))) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const body = await req.json().catch(() => ({}))
   const diasTolerancia = Number(body.diasTolerancia ?? 7)
 
@@ -38,22 +54,38 @@ export async function POST(req: Request) {
     include: { subscriptions: { where: { status: "TRIAL" as any } } },
   })
 
-  let trialsConvertidos = 0
+  // Antes: 1-2 updates sequenciais por organização com trial vencido.
+  // Agora: agrupa por resultado (ACTIVE vs OVERDUE) e faz no máximo 3
+  // updateMany em paralelo, independente de quantas organizações vencerem.
+  const idsParaActive: string[] = []
+  const idsParaOverdue: string[] = []
   for (const org of trialsExpirados) {
-    // Converte para ACTIVE se tem assinatura, senão marca OVERDUE
-    const novoStatus = org.subscriptions.length > 0 ? "ACTIVE" : "OVERDUE"
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: { billingStatus: novoStatus as any },
-    })
-    if (org.subscriptions.length > 0) {
-      await prisma.organizationSubscription.updateMany({
-        where: { organizationId: org.id, status: "TRIAL" as any },
-        data: { status: "ACTIVE" as any },
-      })
-    }
-    trialsConvertidos++
+    if (org.subscriptions.length > 0) idsParaActive.push(org.id)
+    else idsParaOverdue.push(org.id)
   }
+
+  await Promise.all([
+    idsParaActive.length > 0
+      ? prisma.organization.updateMany({
+          where: { id: { in: idsParaActive } },
+          data: { billingStatus: "ACTIVE" as any },
+        })
+      : null,
+    idsParaOverdue.length > 0
+      ? prisma.organization.updateMany({
+          where: { id: { in: idsParaOverdue } },
+          data: { billingStatus: "OVERDUE" as any },
+        })
+      : null,
+    idsParaActive.length > 0
+      ? prisma.organizationSubscription.updateMany({
+          where: { organizationId: { in: idsParaActive }, status: "TRIAL" as any },
+          data: { status: "ACTIVE" as any },
+        })
+      : null,
+  ])
+
+  const trialsConvertidos = trialsExpirados.length
 
   // ── 2. Gera faturas para assinaturas com nextBillingAt <= hoje ────────────
   const assinaturasVencendo = await prisma.organizationSubscription.findMany({

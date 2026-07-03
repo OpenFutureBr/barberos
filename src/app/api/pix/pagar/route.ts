@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 type CashbackConfig = {
   servicos: number
@@ -142,6 +143,10 @@ async function calcularSegmento(clientId: string, novoTotalAtend: number): Promi
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     const appointmentId = String(body.appointmentId ?? "")
@@ -172,10 +177,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Busca o agendamento com cliente e serviço
+    // Busca o agendamento com cliente e serviço — escopado ao estabelecimento
+    // da sessão para impedir que um caller confirme pagamento de outra org.
     const appt = await prisma.appointment.findUnique({
       where: {
         id: appointmentId,
+        establishmentId: estabId,
       },
       include: {
         client: true,

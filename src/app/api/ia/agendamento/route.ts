@@ -21,11 +21,11 @@ export async function POST(req: Request) {
 
     const [cliente, servico, historico] = await Promise.all([
       prisma.client.findUnique({
-        where: { id: clienteId },
+        where: { id: clienteId, establishmentId: estabId },
         select: { name: true, cashbackBalance: true, loyaltyLevel: true, favoritoCorte: true, totalAtendimentos: true },
       }),
       prisma.service.findUnique({
-        where: { id: servicoId },
+        where: { id: servicoId, establishmentId: estabId },
         select: { name: true, price: true, durationMin: true },
       }),
       prisma.appointment.findMany({

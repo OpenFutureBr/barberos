@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
 }
 
 export async function GET() {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const [subscriptions, invoices] = await Promise.all([
     prisma.organizationSubscription.findMany({
       where: { status: { in: ["ACTIVE", "TRIAL"] as any } },

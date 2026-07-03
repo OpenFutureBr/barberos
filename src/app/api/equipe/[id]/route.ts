@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 
 
@@ -7,8 +8,15 @@ import { NextResponse } from "next/server"
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { id } = await params
     const body = await request.json()
+
+    const alvo = await prisma.user.findFirst({ where: { id, establishmentId: estabId }, select: { id: true } })
+    if (!alvo) return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
 
     const prof = await prisma.user.update({
       where: { id },
@@ -61,7 +69,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { id } = await params
+
+    const alvo = await prisma.user.findFirst({ where: { id, establishmentId: estabId }, select: { id: true } })
+    if (!alvo) return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
+
     await prisma.user.update({
       where: { id },
       data: { isActive: false },

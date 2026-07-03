@@ -51,7 +51,15 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
+
+    const existente = await prisma.service.findFirst({ where: { id: body.id, establishmentId: estabId }, select: { id: true } })
+    if (!existente) return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 })
+
     const servico = await prisma.service.update({
       where: { id: body.id },
       data: {

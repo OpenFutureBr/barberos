@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     const [cliente, estabelecimento] = await Promise.all([
       prisma.client.findUnique({
-        where: { id: clientId },
+        where: { id: clientId, establishmentId: session.user.establishmentId },
         select: { name: true, totalAtendimentos: true, lastVisitAt: true, avgVisitInterval: true, totalSpent: true, ticketMedio: true, favoritoCorte: true },
       }),
       prisma.establishment.findUnique({

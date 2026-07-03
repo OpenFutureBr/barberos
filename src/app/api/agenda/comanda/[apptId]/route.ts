@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 type MetodoEntrada =
   | "PIX"
@@ -47,11 +48,15 @@ export async function GET(
   { params }: { params: Promise<{ apptId: string }> },
 ) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { apptId } = await params
 
     const [appt, movimentos] = await Promise.all([
       prisma.appointment.findUnique({
-        where: { id: apptId },
+        where: { id: apptId, establishmentId: estabId },
         include: {
           client: { select: { name: true, phone: true } },
           service: { select: { name: true, price: true, durationMin: true } },
@@ -97,11 +102,15 @@ export async function PUT(
   { params }: { params: Promise<{ apptId: string }> },
 ) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { apptId } = await params
     const body = await request.json().catch(() => ({}))
 
     const appt = await prisma.appointment.findUnique({
-      where: { id: apptId },
+      where: { id: apptId, establishmentId: estabId },
       include: {
         service: { select: { price: true } },
       },

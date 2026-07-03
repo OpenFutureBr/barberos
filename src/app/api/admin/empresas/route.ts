@@ -1,6 +1,13 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
+import { auth } from "@/lib/auth"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 function arredondar(valor: number) {
   return Math.round(valor * 100) / 100
@@ -77,6 +84,8 @@ function proximoVencimentoDia5() {
 }
 
 export async function GET() {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   try {
     const organizations = await prisma.organization.findMany({
       orderBy: {
@@ -132,51 +141,77 @@ export async function GET() {
       },
     })
 
-    const result = await Promise.all(
-      organizations.map(async (org) => {
-        const establishmentIds = org.establishments.map((e) => e.id)
+    // Antes: 3 queries extras por organização (N+1). Agora: 3 queries no
+    // total, agregadas por establishmentId, e distribuídas por org em memória.
+    const allEstablishmentIds = organizations.flatMap((org) =>
+      org.establishments.map((e) => e.id),
+    )
 
-        const [totalClientes, totalAgendamentos, pagamentosPendentes] =
-          establishmentIds.length > 0
-            ? await Promise.all([
-                prisma.client.count({
-                  where: {
-                    establishmentId: {
-                      in: establishmentIds,
-                    },
-                  },
-                }),
+    const [clientesPorEstab, agendamentosPorEstab, pagamentosPendentesPorEstab] =
+      allEstablishmentIds.length > 0
+        ? await Promise.all([
+            prisma.client.groupBy({
+              by: ["establishmentId"],
+              where: { establishmentId: { in: allEstablishmentIds } },
+              _count: { id: true },
+            }),
 
-                prisma.appointment.count({
-                  where: {
-                    establishmentId: {
-                      in: establishmentIds,
-                    },
-                  },
-                }),
+            prisma.appointment.groupBy({
+              by: ["establishmentId"],
+              where: { establishmentId: { in: allEstablishmentIds } },
+              _count: { id: true },
+            }),
 
-                prisma.payment.findMany({
-                  where: {
-                    status: "PENDING",
-                    appointment: {
-                      establishmentId: {
-                        in: establishmentIds,
-                      },
-                    },
-                  },
-                  select: {
-                    amount: true,
-                  },
-                }),
-              ])
-            : [0, 0, [] as { amount: number }[]]
+            prisma.payment.findMany({
+              where: {
+                status: "PENDING",
+                appointment: { establishmentId: { in: allEstablishmentIds } },
+              },
+              select: {
+                amount: true,
+                appointment: { select: { establishmentId: true } },
+              },
+            }),
+          ])
+        : [[], [], [] as { amount: number; appointment: { establishmentId: string } }[]]
 
-        const valorPendente = pagamentosPendentes.reduce(
-          (s, p) => s + p.amount,
-          0,
-        )
+    const clientesMap = new Map(
+      clientesPorEstab.map((c) => [c.establishmentId, c._count.id]),
+    )
+    const agendamentosMap = new Map(
+      agendamentosPorEstab.map((a) => [a.establishmentId, a._count.id]),
+    )
+    const pendentesMap = new Map<string, { count: number; total: number }>()
+    for (const p of pagamentosPendentesPorEstab) {
+      const eid = p.appointment.establishmentId
+      const cur = pendentesMap.get(eid) ?? { count: 0, total: 0 }
+      cur.count += 1
+      cur.total += p.amount
+      pendentesMap.set(eid, cur)
+    }
 
-        const assinatura = org.subscriptions[0] ?? null
+    const result = organizations.map((org) => {
+      const establishmentIds = org.establishments.map((e) => e.id)
+
+      const totalClientes = establishmentIds.reduce(
+        (s, eid) => s + (clientesMap.get(eid) ?? 0),
+        0,
+      )
+      const totalAgendamentos = establishmentIds.reduce(
+        (s, eid) => s + (agendamentosMap.get(eid) ?? 0),
+        0,
+      )
+      let pendingPayments = 0
+      let valorPendente = 0
+      for (const eid of establishmentIds) {
+        const p = pendentesMap.get(eid)
+        if (p) {
+          pendingPayments += p.count
+          valorPendente += p.total
+        }
+      }
+
+      const assinatura = org.subscriptions[0] ?? null
 
         return {
           id: org.id,
@@ -225,14 +260,13 @@ export async function GET() {
             activeUsers: org.users.filter((u) => u.isActive).length,
             clients: totalClientes,
             appointments: totalAgendamentos,
-            pendingPayments: pagamentosPendentes.length,
+            pendingPayments,
             pendingAmount: arredondar(valorPendente),
             totalFiles: org.storageUsage?.totalFiles ?? 0,
             totalStorageMb: arredondar(org.storageUsage?.totalSizeMb ?? 0),
           },
         }
-      }),
-    )
+      })
 
     return NextResponse.json(result)
   } catch (error) {
@@ -250,6 +284,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   try {
     const body = await request.json().catch(() => ({}))
 
