@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
@@ -102,6 +102,21 @@ export default function PixPage() {
   // pendências
   const [pendentes, setPendentes] = useState<Pendencia[]>([])
   const [pendenciaSelecionada, setPendenciaSelecionada] = useState<Pendencia | null>(null)
+
+  // Memoizado — antes era recalculado (filter/reduce sobre `pendentes`) a
+  // cada render da página dentro de uma IIFE no JSX, mesmo sem `pendentes`
+  // ter mudado (ex.: digitar em outro campo, abrir outro modal).
+  const resumoPendentes = useMemo(() => {
+    const vencidos = pendentes.filter(p => p.status === "OVERDUE")
+    const aVencer = pendentes.filter(p => p.status === "PENDING")
+    return {
+      vencidos,
+      aVencer,
+      totalPend: pendentes.reduce((s, p) => s + p.amount, 0),
+      totalVenc: vencidos.reduce((s, p) => s + p.amount, 0),
+      totalAVenc: aVencer.reduce((s, p) => s + p.amount, 0),
+    }
+  }, [pendentes])
 
   // modal gerar pix avulso
   const [modalGerar, setModalGerar] = useState(false)
@@ -282,11 +297,7 @@ export default function PixPage() {
 
       {/* ── Pendências — só visível no filtro "A cobrar" ───────── */}
       {filtro === "A_COBRAR" && pendentes.length > 0 && (() => {
-        const vencidos = pendentes.filter(p => p.status === "OVERDUE")
-        const aVencer = pendentes.filter(p => p.status === "PENDING")
-        const totalPend = pendentes.reduce((s, p) => s + p.amount, 0)
-        const totalVenc = vencidos.reduce((s, p) => s + p.amount, 0)
-        const totalAVenc = aVencer.reduce((s, p) => s + p.amount, 0)
+        const { vencidos, aVencer, totalPend, totalVenc, totalAVenc } = resumoPendentes
         return (
           <div className="mt-6">
             <div className="flex items-center gap-2 mb-3">

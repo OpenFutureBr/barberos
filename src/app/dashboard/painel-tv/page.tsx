@@ -74,6 +74,29 @@ function extractYouTubeInfo(url: string): { type: "playlist" | "video"; id: stri
   return null
 }
 
+// Isolado num componente próprio — antes horaStr/dataStr viviam no state do
+// componente de página e o tick de 1s forçava toda a árvore (cards de
+// barbeiro, fila, player do YouTube) a re-renderizar a cada segundo.
+function Relogio() {
+  const [horaStr, setHoraStr] = useState("")
+  const [dataStr, setDataStr] = useState("")
+  useEffect(() => {
+    const t = setInterval(() => {
+      const n = new Date()
+      setHoraStr(n.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
+      setDataStr(n.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }))
+    }, 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="text-center absolute left-1/2 -translate-x-1/2">
+      <div className="text-white font-bold text-2xl font-mono tracking-wider">{horaStr}</div>
+      <div className="text-zinc-500 text-xs capitalize">{dataStr}</div>
+    </div>
+  )
+}
+
 function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: string | null; scheduledAt: string; durationMin: number | null }) {
   const [seg, setSeg] = useState(0)
   const base = startedAt ?? scheduledAt
@@ -271,8 +294,6 @@ function SlotCard({ slot }: { slot: Slot }) {
 }
 
 export default function PainelTVPage() {
-  const [horaStr, setHoraStr] = useState("")
-  const [dataStr, setDataStr] = useState("")
   const [estab, setEstab] = useState<Estab | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState("")
   const [slots, setSlots] = useState<Slot[]>([])
@@ -282,16 +303,6 @@ export default function PainelTVPage() {
   // YouTube IFrame API
   const ytContainerRef = useRef<HTMLDivElement>(null)
   const ytPlayerRef = useRef<YTPlayer | null>(null)
-
-  // Relógio
-  useEffect(() => {
-    const t = setInterval(() => {
-      const n = new Date()
-      setHoraStr(n.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
-      setDataStr(n.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }))
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
 
   // Inicializa YouTube IFrame API com auto-skip em vídeos bloqueados
   useEffect(() => {
@@ -434,10 +445,7 @@ export default function PainelTVPage() {
           </div>
         </div>
 
-        <div className="text-center absolute left-1/2 -translate-x-1/2">
-          <div className="text-white font-bold text-2xl font-mono tracking-wider">{horaStr}</div>
-          <div className="text-zinc-500 text-xs capitalize">{dataStr}</div>
-        </div>
+        <Relogio />
 
         <div className="flex items-center gap-1.5 opacity-40">
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

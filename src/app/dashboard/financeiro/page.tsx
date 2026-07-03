@@ -481,7 +481,9 @@ export default function FinanceiroPage() {
     return a.valor - b.valor
   })
 
-  const pendentesOrdenados = [...pendentes].sort((a, b) => {
+  // Memoizado — antes ordenava `pendentes` de novo a cada render (a tela toda
+  // re-renderiza a cada troca de período, aba, ou digitação em outro campo).
+  const pendentesOrdenados = useMemo(() => [...pendentes].sort((a, b) => {
     if (a.status !== b.status) {
       return a.status === "OVERDUE" ? -1 : 1
     }
@@ -490,7 +492,7 @@ export default function FinanceiroPage() {
     const db = b.dueDate ? new Date(b.dueDate).getTime() : 0
 
     return da - db
-  })
+  }), [pendentes])
 
   const maxEvolucao = Math.max(...evolucao.map((e) => e.valor), 1)
   const totalRepasses = repasses.reduce((s, r) => s + r.repasse, 0)
