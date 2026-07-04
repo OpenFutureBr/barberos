@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "rea
 import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -325,44 +326,32 @@ function EstoqueInner() {
     fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
+  // fetchJsonSafe mantém o último dado bom em cache se a busca falhar — nunca
+  // zera a lista de produtos/movimentos/vendas por causa de uma falha
+  // transitória (ex: pool de conexões esgotado no servidor).
   async function buscarProdutos() {
     setLoading(true)
-    try {
-      const res = await fetch("/api/estoque")
-      const data = await res.json()
-      const lista = Array.isArray(data) ? data : []
-      setProdutos(lista)
-      const cats = [...new Set(lista.map((p: any) => p.category).filter(Boolean))] as string[]
-      setGruposExtras(cats)
-    } catch { setErro("Erro ao carregar") }
-    finally { setLoading(false) }
+    const lista = (await fetchJsonSafe<any[]>("/api/estoque", "estoque:produtos")) ?? []
+    setProdutos(lista)
+    const cats = [...new Set(lista.map((p: any) => p.category).filter(Boolean))] as string[]
+    setGruposExtras(cats)
+    setLoading(false)
   }
 
   async function buscarVendas(data?: string) {
     setLoadingVendas(true)
-    setErroVendas("")
-    try {
-      const d = data !== undefined ? data : filtroDataVendas
-      const url = d ? `/api/estoque/vendas?data=${d}` : "/api/estoque/vendas"
-      const res = await fetch(url)
-      const payload = await res.json()
-      if (!res.ok) { setErroVendas(payload.error || `Erro ${res.status}`); return }
-      setVendas(Array.isArray(payload) ? payload : [])
-    } catch (err) {
-      setErroVendas(String(err))
-    } finally {
-      setLoadingVendas(false)
-    }
+    const d = data !== undefined ? data : filtroDataVendas
+    const url = d ? `/api/estoque/vendas?data=${d}` : "/api/estoque/vendas"
+    const payload = (await fetchJsonSafe<any[]>(url, `estoque:vendas:${d || "todas"}`)) ?? []
+    setVendas(payload)
+    setLoadingVendas(false)
   }
 
   async function buscarMovimentos() {
     setLoadingMovimentos(true)
-    try {
-      const res = await fetch("/api/estoque/movimentos")
-      const data = await res.json()
-      setMovimentos(Array.isArray(data) ? data : [])
-    } catch { /* silencioso */ }
-    finally { setLoadingMovimentos(false) }
+    const data = (await fetchJsonSafe<any[]>("/api/estoque/movimentos", "estoque:movimentos")) ?? []
+    setMovimentos(data)
+    setLoadingMovimentos(false)
   }
 
   function fecharModalEntrada() {

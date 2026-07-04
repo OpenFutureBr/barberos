@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -188,29 +189,25 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   }
 
   useEffect(() => {
-    fetch(`/api/unidades/${unidadeId}/servicos`)
-      .then(r => r.json())
-      .then(d => Array.isArray(d) ? setServicos(d) : null)
-      .catch(() => {})
+    fetchJsonSafe<any[]>(`/api/unidades/${unidadeId}/servicos`, `unidade:${unidadeId}:servicos`)
+      .then(d => { if (d) setServicos(d) })
 
-    fetch("/api/org/config")
-      .then(r => r.json())
+    fetchJsonSafe<{ playlists?: any[] }>("/api/org/config", "org:config")
       .then(d => {
         if (Array.isArray(d?.playlists)) setOrgPlaylists(d.playlists)
       })
-      .catch(() => {})
 
     // Logo da organização para exibir como fallback
-    fetch("/api/org/info")
-      .then(r => r.json())
+    fetchJsonSafe<{ logoUrl?: string }>("/api/org/info", "org:info")
       .then(d => { if (d?.logoUrl) setOrgLogoUrl(d.logoUrl) })
-      .catch(() => {})
   }, [unidadeId])
 
   useEffect(() => {
-    fetch(`/api/unidades/${unidadeId}`)
-      .then(r => r.json())
-      .then((d: ConfigFull) => {
+    // fetchJsonSafe mantém o último config bom em cache — sem isso, uma falha
+    // transitória limparia todo o formulário (nome, endereço, config etc.)
+    fetchJsonSafe<ConfigFull>(`/api/unidades/${unidadeId}`, `unidade:${unidadeId}:config`)
+      .then((d) => {
+        if (!d) return
         setNome(d.name ?? "")
         setSlug(d.slug ?? "")
         setTelefone(fmtTel(d.phone ?? ""))
@@ -598,10 +595,10 @@ export default function UnidadesPage() {
 
   const carregar = useCallback(() => {
     setLoading(true)
-    fetch("/api/unidades")
-      .then(r => r.json())
-      .then(d => Array.isArray(d) ? setUnidades(d) : setUnidades([]))
-      .catch(console.error)
+    // fetchJsonSafe mantém a última lista boa em cache se a busca falhar —
+    // nunca zera as unidades por causa de uma falha transitória.
+    fetchJsonSafe<any[]>("/api/unidades", "unidades:lista")
+      .then(d => { if (d) setUnidades(d) })
       .finally(() => setLoading(false))
   }, [])
 

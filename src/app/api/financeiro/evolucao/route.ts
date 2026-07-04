@@ -16,41 +16,48 @@ export async function GET(request: Request) {
     const anoInicio = new Date(ano, 0, 1)
     const anoFim = new Date(ano, 11, 31, 23, 59, 59)
 
-    // Duas queries SQL agregadas — retornam no máximo 12 linhas cada
-    const [pgPagamentos, pgAssinaturas] = await Promise.all([
-      prisma.$queryRaw<{ mes: number; total: number }[]>`
-        SELECT
-          EXTRACT(MONTH FROM a.scheduled_at)::int AS mes,
-          COALESCE(SUM(p.amount), 0)::float8      AS total
-        FROM payments p
-        JOIN appointments a ON p.appointment_id = a.id
-        WHERE p.status = 'PAID'
-          AND a.establishment_id = ${ESTAB_ID}
-          AND a.scheduled_at >= ${anoInicio}
-          AND a.scheduled_at <= ${anoFim}
-        GROUP BY mes
-        ORDER BY mes
-      `,
+    // Antes usava $queryRaw com nomes de coluna em snake_case (appointment_id,
+    // scheduled_at, etc.) — mas o schema não tem @map nesses campos, então as
+    // colunas reais são camelCase. A query dava erro de "coluna não existe" em
+    // toda chamada (silenciosamente engolido pelo catch), por isso a tela de
+    // Evolução nunca mostrava nada. Reescrito com o client do Prisma (ORM),
+    // igual ao padrão já usado no resto do módulo financeiro, evitando SQL
+    // manual sujeito a esse tipo de erro de nome de coluna.
+    const [pagamentos, assinaturas, movimentosProdutos] = await Promise.all([
+      prisma.payment.findMany({
+        where: {
+          status: "PAID",
+          appointment: { establishmentId: ESTAB_ID, scheduledAt: { gte: anoInicio, lte: anoFim } },
+        },
+        select: { amount: true, appointment: { select: { scheduledAt: true } } },
+      }),
 
-      prisma.$queryRaw<{ mes: number; total: number }[]>`
-        SELECT
-          EXTRACT(MONTH FROM t.created_at)::int AS mes,
-          COALESCE(SUM(t.amount), 0)::float8    AS total
-        FROM transactions t
-        JOIN cash_registers cr ON t.cash_register_id = cr.id
-        WHERE t.type = 'RECEITA'
-          AND t.description LIKE 'Assinatura ·%'
-          AND t.created_at >= ${anoInicio}
-          AND t.created_at <= ${anoFim}
-          AND cr.establishment_id = ${ESTAB_ID}
-        GROUP BY mes
-        ORDER BY mes
-      `,
+      prisma.transaction.findMany({
+        where: {
+          type: "RECEITA",
+          description: { startsWith: "Assinatura ·" },
+          createdAt: { gte: anoInicio, lte: anoFim },
+          cashRegister: { establishmentId: ESTAB_ID },
+        },
+        select: { amount: true, createdAt: true },
+      }),
+
+      // Receita de produtos — não entrava na evolução antes, incluída agora
+      // para bater com a mesma composição (serviço + produto + assinatura) do DRE.
+      prisma.stockMovement.findMany({
+        where: {
+          type: "SAIDA",
+          createdAt: { gte: anoInicio, lte: anoFim },
+          product: { establishmentId: ESTAB_ID },
+        },
+        select: { quantity: true, unitPrice: true, createdAt: true },
+      }),
     ])
 
     const totalPorMes = new Array(12).fill(0)
-    for (const row of pgPagamentos)  totalPorMes[Number(row.mes) - 1] += Number(row.total)
-    for (const row of pgAssinaturas) totalPorMes[Number(row.mes) - 1] += Number(row.total)
+    for (const p of pagamentos) totalPorMes[new Date(p.appointment.scheduledAt).getMonth()] += p.amount
+    for (const t of assinaturas) totalPorMes[new Date(t.createdAt).getMonth()] += t.amount
+    for (const m of movimentosProdutos) totalPorMes[new Date(m.createdAt).getMonth()] += m.quantity * (m.unitPrice ?? 0)
 
     const evolucao = MESES.map((label, i) => ({
       mes: i + 1,

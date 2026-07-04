@@ -1,9 +1,59 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
+
+const MESES_NOME = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+function gerarOpcoesPeriodo() {
+  const opcoes: { label: string; mes: number; ano: number }[] = []
+  const hoje = new Date()
+
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+    opcoes.push({ label: `${MESES_NOME[d.getMonth()]} ${d.getFullYear()}`, mes: d.getMonth() + 1, ano: d.getFullYear() })
+  }
+
+  return opcoes.reverse()
+}
+
+function IconFluxo() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 6.5h11" />
+      <path d="M1 2.5h5M1 10.5h5" />
+      <path d="M9 4.5l2 2-2 2" />
+    </svg>
+  )
+}
 
 type DetalheItem = { label: string; valor: number }
+
+type FluxoLancamento = { desc: string; valor: number; tipo: string }
+type FluxoPrevista = { desc: string; valor: number; clienteId: string }
+
+type FluxoDia = {
+  data: string
+  entradas: FluxoLancamento[]
+  saidas: FluxoLancamento[]
+  previstas: FluxoPrevista[]
+  totalEntradas: number
+  totalSaidas: number
+  totalPrevistas: number
+  saldo: number
+}
+
+type FluxoCaixa = {
+  days: FluxoDia[]
+  totalEntradas: number
+  totalSaidas: number
+  totalPrevistas: number
+  saldoFinal: number
+}
 
 type Lancamento = {
   id: string
@@ -63,11 +113,20 @@ function metodoLabel(method: string | null): string {
 }
 
 export default function CaixaPage() {
+  const [abaCaixa, setAbaCaixa] = useState<"hoje" | "fluxo">("hoje")
+
   const [caixa, setCaixa] = useState<Caixa | null>(null)
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
+
+  // Fluxo de caixa (movido de Financeiro)
+  const opcoesFluxo = useMemo(() => gerarOpcoesPeriodo(), [])
+  const [periodoFluxoIdx, setPeriodoFluxoIdx] = useState(opcoesFluxo.length - 1)
+  const [fluxo, setFluxo] = useState<FluxoCaixa | null>(null)
+  const [loadingFluxo, setLoadingFluxo] = useState(false)
+  const periodoFluxo = opcoesFluxo[periodoFluxoIdx]
 
   // Modal lançamento
   const [modalLancamento, setModalLancamento] = useState(false)
@@ -85,13 +144,14 @@ export default function CaixaPage() {
 
   const fetchDados = useCallback(() => {
     setLoading(true)
-    fetch("/api/caixa")
-      .then(r => r.json())
+    // fetchJsonSafe mantém o último dado bom se a busca falhar — nunca zera
+    // caixa/lançamentos por causa de uma falha transitória (ex: pool de conexões).
+    fetchJsonSafe<{ caixa: Caixa | null; lancamentos: Lancamento[] }>("/api/caixa", "caixa:hoje")
       .then(d => {
+        if (!d) return
         setCaixa(d.caixa ?? null)
         setLancamentos(Array.isArray(d.lancamentos) ? d.lancamentos : [])
       })
-      .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
@@ -102,6 +162,18 @@ export default function CaixaPage() {
     window.addEventListener("pagamentoConfirmado", fetchDados)
     return () => window.removeEventListener("pagamentoConfirmado", fetchDados)
   }, [fetchDados])
+
+  // Fluxo de caixa — busca só quando a aba é aberta ou o período muda
+  useEffect(() => {
+    if (abaCaixa !== "fluxo" || !periodoFluxo) return
+    setLoadingFluxo(true)
+    fetchJsonSafe<typeof fluxo>(
+      `/api/financeiro/fluxo?mes=${periodoFluxo.mes}&ano=${periodoFluxo.ano}`,
+      `financeiro:fluxo:${periodoFluxo.ano}-${periodoFluxo.mes}`,
+    )
+      .then(d => { if (d?.days) setFluxo(d) })
+      .finally(() => setLoadingFluxo(false))
+  }, [abaCaixa, periodoFluxo])
 
   const receitas = lancamentos.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)
   const despesas = lancamentos.filter(l => l.tipo === "DESPESA").reduce((s, l) => s + l.valor, 0)
@@ -188,6 +260,29 @@ export default function CaixaPage() {
         </div>
       </div>
 
+      {/* Abas */}
+      <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1 max-w-xs">
+        <button
+          onClick={() => setAbaCaixa("hoje")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
+            abaCaixa === "hoje" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          Caixa de hoje
+        </button>
+        <button
+          onClick={() => setAbaCaixa("fluxo")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
+            abaCaixa === "fluxo" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <IconFluxo />
+          Fluxo de caixa
+        </button>
+      </div>
+
+      {abaCaixa === "hoje" && (
+      <>
       {/* Status */}
       <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-zinc-900 border-zinc-800"}`}>
         <div className="flex items-center justify-between">
@@ -299,6 +394,181 @@ export default function CaixaPage() {
           </table>
         )}
       </div>
+      </>
+      )}
+
+      {abaCaixa === "fluxo" && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <select
+              value={periodoFluxoIdx}
+              onChange={(e) => setPeriodoFluxoIdx(Number(e.target.value))}
+              className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+            >
+              {opcoesFluxo.map((o, i) => (
+                <option key={i} value={i}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Resumo do período */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
+              <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">Entradas</div>
+              {loadingFluxo ? (
+                <div className="h-7 bg-green-500/10 rounded animate-pulse" />
+              ) : (
+                <div className="text-green-400 text-xl font-bold">{fmtMoeda(fluxo?.totalEntradas ?? 0)}</div>
+              )}
+            </div>
+            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+              <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">Saídas</div>
+              {loadingFluxo ? (
+                <div className="h-7 bg-red-500/10 rounded animate-pulse" />
+              ) : (
+                <div className="text-red-400 text-xl font-bold">{fmtMoeda(fluxo?.totalSaidas ?? 0)}</div>
+              )}
+            </div>
+            <div className={`border rounded-xl p-4 ${(fluxo?.saldoFinal ?? 0) >= 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+              <div className={`text-xs font-mono uppercase tracking-widest mb-1 ${(fluxo?.saldoFinal ?? 0) >= 0 ? "text-amber-400" : "text-red-400"}`}>Saldo</div>
+              {loadingFluxo ? (
+                <div className="h-7 bg-amber-500/10 rounded animate-pulse" />
+              ) : (
+                <div className={`text-xl font-bold ${(fluxo?.saldoFinal ?? 0) >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                  {fmtMoeda(fluxo?.saldoFinal ?? 0)}
+                </div>
+              )}
+            </div>
+            <div className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4">
+              <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Previsto</div>
+              {loadingFluxo ? (
+                <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
+              ) : (
+                <div className="text-purple-400 text-xl font-bold">{fmtMoeda(fluxo?.totalPrevistas ?? 0)}</div>
+              )}
+              <div className="text-purple-600/60 text-xs mt-1">assinaturas no mês</div>
+            </div>
+          </div>
+
+          {/* Timeline diária */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-800">
+              <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">
+                Fluxo de Caixa — {periodoFluxo?.label}
+              </span>
+            </div>
+
+            {loadingFluxo ? (
+              <div className="px-4 py-8 text-center text-zinc-600 text-sm">Carregando...</div>
+            ) : !fluxo || fluxo.days.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <div className="text-zinc-600 text-sm">Nenhum movimento no período</div>
+                <div className="text-zinc-700 text-xs mt-1">
+                  As entradas e saídas do caixa aparecerão aqui organizadas por dia
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-zinc-800">
+                {fluxo.days.map((dia) => {
+                  const [, mm, dd] = dia.data.split("-")
+                  const dataFmt = `${dd}/${mm}`
+                  const temSaidas = dia.saidas.length > 0
+                  const temPrevistas = (dia.previstas?.length ?? 0) > 0
+                  return (
+                    <div key={dia.data} className="p-4 hover:bg-zinc-800/20 transition-colors">
+                      {/* Cabeçalho do dia */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-center flex-shrink-0">
+                            <div className="text-white text-sm font-bold leading-none">{dd}</div>
+                            <div className="hidden">{mm}</div>
+                          </div>
+                          <div>
+                            <div className="text-white text-sm font-medium">{dataFmt}</div>
+                            <div className="text-zinc-600 text-xs">
+                              {dia.entradas.length + dia.saidas.length} lançamento{dia.entradas.length + dia.saidas.length !== 1 ? "s" : ""}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`font-mono font-bold text-sm ${dia.saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {fmtMoeda(dia.saldo)}
+                          </div>
+                          <div className="text-zinc-600 text-xs">saldo acum.</div>
+                        </div>
+                      </div>
+
+                      {/* Lançamentos */}
+                      <div className="space-y-1 pl-13">
+                        {dia.entradas.map((e, i) => (
+                          <div key={`e-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-green-500 text-xs flex-shrink-0">↑</span>
+                              <span className="text-zinc-300 text-xs truncate">{e.desc}</span>
+                            </div>
+                            <span className="text-green-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                              +{fmtMoeda(e.valor)}
+                            </span>
+                          </div>
+                        ))}
+                        {temSaidas && dia.saidas.map((s, i) => (
+                          <div key={`s-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-red-500/5 border border-red-500/10">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-red-500 text-xs flex-shrink-0">↓</span>
+                              <span className="text-zinc-300 text-xs truncate">{s.desc}</span>
+                            </div>
+                            <span className="text-red-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                              -{fmtMoeda(s.valor)}
+                            </span>
+                          </div>
+                        ))}
+                        {temPrevistas && dia.previstas.map((p, i) => (
+                          <div key={`p-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg border border-dashed border-purple-500/30 bg-purple-500/5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-purple-400/70 text-xs flex-shrink-0">◌</span>
+                              <span className="text-zinc-500 text-xs truncate">{p.desc}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 leading-none flex-shrink-0">previsto</span>
+                            </div>
+                            <span className="text-purple-400/70 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                              +{fmtMoeda(p.valor)}
+                            </span>
+                          </div>
+                        ))}
+                        {/* Mini resumo do dia */}
+                        <div className="flex justify-end gap-3 pt-1 pr-1">
+                          <span className="text-green-500/70 text-xs font-mono">+{fmtMoeda(dia.totalEntradas)}</span>
+                          {temSaidas && <span className="text-red-500/70 text-xs font-mono">-{fmtMoeda(dia.totalSaidas)}</span>}
+                          {temPrevistas && <span className="text-purple-400/60 text-xs font-mono">◌{fmtMoeda(dia.totalPrevistas ?? 0)}</span>}
+                          <span className={`text-xs font-mono font-bold ${(dia.totalEntradas - dia.totalSaidas) >= 0 ? "text-zinc-300" : "text-red-400"}`}>
+                            = {fmtMoeda(dia.totalEntradas - dia.totalSaidas)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Rodapé total */}
+                <div className="flex items-center justify-between px-4 py-4 bg-zinc-800/40">
+                  <div className="flex items-center gap-4">
+                    <span className="text-green-400 text-sm font-mono">↑ {fmtMoeda(fluxo.totalEntradas)}</span>
+                    <span className="text-red-400 text-sm font-mono">↓ {fmtMoeda(fluxo.totalSaidas)}</span>
+                    {(fluxo.totalPrevistas ?? 0) > 0 && (
+                      <span className="text-purple-400/70 text-sm font-mono">◌ {fmtMoeda(fluxo.totalPrevistas)} previsto</span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-zinc-500 text-xs mb-0.5">Saldo final do período</div>
+                    <div className={`font-bold font-mono text-base ${fluxo.saldoFinal >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                      {fmtMoeda(fluxo.saldoFinal)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal — novo lançamento */}
       {modalLancamento && (

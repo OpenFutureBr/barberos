@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { RESOURCES } from "@/lib/resources"
 import { roleLabel, roleBadge } from "@/lib/role-labels"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
 
 // ── Modal de Permissões ────────────────────────────────────────────────────
 
@@ -533,19 +534,18 @@ export default function EquipePage() {
 
   useEffect(() => {
     buscarEquipe()
-    fetch("/api/servicos").then(r => r.json()).then(d => setServicos(Array.isArray(d) ? d : []))
+    fetchJsonSafe<any[]>("/api/servicos", "servicos:lista").then(d => setServicos(d ?? []))
   }, [])
 
+  // fetchJsonSafe mantém o último dado bom em cache se a busca falhar — nunca
+  // zera a lista de profissionais por causa de uma falha transitória.
   async function buscarEquipe(forcar = false) {
     if (cacheEquipe.current && !forcar) { setEquipe(cacheEquipe.current); setLoading(false); return }
     setLoading(true)
-    try {
-      const res = await fetch("/api/equipe")
-      const data = await res.json()
-      const lista = Array.isArray(data) ? data : []
-      cacheEquipe.current = lista
-      setEquipe(lista)
-    } catch {} finally { setLoading(false) }
+    const lista = (await fetchJsonSafe<any[]>("/api/equipe", "equipe:lista")) ?? []
+    cacheEquipe.current = lista
+    setEquipe(lista)
+    setLoading(false)
   }
 
   async function handleCriar(dados: any) {
