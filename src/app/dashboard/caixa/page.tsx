@@ -3,6 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { BucketPeriodo, CoresGrafico, lerCoresGrafico, salvarCoresGrafico, exportarExcel } from "@/lib/caixa-utils"
+import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/caixa/icons"
+import PeriodoGrid from "@/components/caixa/PeriodoGrid"
+import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
+import SeletorCores from "@/components/caixa/SeletorCores"
 
 function fmtDataISO(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -77,6 +82,9 @@ type Caixa = {
   openingAmount: number
 }
 
+type ViewMode = "lista" | "grid" | "grafico"
+type Granularidade = "diaria" | "semanal" | "mensal"
+
 const tipoStyle: Record<string, string> = {
   RECEITA: "text-green-400",
   DESPESA: "text-red-400",
@@ -115,6 +123,112 @@ function metodoLabel(method: string | null): string {
   return method
 }
 
+// ── Bucketing: Caixa de hoje (por hora) ─────────────────────────────────────
+function construirBucketsHora(lancamentos: Lancamento[]): BucketPeriodo[] {
+  const buckets: BucketPeriodo[] = Array.from({ length: 24 }, (_, h) => ({
+    chave: String(h).padStart(2, "0"),
+    label: `${String(h).padStart(2, "0")}h`,
+    entradas: 0,
+    saidas: 0,
+    porTipoEntrada: {},
+    porTipoSaida: {},
+  }))
+
+  for (const l of lancamentos) {
+    const h = new Date(l.createdAt).getHours()
+    const b = buckets[h]
+    if (l.tipo === "RECEITA") {
+      b.entradas += l.valor
+      b.porTipoEntrada[l.tipo] = (b.porTipoEntrada[l.tipo] ?? 0) + l.valor
+    } else {
+      b.saidas += l.valor
+      b.porTipoSaida[l.tipo] = (b.porTipoSaida[l.tipo] ?? 0) + l.valor
+    }
+  }
+
+  return buckets
+}
+
+// ── Bucketing: Fluxo de caixa (por dia, agrupável em semana/mês) ───────────
+function diaParaBucket(dia: FluxoDia): BucketPeriodo {
+  const [, mm, dd] = dia.data.split("-")
+  const porTipoEntrada: Record<string, number> = {}
+  for (const e of dia.entradas) porTipoEntrada[e.tipo] = (porTipoEntrada[e.tipo] ?? 0) + e.valor
+  const porTipoSaida: Record<string, number> = {}
+  for (const s of dia.saidas) porTipoSaida[s.tipo] = (porTipoSaida[s.tipo] ?? 0) + s.valor
+
+  return {
+    chave: dia.data,
+    label: `${dd}/${mm}`,
+    diaSemana: new Date(`${dia.data}T12:00:00`).getDay(),
+    entradas: dia.totalEntradas,
+    saidas: dia.totalSaidas,
+    projecao: dia.receitaProjetada,
+    porTipoEntrada,
+    porTipoSaida,
+  }
+}
+
+function chaveSemana(iso: string) {
+  const d = new Date(`${iso}T12:00:00`)
+  const diaSemana = (d.getDay() + 6) % 7 // 0 = segunda-feira
+  const seg = new Date(d)
+  seg.setDate(d.getDate() - diaSemana)
+  return fmtDataISO(seg)
+}
+
+function chaveMes(iso: string) {
+  return iso.slice(0, 7)
+}
+
+function agruparBuckets(diarios: BucketPeriodo[], granularidade: Granularidade): BucketPeriodo[] {
+  if (granularidade === "diaria") return diarios
+
+  const chaveFn = granularidade === "semanal" ? chaveSemana : chaveMes
+  const map = new Map<string, BucketPeriodo>()
+
+  for (const d of diarios) {
+    const k = chaveFn(d.chave)
+    if (!map.has(k)) {
+      const label = granularidade === "semanal"
+        ? `Sem ${new Date(`${k}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`
+        : new Date(`${k}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
+      map.set(k, { chave: k, label, entradas: 0, saidas: 0, projecao: 0, porTipoEntrada: {}, porTipoSaida: {} })
+    }
+    const b = map.get(k)!
+    b.entradas += d.entradas
+    b.saidas += d.saidas
+    b.projecao = (b.projecao ?? 0) + (d.projecao ?? 0)
+    for (const [t, v] of Object.entries(d.porTipoEntrada)) b.porTipoEntrada[t] = (b.porTipoEntrada[t] ?? 0) + v
+    for (const [t, v] of Object.entries(d.porTipoSaida)) b.porTipoSaida[t] = (b.porTipoSaida[t] ?? 0) + v
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.chave.localeCompare(b.chave))
+}
+
+function ToggleView({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="flex gap-1 bg-zinc-800 border border-zinc-700 rounded-lg p-1">
+      {([
+        { key: "lista" as const, icon: <IconLista />, label: "Lista" },
+        { key: "grid" as const, icon: <IconGrid />, label: "Grid" },
+        { key: "grafico" as const, icon: <IconGrafico />, label: "Gráfico" },
+      ]).map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          title={opt.label}
+          className={`p-1.5 rounded-md transition-all ${
+            view === opt.key ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          {opt.icon}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function CaixaPage() {
   const [abaCaixa, setAbaCaixa] = useState<"hoje" | "fluxo">("hoje")
 
@@ -123,6 +237,22 @@ export default function CaixaPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
+
+  // Cores customizáveis dos gráficos — persistidas por usuário/navegador
+  const [cores, setCores] = useState<CoresGrafico>(() => ({ entrada: "#22c55e", saida: "#ef4444", projecao: "#a855f7" }))
+  useEffect(() => { setCores(lerCoresGrafico()) }, [])
+  function mudarCores(novas: CoresGrafico) {
+    setCores(novas)
+    salvarCoresGrafico(novas)
+  }
+
+  // Visão (Lista/Grid/Gráfico) e seleção por drill-down, para cada aba
+  const [viewHoje, setViewHoje] = useState<ViewMode>("lista")
+  const [bucketHoje, setBucketHoje] = useState<string | null>(null)
+
+  const [viewFluxo, setViewFluxo] = useState<ViewMode>("lista")
+  const [granularidadeFluxo, setGranularidadeFluxo] = useState<Granularidade>("diaria")
+  const [bucketFluxo, setBucketFluxo] = useState<string | null>(null)
 
   // Fluxo de caixa (movido de Financeiro) — filtro por intervalo de datas,
   // padrão últimos 30 dias, limitado a M-3 em relação a hoje
@@ -184,6 +314,16 @@ export default function CaixaPage() {
   const sangrias = lancamentos.filter(l => l.tipo === "SANGRIA").reduce((s, l) => s + l.valor, 0)
   const saldo = receitas - despesas - sangrias
 
+  const bucketsHoje = useMemo(() => construirBucketsHora(lancamentos), [lancamentos])
+  const bucketHojeAtivo = bucketHoje ? bucketsHoje.find(b => b.chave === bucketHoje) ?? null : null
+
+  const bucketsFluxoDiario = useMemo(() => (fluxo?.days ?? []).map(diaParaBucket), [fluxo])
+  const bucketsFluxo = useMemo(() => agruparBuckets(bucketsFluxoDiario, granularidadeFluxo), [bucketsFluxoDiario, granularidadeFluxo])
+  const bucketFluxoAtivo = bucketFluxo ? bucketsFluxo.find(b => b.chave === bucketFluxo) ?? null : null
+
+  // Limpa seleção de drill-down ao trocar granularidade (as chaves mudam de sentido)
+  useEffect(() => { setBucketFluxo(null) }, [granularidadeFluxo])
+
   async function handleAbrirCaixa() {
     setSalvando(true)
     await fetch("/api/caixa", {
@@ -224,11 +364,49 @@ export default function CaixaPage() {
     setSalvando(false)
   }
 
+  function baixarExcelHoje() {
+    exportarExcel(
+      `caixa-hoje-${fmtDataISO(new Date())}`,
+      ["Hora", "Descrição", "Método", "Tipo", "Valor"],
+      lancamentos.map(l => [fmtHora(l.createdAt), l.descricao, metodoLabel(l.method), l.tipo, l.valor * (l.tipo === "RECEITA" ? 1 : -1)]),
+    )
+  }
+
+  function baixarExcelFluxo() {
+    if (!fluxo) return
+    const linhas: (string | number)[][] = []
+    for (const dia of fluxo.days) {
+      for (const e of dia.entradas) linhas.push([dia.data, "Entrada", e.tipo, e.desc, e.valor])
+      for (const s of dia.saidas) linhas.push([dia.data, "Saída", s.tipo, s.desc, -s.valor])
+    }
+    exportarExcel(`fluxo-caixa-${fluxoFrom}-a-${fluxoTo}`, ["Data", "Direção", "Tipo", "Descrição", "Valor"], linhas)
+  }
+
   return (
     <DashboardLayout>
 
-      {/* Header */}
-      <div className="flex items-center justify-end mb-4">
+      {/* Header: abas + ações na mesma linha */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+          <button
+            onClick={() => setAbaCaixa("hoje")}
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              abaCaixa === "hoje" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Caixa de hoje
+          </button>
+          <button
+            onClick={() => setAbaCaixa("fluxo")}
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              abaCaixa === "fluxo" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <IconFluxo />
+            Fluxo de caixa
+          </button>
+        </div>
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setModalLancamento(true)}
@@ -255,72 +433,73 @@ export default function CaixaPage() {
         </div>
       </div>
 
-      {/* Abas */}
-      <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1 max-w-xs">
-        <button
-          onClick={() => setAbaCaixa("hoje")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
-            abaCaixa === "hoje" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          Caixa de hoje
-        </button>
-        <button
-          onClick={() => setAbaCaixa("fluxo")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
-            abaCaixa === "fluxo" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          <IconFluxo />
-          Fluxo de caixa
-        </button>
-      </div>
-
       {abaCaixa === "hoje" && (
       <>
-      {/* Status */}
-      <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-zinc-900 border-zinc-800"}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
-            <span className={`text-sm font-medium ${caixaAberto ? "text-green-400" : "text-zinc-500"}`}>
-              {caixaAberto ? "Caixa Aberto" : caixa?.closedAt ? "Caixa Fechado" : "Caixa não aberto hoje"}
-            </span>
+      {/* Cabeçalho fixo: status + KPIs, independente do scroll */}
+      <div className="sticky top-11 z-10 bg-zinc-950 pb-3">
+        {/* Status */}
+        <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-zinc-900 border-zinc-800"}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
+              <span className={`text-sm font-medium ${caixaAberto ? "text-green-400" : "text-zinc-500"}`}>
+                {caixaAberto ? "Caixa Aberto" : caixa?.closedAt ? "Caixa Fechado" : "Caixa não aberto hoje"}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-zinc-500 text-xs">Saldo atual</div>
+              {loading
+                ? <div className="h-7 w-28 bg-zinc-800 rounded animate-pulse mt-1" />
+                : <div className="text-white text-2xl font-bold">{fmtMoeda(saldo)}</div>
+              }
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-zinc-500 text-xs">Saldo atual</div>
-            {loading
-              ? <div className="h-7 w-28 bg-zinc-800 rounded animate-pulse mt-1" />
-              : <div className="text-white text-2xl font-bold">{fmtMoeda(saldo)}</div>
-            }
+        </div>
+
+        {/* KPIs — refletem o bucket selecionado no drill-down, se houver */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
+              Receitas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
+            </div>
+            {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.entradas : receitas)}</div>}
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
+              Despesas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
+            </div>
+            {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.saidas : despesas)}</div>}
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Sangrias</div>
+            {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-amber-400 text-xl font-bold">{fmtMoeda(sangrias)}</div>}
           </div>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Receitas</div>
-          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-green-400 text-xl font-bold">{fmtMoeda(receitas)}</div>}
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Despesas</div>
-          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-red-400 text-xl font-bold">{fmtMoeda(despesas)}</div>}
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Sangrias</div>
-          {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-amber-400 text-xl font-bold">{fmtMoeda(sangrias)}</div>}
-        </div>
-      </div>
-
-      {/* Lançamentos */}
+      {/* Container da tabela/grid/gráfico */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-2">
           <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Lançamentos do dia</span>
-          <span className="text-zinc-600 text-xs">{lancamentos.length} registros</span>
+          <div className="flex items-center gap-2">
+            {viewHoje === "grafico" && <SeletorCores cores={cores} onMudar={mudarCores} mostrarProjecao={false} />}
+            <ToggleView view={viewHoje} onChange={setViewHoje} />
+            <button onClick={baixarExcelHoje} title="Baixar lista em Excel" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 p-2 rounded-lg border border-zinc-700 transition-colors">
+              <IconDownload />
+            </button>
+          </div>
         </div>
+
         {loading ? (
           <div className="p-8 text-center text-zinc-600 text-sm">Carregando...</div>
+        ) : viewHoje === "grid" ? (
+          <div className="p-4">
+            <PeriodoGrid buckets={bucketsHoje} granularidade="hora" cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} />
+          </div>
+        ) : viewHoje === "grafico" ? (
+          <div className="p-4">
+            <PeriodoGrafico buckets={bucketsHoje} cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} />
+          </div>
         ) : lancamentos.length === 0 ? (
           <div className="p-8 text-center text-zinc-600 text-sm">Nenhum lançamento hoje</div>
         ) : (
@@ -394,81 +573,115 @@ export default function CaixaPage() {
 
       {abaCaixa === "fluxo" && (
         <div className="space-y-3">
-          <div className="flex items-center justify-end gap-2 flex-wrap">
-            <span className="text-zinc-500 text-xs">De</span>
-            <input
-              type="date"
-              value={fluxoFrom}
-              min={limiteMinimoFluxoData}
-              max={fluxoTo}
-              onChange={(e) => setFluxoFrom(e.target.value < limiteMinimoFluxoData ? limiteMinimoFluxoData : e.target.value)}
-              className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
-            />
-            <span className="text-zinc-500 text-xs">até</span>
-            <input
-              type="date"
-              value={fluxoTo}
-              min={fluxoFrom}
-              onChange={(e) => setFluxoTo(e.target.value)}
-              className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
-            />
-            <button
-              onClick={() => window.open(`/dashboard/caixa/fluxo-grafico?from=${fluxoFrom}&to=${fluxoTo}`, "_blank")}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-2 rounded-lg text-sm border border-zinc-700 transition-colors flex items-center gap-1.5"
-            >
-              📊 Ver gráfico
-            </button>
-          </div>
+          {/* Cabeçalho fixo: cards + filtro, independente do scroll */}
+          <div className="sticky top-11 z-10 bg-zinc-950 pb-3 space-y-3">
+            {/* Resumo do período — reflete o bucket selecionado no drill-down, se houver */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
+                <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
+                  Entradas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
+                </div>
+                {loadingFluxo ? (
+                  <div className="h-7 bg-green-500/10 rounded animate-pulse" />
+                ) : (
+                  <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.entradas : fluxo?.totalEntradas ?? 0)}</div>
+                )}
+              </div>
+              <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
+                  Saídas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
+                </div>
+                {loadingFluxo ? (
+                  <div className="h-7 bg-red-500/10 rounded animate-pulse" />
+                ) : (
+                  <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.saidas : fluxo?.totalSaidas ?? 0)}</div>
+                )}
+              </div>
+              {(() => {
+                const saldoExibido = bucketFluxoAtivo ? bucketFluxoAtivo.entradas - bucketFluxoAtivo.saidas : fluxo?.saldoFinal ?? 0
+                return (
+                  <div className={`border rounded-xl p-4 ${saldoExibido >= 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+                    <div className={`text-xs font-mono uppercase tracking-widest mb-1 ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>Saldo</div>
+                    {loadingFluxo ? (
+                      <div className="h-7 bg-amber-500/10 rounded animate-pulse" />
+                    ) : (
+                      <div className={`text-xl font-bold ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>{fmtMoeda(saldoExibido)}</div>
+                    )}
+                  </div>
+                )
+              })()}
+              <div className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4">
+                <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Projeção de receita</div>
+                {loadingFluxo ? (
+                  <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
+                ) : (
+                  <div className="text-purple-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.projecao ?? 0 : fluxo?.totalProjetado ?? 0)}</div>
+                )}
+                <div className="text-purple-600/60 text-xs mt-1">pendentes + agendamentos futuros</div>
+              </div>
+            </div>
 
-          {/* Resumo do período */}
-          <div className="grid grid-cols-4 gap-3">
-            <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
-              <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">Entradas</div>
-              {loadingFluxo ? (
-                <div className="h-7 bg-green-500/10 rounded animate-pulse" />
-              ) : (
-                <div className="text-green-400 text-xl font-bold">{fmtMoeda(fluxo?.totalEntradas ?? 0)}</div>
-              )}
-            </div>
-            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-              <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">Saídas</div>
-              {loadingFluxo ? (
-                <div className="h-7 bg-red-500/10 rounded animate-pulse" />
-              ) : (
-                <div className="text-red-400 text-xl font-bold">{fmtMoeda(fluxo?.totalSaidas ?? 0)}</div>
-              )}
-            </div>
-            <div className={`border rounded-xl p-4 ${(fluxo?.saldoFinal ?? 0) >= 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-red-500/5 border-red-500/20"}`}>
-              <div className={`text-xs font-mono uppercase tracking-widest mb-1 ${(fluxo?.saldoFinal ?? 0) >= 0 ? "text-amber-400" : "text-red-400"}`}>Saldo</div>
-              {loadingFluxo ? (
-                <div className="h-7 bg-amber-500/10 rounded animate-pulse" />
-              ) : (
-                <div className={`text-xl font-bold ${(fluxo?.saldoFinal ?? 0) >= 0 ? "text-amber-400" : "text-red-400"}`}>
-                  {fmtMoeda(fluxo?.saldoFinal ?? 0)}
+            {/* Filtro — abaixo dos cards */}
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              <span className="text-zinc-500 text-xs">De</span>
+              <input
+                type="date"
+                value={fluxoFrom}
+                min={limiteMinimoFluxoData}
+                max={fluxoTo}
+                onChange={(e) => setFluxoFrom(e.target.value < limiteMinimoFluxoData ? limiteMinimoFluxoData : e.target.value)}
+                className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+              />
+              <span className="text-zinc-500 text-xs">até</span>
+              <input
+                type="date"
+                value={fluxoTo}
+                min={fluxoFrom}
+                onChange={(e) => setFluxoTo(e.target.value)}
+                className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+              />
+              {viewFluxo === "grafico" && (
+                <div className="flex gap-1 bg-zinc-800 border border-zinc-700 rounded-lg p-1">
+                  {([
+                    { key: "diaria" as const, label: "Diária" },
+                    { key: "semanal" as const, label: "Semanal" },
+                    { key: "mensal" as const, label: "Mensal" },
+                  ]).map(opt => (
+                    <button key={opt.key} onClick={() => setGranularidadeFluxo(opt.key)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        granularidadeFluxo === opt.key ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      }`}>
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-            <div className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4">
-              <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Previsto</div>
-              {loadingFluxo ? (
-                <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
-              ) : (
-                <div className="text-purple-400 text-xl font-bold">{fmtMoeda(fluxo?.totalPrevistas ?? 0)}</div>
-              )}
-              <div className="text-purple-600/60 text-xs mt-1">assinaturas no mês</div>
-            </div>
           </div>
 
-          {/* Timeline diária */}
+          {/* Container da tabela/grid/gráfico */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">
-                Fluxo de Caixa — {new Date(`${fluxoFrom}T12:00:00`).toLocaleDateString("pt-BR")} até {new Date(`${fluxoTo}T12:00:00`).toLocaleDateString("pt-BR")}
-              </span>
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-2">
+              <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Fluxo de Caixa</span>
+              <div className="flex items-center gap-2">
+                {viewFluxo === "grafico" && <SeletorCores cores={cores} onMudar={mudarCores} mostrarProjecao />}
+                <ToggleView view={viewFluxo} onChange={setViewFluxo} />
+                <button onClick={baixarExcelFluxo} title="Baixar lista em Excel" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 p-2 rounded-lg border border-zinc-700 transition-colors">
+                  <IconDownload />
+                </button>
+              </div>
             </div>
 
             {loadingFluxo ? (
               <div className="px-4 py-8 text-center text-zinc-600 text-sm">Carregando...</div>
+            ) : viewFluxo === "grid" ? (
+              <div className="p-4">
+                <PeriodoGrid buckets={bucketsFluxo} granularidade="dia" cores={cores} selecionado={bucketFluxo} onSelecionar={setBucketFluxo} />
+              </div>
+            ) : viewFluxo === "grafico" ? (
+              <div className="p-4">
+                <PeriodoGrafico buckets={bucketsFluxo} cores={cores} mostrarProjecao selecionado={bucketFluxo} onSelecionar={setBucketFluxo} />
+              </div>
             ) : !fluxo || fluxo.days.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <div className="text-zinc-600 text-sm">Nenhum movimento no período</div>
