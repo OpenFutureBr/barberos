@@ -18,10 +18,14 @@ const pool =
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
 
-    // Supabase session pooler tem pool_size 15 no total.
-    // Em prod: mais conexões = queries paralelas de verdade.
+    // Supabase session pooler tem pool_size 15 no TOTAL, compartilhado por
+    // todas as instâncias serverless simultâneas — não é 15 por instância.
+    // Com max:8, bastavam 2 instâncias quentes ao mesmo tempo (2×8=16) para
+    // estourar o teto e gerar "DriverAdapterError: max clients reached in
+    // session mode" (visto em produção). max:4 dá margem para ~3 instâncias
+    // simultâneas (3×4=12) antes de chegar no limite.
     // Em dev: hot reload cria múltiplas instâncias — manter baixo.
-    max: isProd ? 8 : 2,
+    max: isProd ? 4 : 2,
     min: isProd ? 1 : 0,
 
     connectionTimeoutMillis: 8000,

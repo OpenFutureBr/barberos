@@ -66,8 +66,13 @@ export async function GET(request: Request) {
     const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
 
     /**
-     * Pagamentos confirmados hoje, movimentos de estoque de hoje e o caixa do dia
-     * não dependem uns dos outros — buscados em paralelo (antes eram sequenciais).
+     * Revertido para sequencial (era Promise.all) — o pool do Supabase em
+     * session mode tem um teto duro de conexões simultâneas (pool_size: 15)
+     * compartilhado entre todas as instâncias serverless. Rodar 3 queries
+     * concorrentes por requisição nesta rota (chamada pelo PDV, tela quente)
+     * multiplicava a pressão sobre esse teto e causava
+     * "DriverAdapterError: max clients reached in session mode".
+     * Sequencial usa 1 conexão por vez — mais lento, mas não estoura o pool.
      *
      * Regra dos pagamentos:
      * - Só entra no caixa se status = PAID
@@ -78,64 +83,62 @@ export async function GET(request: Request) {
      * - pendente entrar no caixa antes de receber
      * - duplicidade quando uma pendência é marcada como paga
      */
-    const [caixa, pagamentos, movimentos] = await Promise.all([
-      getCaixaHoje(ESTAB),
+    const caixa = await getCaixaHoje(ESTAB)
 
-      prisma.payment.findMany({
-        where: {
-          status: "PAID",
-          dueDate: null,
-          createdAt: {
-            gte: inicio,
-            lte: fim,
-          },
+    const pagamentos = await prisma.payment.findMany({
+      where: {
+        status: "PAID",
+        dueDate: null,
+        createdAt: {
+          gte: inicio,
+          lte: fim,
         },
-        include: {
-          appointment: {
-            include: {
-              client: {
-                select: {
-                  name: true,
-                },
+      },
+      include: {
+        appointment: {
+          include: {
+            client: {
+              select: {
+                name: true,
               },
-              service: {
-                select: {
-                  name: true,
-                  price: true,
-                },
+            },
+            service: {
+              select: {
+                name: true,
+                price: true,
               },
             },
           },
         },
-        orderBy: {
-          createdAt: "asc",
-        },
-      }),
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    })
 
-      // Todos os movimentos SAIDA com unitPrice hoje
-      prisma.stockMovement.findMany({
-        where: {
-          createdAt: {
-            gte: inicio,
-            lte: fim,
-          },
-          type: "SAIDA",
-          unitPrice: {
-            not: null,
+    // Todos os movimentos SAIDA com unitPrice hoje
+    const movimentos = await prisma.stockMovement.findMany({
+      where: {
+        createdAt: {
+          gte: inicio,
+          lte: fim,
+        },
+        type: "SAIDA",
+        unitPrice: {
+          not: null,
+        },
+      },
+      include: {
+        product: {
+          select: {
+            name: true,
           },
         },
-        include: {
-          product: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      }),
-    ])
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    })
 
     /**
      * Pagamentos vinculados aos agendamentos dos movimentos de hoje.

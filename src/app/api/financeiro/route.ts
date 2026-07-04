@@ -380,13 +380,18 @@ export async function GET(request: Request) {
 
     const { inicio, fim } = inicioFimMes(ano, mes)
 
-    // Evolução anual — calculado abaixo, mas o intervalo não depende das
-    // outras queries, então já entra no mesmo Promise.all (era uma 2ª leva
-    // sequencial antes).
+    // Evolução anual
     const anoInicio = new Date(ano, 0, 1)
     const anoFim = new Date(ano, 11, 31, 23, 59, 59)
 
-    const [appointments, movements, pendentes, anoAppts, anoMovs] = await Promise.all([
+    // Revertido para 2 levas de Promise.all (era 1 leva de 5) — o pool do
+    // Supabase em session mode tem teto duro de conexões simultâneas
+    // (pool_size: 15) compartilhado entre todas as instâncias serverless.
+    // Rodar as 5 queries desta rota ao mesmo tempo multiplicava a pressão
+    // sobre esse teto e contribuiu para "max clients reached in session
+    // mode" observado em produção. 2 levas de até 3 queries concorrentes
+    // reduz o pico de conexões simultâneas por requisição.
+    const [appointments, movements, pendentes] = await Promise.all([
       prisma.appointment.findMany({
         where: {
           establishmentId: ESTAB_ID,
@@ -478,7 +483,9 @@ export async function GET(request: Request) {
           },
         ],
       }),
+    ])
 
+    const [anoAppts, anoMovs] = await Promise.all([
       prisma.appointment.findMany({
         where: {
           establishmentId: ESTAB_ID,
