@@ -4,21 +4,22 @@ import React, { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 
-const MESES_NOME = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-]
+function fmtDataISO(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
 
-function gerarOpcoesPeriodo() {
-  const opcoes: { label: string; mes: number; ano: number }[] = []
+// Visão máxima permitida: M-3 em relação à data atual
+function limiteMinimoFluxo() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 3)
+  return fmtDataISO(d)
+}
+
+function periodoPadraoFluxo() {
   const hoje = new Date()
-
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
-    opcoes.push({ label: `${MESES_NOME[d.getMonth()]} ${d.getFullYear()}`, mes: d.getMonth() + 1, ano: d.getFullYear() })
-  }
-
-  return opcoes.reverse()
+  const inicio = new Date(hoje)
+  inicio.setDate(inicio.getDate() - 30)
+  return { from: fmtDataISO(inicio), to: fmtDataISO(hoje) }
 }
 
 function IconFluxo() {
@@ -44,6 +45,7 @@ type FluxoDia = {
   totalEntradas: number
   totalSaidas: number
   totalPrevistas: number
+  receitaProjetada: number
   saldo: number
 }
 
@@ -52,6 +54,7 @@ type FluxoCaixa = {
   totalEntradas: number
   totalSaidas: number
   totalPrevistas: number
+  totalProjetado: number
   saldoFinal: number
 }
 
@@ -121,12 +124,13 @@ export default function CaixaPage() {
   const [salvando, setSalvando] = useState(false)
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
 
-  // Fluxo de caixa (movido de Financeiro)
-  const opcoesFluxo = useMemo(() => gerarOpcoesPeriodo(), [])
-  const [periodoFluxoIdx, setPeriodoFluxoIdx] = useState(opcoesFluxo.length - 1)
+  // Fluxo de caixa (movido de Financeiro) — filtro por intervalo de datas,
+  // padrão últimos 30 dias, limitado a M-3 em relação a hoje
+  const limiteMinimoFluxoData = useMemo(() => limiteMinimoFluxo(), [])
+  const [fluxoFrom, setFluxoFrom] = useState(() => periodoPadraoFluxo().from)
+  const [fluxoTo, setFluxoTo] = useState(() => periodoPadraoFluxo().to)
   const [fluxo, setFluxo] = useState<FluxoCaixa | null>(null)
   const [loadingFluxo, setLoadingFluxo] = useState(false)
-  const periodoFluxo = opcoesFluxo[periodoFluxoIdx]
 
   // Modal lançamento
   const [modalLancamento, setModalLancamento] = useState(false)
@@ -165,15 +169,15 @@ export default function CaixaPage() {
 
   // Fluxo de caixa — busca só quando a aba é aberta ou o período muda
   useEffect(() => {
-    if (abaCaixa !== "fluxo" || !periodoFluxo) return
+    if (abaCaixa !== "fluxo" || !fluxoFrom || !fluxoTo) return
     setLoadingFluxo(true)
     fetchJsonSafe<typeof fluxo>(
-      `/api/financeiro/fluxo?mes=${periodoFluxo.mes}&ano=${periodoFluxo.ano}`,
-      `financeiro:fluxo:${periodoFluxo.ano}-${periodoFluxo.mes}`,
+      `/api/financeiro/fluxo?from=${fluxoFrom}&to=${fluxoTo}`,
+      `financeiro:fluxo:${fluxoFrom}:${fluxoTo}`,
     )
       .then(d => { if (d?.days) setFluxo(d) })
       .finally(() => setLoadingFluxo(false))
-  }, [abaCaixa, periodoFluxo])
+  }, [abaCaixa, fluxoFrom, fluxoTo])
 
   const receitas = lancamentos.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)
   const despesas = lancamentos.filter(l => l.tipo === "DESPESA").reduce((s, l) => s + l.valor, 0)
@@ -220,20 +224,11 @@ export default function CaixaPage() {
     setSalvando(false)
   }
 
-  const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
-
   return (
     <DashboardLayout>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Controle de Caixa</h1>
-          <p className="text-zinc-500 text-sm capitalize">
-            {hoje}
-            {caixa && caixaAberto && ` · Aberto às ${fmtHora(caixa.openedAt)}`}
-          </p>
-        </div>
+      <div className="flex items-center justify-end mb-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setModalLancamento(true)}
@@ -399,16 +394,30 @@ export default function CaixaPage() {
 
       {abaCaixa === "fluxo" && (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <select
-              value={periodoFluxoIdx}
-              onChange={(e) => setPeriodoFluxoIdx(Number(e.target.value))}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <span className="text-zinc-500 text-xs">De</span>
+            <input
+              type="date"
+              value={fluxoFrom}
+              min={limiteMinimoFluxoData}
+              max={fluxoTo}
+              onChange={(e) => setFluxoFrom(e.target.value < limiteMinimoFluxoData ? limiteMinimoFluxoData : e.target.value)}
               className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+            />
+            <span className="text-zinc-500 text-xs">até</span>
+            <input
+              type="date"
+              value={fluxoTo}
+              min={fluxoFrom}
+              onChange={(e) => setFluxoTo(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+            />
+            <button
+              onClick={() => window.open(`/dashboard/caixa/fluxo-grafico?from=${fluxoFrom}&to=${fluxoTo}`, "_blank")}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-2 rounded-lg text-sm border border-zinc-700 transition-colors flex items-center gap-1.5"
             >
-              {opcoesFluxo.map((o, i) => (
-                <option key={i} value={i}>{o.label}</option>
-              ))}
-            </select>
+              📊 Ver gráfico
+            </button>
           </div>
 
           {/* Resumo do período */}
@@ -454,7 +463,7 @@ export default function CaixaPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-zinc-800">
               <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">
-                Fluxo de Caixa — {periodoFluxo?.label}
+                Fluxo de Caixa — {new Date(`${fluxoFrom}T12:00:00`).toLocaleDateString("pt-BR")} até {new Date(`${fluxoTo}T12:00:00`).toLocaleDateString("pt-BR")}
               </span>
             </div>
 
