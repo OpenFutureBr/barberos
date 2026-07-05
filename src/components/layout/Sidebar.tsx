@@ -252,6 +252,10 @@ export default function Sidebar() {
           <span className="text-sm">↩</span>
           <span>Sair ({usernameUsuario})</span>
         </button>
+        <div className="text-center mt-2 pt-2 border-t border-zinc-800/60">
+          <div className="text-zinc-600 text-[11px] font-medium">BarberOS</div>
+          <div className="text-zinc-700 text-[10px]">Desenvolvido por OpenFuture</div>
+        </div>
       </div>
 
     </aside>

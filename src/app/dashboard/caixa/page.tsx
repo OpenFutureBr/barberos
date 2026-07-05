@@ -7,7 +7,6 @@ import { BucketPeriodo, CoresGrafico, lerCoresGrafico, salvarCoresGrafico, expor
 import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/caixa/icons"
 import PeriodoGrid from "@/components/caixa/PeriodoGrid"
 import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
-import SeletorCores from "@/components/caixa/SeletorCores"
 
 function fmtDataISO(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -81,6 +80,8 @@ type Caixa = {
   closedAt: string | null
   openingAmount: number
 }
+
+type BizHour = { dayOfWeek: number; isOpen: boolean; startTime: string; endTime: string }
 
 type ViewMode = "lista" | "grid" | "grafico"
 type Granularidade = "diaria" | "semanal" | "mensal"
@@ -236,6 +237,7 @@ export default function CaixaPage() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
+  const [businessHours, setBusinessHours] = useState<BizHour[]>([])
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
 
   // Cores customizáveis dos gráficos — persistidas por usuário/navegador
@@ -244,6 +246,9 @@ export default function CaixaPage() {
   function mudarCores(novas: CoresGrafico) {
     setCores(novas)
     salvarCoresGrafico(novas)
+  }
+  function mudarCorSerie(serie: keyof CoresGrafico, cor: string) {
+    mudarCores({ ...cores, [serie]: cor })
   }
 
   // Visão (Lista/Grid/Gráfico) e seleção por drill-down, para cada aba
@@ -291,6 +296,12 @@ export default function CaixaPage() {
 
   useEffect(() => { fetchDados() }, [fetchDados])
 
+  // Horário de funcionamento — usado para recortar a visão Grid de hoje
+  useEffect(() => {
+    fetchJsonSafe<{ businessHours?: BizHour[] }>("/api/configuracoes", "configuracoes")
+      .then(d => { if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours) })
+  }, [])
+
   // Recarrega quando um pagamento é confirmado
   useEffect(() => {
     window.addEventListener("pagamentoConfirmado", fetchDados)
@@ -316,6 +327,22 @@ export default function CaixaPage() {
 
   const bucketsHoje = useMemo(() => construirBucketsHora(lancamentos), [lancamentos])
   const bucketHojeAtivo = bucketHoje ? bucketsHoje.find(b => b.chave === bucketHoje) ?? null : null
+
+  // Grid de hoje: só mostra os horários de funcionamento da barbearia +
+  // qualquer lançamento fora desse horário (não descarta dado real).
+  const bucketsHojeGrid = useMemo(() => {
+    const diaSemana = new Date().getDay()
+    const horaHoje = businessHours.find(b => b.dayOfWeek === diaSemana)
+    if (!horaHoje?.isOpen) {
+      return bucketsHoje.filter(b => b.entradas > 0 || b.saidas > 0)
+    }
+    const inicioH = parseInt(horaHoje.startTime.split(":")[0], 10)
+    const fimH = parseInt(horaHoje.endTime.split(":")[0], 10)
+    return bucketsHoje.filter(b => {
+      const h = parseInt(b.chave, 10)
+      return (h >= inicioH && h <= fimH) || b.entradas > 0 || b.saidas > 0
+    })
+  }, [bucketsHoje, businessHours])
 
   const bucketsFluxoDiario = useMemo(() => (fluxo?.days ?? []).map(diaParaBucket), [fluxo])
   const bucketsFluxo = useMemo(() => agruparBuckets(bucketsFluxoDiario, granularidadeFluxo), [bucketsFluxoDiario, granularidadeFluxo])
@@ -482,7 +509,6 @@ export default function CaixaPage() {
         <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-2">
           <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Lançamentos do dia</span>
           <div className="flex items-center gap-2">
-            {viewHoje === "grafico" && <SeletorCores cores={cores} onMudar={mudarCores} mostrarProjecao={false} />}
             <ToggleView view={viewHoje} onChange={setViewHoje} />
             <button onClick={baixarExcelHoje} title="Baixar lista em Excel" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 p-2 rounded-lg border border-zinc-700 transition-colors">
               <IconDownload />
@@ -494,11 +520,11 @@ export default function CaixaPage() {
           <div className="p-8 text-center text-zinc-600 text-sm">Carregando...</div>
         ) : viewHoje === "grid" ? (
           <div className="p-4">
-            <PeriodoGrid buckets={bucketsHoje} granularidade="hora" cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} />
+            <PeriodoGrid buckets={bucketsHojeGrid} granularidade="hora" cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} />
           </div>
         ) : viewHoje === "grafico" ? (
           <div className="p-4">
-            <PeriodoGrafico buckets={bucketsHoje} cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} />
+            <PeriodoGrafico buckets={bucketsHoje} cores={cores} selecionado={bucketHoje} onSelecionar={setBucketHoje} onMudarCor={mudarCorSerie} />
           </div>
         ) : lancamentos.length === 0 ? (
           <div className="p-8 text-center text-zinc-600 text-sm">Nenhum lançamento hoje</div>
@@ -664,7 +690,6 @@ export default function CaixaPage() {
             <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-2">
               <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Fluxo de Caixa</span>
               <div className="flex items-center gap-2">
-                {viewFluxo === "grafico" && <SeletorCores cores={cores} onMudar={mudarCores} mostrarProjecao />}
                 <ToggleView view={viewFluxo} onChange={setViewFluxo} />
                 <button onClick={baixarExcelFluxo} title="Baixar lista em Excel" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 p-2 rounded-lg border border-zinc-700 transition-colors">
                   <IconDownload />
@@ -680,7 +705,7 @@ export default function CaixaPage() {
               </div>
             ) : viewFluxo === "grafico" ? (
               <div className="p-4">
-                <PeriodoGrafico buckets={bucketsFluxo} cores={cores} mostrarProjecao selecionado={bucketFluxo} onSelecionar={setBucketFluxo} />
+                <PeriodoGrafico buckets={bucketsFluxo} cores={cores} mostrarProjecao selecionado={bucketFluxo} onSelecionar={setBucketFluxo} onMudarCor={mudarCorSerie} />
               </div>
             ) : !fluxo || fluxo.days.length === 0 ? (
               <div className="px-4 py-12 text-center">
@@ -922,22 +947,14 @@ export default function CaixaPage() {
                     /* Receita/Despesa/Sangria: agrupa com histórico */
                     <>
                       {breakdownPorMetodo(detalheTipo).map(([metodoNome, dados]) => (
-                        <div key={metodoNome} className="bg-zinc-800 rounded-xl overflow-hidden">
-                          <div className="flex items-center justify-between px-4 py-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white text-sm font-medium">{metodoNome}</span>
-                              <span className="text-zinc-600 text-xs">{dados.count} lançamento{dados.count !== 1 ? "s" : ""}</span>
-                            </div>
-                            <span className={`font-bold font-mono text-sm ${linhas.find(l => l.tipo === detalheTipo)?.cor ?? "text-white"}`}>
-                              {fmtMoeda(dados.valor)}
-                            </span>
+                        <div key={metodoNome} className="bg-zinc-800 rounded-xl flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white text-sm font-medium">{metodoNome}</span>
+                            <span className="text-zinc-600 text-xs">{dados.count} lançamento{dados.count !== 1 ? "s" : ""}</span>
                           </div>
-                          {dados.items.map(item => (
-                            <div key={item.id} className="flex justify-between px-4 py-1.5 border-t border-zinc-700/60">
-                              <span className="text-zinc-400 text-xs truncate max-w-[200px]">{item.descricao}</span>
-                              <span className="text-zinc-300 text-xs font-mono flex-shrink-0 ml-2">R$ {item.valor.toFixed(2)}</span>
-                            </div>
-                          ))}
+                          <span className={`font-bold font-mono text-sm ${linhas.find(l => l.tipo === detalheTipo)?.cor ?? "text-white"}`}>
+                            {fmtMoeda(dados.valor)}
+                          </span>
                         </div>
                       ))}
                       {breakdownPorMetodo(detalheTipo).length === 0 && (

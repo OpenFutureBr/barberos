@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
+
+const CHAVE_POSICAO_FAB = "fab:posicao"
+const LIMIAR_ARRASTO_PX = 6
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -369,6 +372,76 @@ export default function GlobalFAB() {
   const [categoriasCustom, setCategoriasCustom] = useState<CategoriaCustom[]>([])
   const ref = useRef<HTMLDivElement>(null)
 
+  // Posição arrastável do botão — persistida por usuário/navegador. Null
+  // significa "usar a posição padrão" (bottom-20/right-4 via classe CSS).
+  const [posicao, setPosicao] = useState<{ x: number; y: number } | null>(null)
+  const arrastoRef = useRef<{ inicioX: number; inicioY: number; offX: number; offY: number; moveu: boolean } | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CHAVE_POSICAO_FAB)
+      if (raw) setPosicao(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const iniciarArrasto = useCallback((clientX: number, clientY: number) => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    arrastoRef.current = { inicioX: clientX, inicioY: clientY, offX: clientX - rect.left, offY: clientY - rect.top, moveu: false }
+  }, [])
+
+  const moverArrasto = useCallback((clientX: number, clientY: number) => {
+    const a = arrastoRef.current
+    if (!a) return
+    const dx = clientX - a.inicioX
+    const dy = clientY - a.inicioY
+    if (!a.moveu && Math.hypot(dx, dy) > LIMIAR_ARRASTO_PX) a.moveu = true
+    if (!a.moveu) return
+
+    const el = ref.current
+    if (!el) return
+    const largura = el.offsetWidth
+    const altura = el.offsetHeight
+    const x = Math.min(Math.max(0, clientX - a.offX), window.innerWidth - largura)
+    const y = Math.min(Math.max(0, clientY - a.offY), window.innerHeight - altura)
+    setPosicao({ x, y })
+  }, [])
+
+  const finalizarArrasto = useCallback(() => {
+    const a = arrastoRef.current
+    const foiArrasto = a?.moveu ?? false
+    if (foiArrasto) {
+      setPosicao(p => {
+        if (p) {
+          try { localStorage.setItem(CHAVE_POSICAO_FAB, JSON.stringify(p)) } catch {}
+        }
+        return p
+      })
+    }
+    arrastoRef.current = null
+    if (!foiArrasto) setAberto(prev => !prev)
+  }, [])
+
+  // Listeners globais de arrasto — sempre montados, só agem quando há um
+  // arrasto em andamento (arrastoRef.current setado no pointerdown do botão).
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      if (!arrastoRef.current) return
+      moverArrasto(e.clientX, e.clientY)
+    }
+    function onUp() {
+      if (!arrastoRef.current) return
+      finalizarArrasto()
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [moverArrasto, finalizarArrasto])
+
   useEffect(() => {
     fetch("/api/caixa/categorias")
       .then(r => r.json())
@@ -428,7 +501,11 @@ export default function GlobalFAB() {
         />
       )}
 
-      <div ref={ref} className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 flex flex-col items-end gap-2">
+      <div
+        ref={ref}
+        className={`fixed z-40 flex flex-col items-end gap-2 ${posicao ? "" : "bottom-20 right-4 md:bottom-6 md:right-6"}`}
+        style={posicao ? { left: posicao.x, top: posicao.y, right: "auto", bottom: "auto" } : undefined}
+      >
         {aberto && (
           <div className="flex flex-col items-end gap-1.5 mb-1">
             {opcoes.map(op => (
@@ -442,13 +519,13 @@ export default function GlobalFAB() {
         )}
 
         <button
-          onClick={() => setAberto(prev => !prev)}
-          className={`w-14 h-14 rounded-full shadow-xl text-2xl font-bold transition-all duration-200 ${
+          onPointerDown={(e) => iniciarArrasto(e.clientX, e.clientY)}
+          className={`w-14 h-14 rounded-full shadow-xl text-2xl font-bold transition-all duration-200 touch-none cursor-grab active:cursor-grabbing ${
             aberto
               ? "bg-zinc-700 text-white rotate-45 scale-95"
               : "bg-amber-500 hover:bg-amber-400 text-black hover:scale-105"
           }`}
-          aria-label="Ações rápidas">
+          aria-label="Ações rápidas — arraste para mover">
           +
         </button>
       </div>

@@ -38,14 +38,3 @@ export function IconDownload() {
   )
 }
 
-export function IconPaleta() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="7" cy="7" r="6" />
-      <circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none" />
-      <circle cx="7" cy="4" r="1" fill="currentColor" stroke="none" />
-      <circle cx="9.5" cy="6" r="1" fill="currentColor" stroke="none" />
-      <circle cx="7" cy="9" r="1" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}

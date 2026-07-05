@@ -12,12 +12,14 @@ export default function PeriodoGrafico({
   mostrarProjecao,
   selecionado,
   onSelecionar,
+  onMudarCor,
 }: {
   buckets: BucketPeriodo[]
   cores: CoresGrafico
   mostrarProjecao?: boolean
   selecionado?: string | null
   onSelecionar?: (chave: string | null) => void
+  onMudarCor?: (serie: keyof CoresGrafico, cor: string) => void
 }) {
   if (buckets.length === 0) {
     return <div className="h-64 flex items-center justify-center text-zinc-600 text-sm">Sem dados no período</div>
@@ -71,19 +73,43 @@ export default function PeriodoGrafico({
       </div>
 
       <div className="flex items-center gap-4 mt-4 pt-3 border-t border-zinc-800 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: cores.entrada }} />
-          <span className="text-zinc-500">Entradas</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: cores.saida }} />
-          <span className="text-zinc-500">Saídas</span>
-        </div>
-        {mostrarProjecao && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm border border-dashed" style={{ backgroundColor: `${cores.projecao}80`, borderColor: cores.projecao }} />
-            <span className="text-zinc-500">Projeção</span>
+        <label className="flex items-center gap-1.5 cursor-pointer group" title="Clique para mudar a cor">
+          <div className="relative w-2.5 h-2.5">
+            <div className="w-2.5 h-2.5 rounded-sm ring-1 ring-transparent group-hover:ring-zinc-500 transition-all" style={{ backgroundColor: cores.entrada }} />
+            <input
+              type="color"
+              value={cores.entrada}
+              onChange={(e) => onMudarCor?.("entrada", e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            />
           </div>
+          <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">Entradas</span>
+        </label>
+        <label className="flex items-center gap-1.5 cursor-pointer group" title="Clique para mudar a cor">
+          <div className="relative w-2.5 h-2.5">
+            <div className="w-2.5 h-2.5 rounded-sm ring-1 ring-transparent group-hover:ring-zinc-500 transition-all" style={{ backgroundColor: cores.saida }} />
+            <input
+              type="color"
+              value={cores.saida}
+              onChange={(e) => onMudarCor?.("saida", e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            />
+          </div>
+          <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">Saídas</span>
+        </label>
+        {mostrarProjecao && (
+          <label className="flex items-center gap-1.5 cursor-pointer group" title="Clique para mudar a cor">
+            <div className="relative w-2.5 h-2.5">
+              <div className="w-2.5 h-2.5 rounded-sm border border-dashed ring-1 ring-transparent group-hover:ring-zinc-500 transition-all" style={{ backgroundColor: `${cores.projecao}80`, borderColor: cores.projecao }} />
+              <input
+                type="color"
+                value={cores.projecao}
+                onChange={(e) => onMudarCor?.("projecao", e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
+            <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">Projeção</span>
+          </label>
         )}
         {selecionado && (
           <button onClick={() => onSelecionar?.(null)} className="ml-auto text-amber-400 hover:text-amber-300 text-xs transition-colors">
