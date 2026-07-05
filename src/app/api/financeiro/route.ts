@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 const MESES_LABEL = [
   "Jan",
@@ -46,8 +47,7 @@ function inicioFimMes(ano: number, mes: number) {
 function getStatusPendencia(dueDate: Date | null) {
   if (!dueDate) return "PENDING"
 
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+  const { inicio: hoje } = limitesHojeBRT()
 
   const vencimento = new Date(dueDate)
   vencimento.setHours(0, 0, 0, 0)

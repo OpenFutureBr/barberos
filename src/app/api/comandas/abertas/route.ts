@@ -11,8 +11,6 @@ export async function GET() {
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
     const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const hoje = new Date()
-    const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
 
     const appts = await prisma.appointment.findMany({
       where: {

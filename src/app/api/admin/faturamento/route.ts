@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 async function assertAdmin() {
   const session = await auth()
@@ -32,8 +33,7 @@ export async function GET() {
   const mrr = subscriptions.reduce((s, sub) => s + sub.price, 0)
   const arr = mrr * 12
 
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+  const { inicio: hoje } = limitesHojeBRT()
 
   const faturasPorStatus = {
     pendentes: invoices.filter(i => i.status === "PENDING" && new Date(i.dueDate) >= hoje),

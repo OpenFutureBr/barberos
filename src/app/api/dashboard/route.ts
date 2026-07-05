@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { ClientSegment, AppointmentStatus, SubscriptionStatus } from "@prisma/client"
+import { limitesHojeBRT, anoMesAtualBRT, limitesMesBRT } from "@/lib/data-brt"
 
 function arredondar(v: number) { return Math.round(v * 100) / 100 }
 
@@ -9,13 +10,9 @@ function parsePeriodo(request: Request) {
   const { searchParams } = new URL(request.url)
   const fromParam = searchParams.get("from")
   const toParam   = searchParams.get("to")
-  const hoje      = new Date()
-  const fromDate  = fromParam
-    ? new Date(`${fromParam}T00:00:00`)
-    : new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-  const toDate    = toParam
-    ? new Date(`${toParam}T23:59:59`)
-    : new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+  const { inicio: hojeInicio, fim: hojeFim } = limitesHojeBRT()
+  const fromDate  = fromParam ? new Date(`${fromParam}T00:00:00`) : hojeInicio
+  const toDate    = toParam ? new Date(`${toParam}T23:59:59`) : hojeFim
   return { fromDate, toDate }
 }
 
@@ -26,14 +23,13 @@ export async function GET(request: Request) {
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
     const { fromDate, toDate } = parsePeriodo(request)
-    const now = new Date()
 
-    const hojeInicio       = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
-    const hojeFim          = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
-    const mesAtualStart    = new Date(now.getFullYear(), now.getMonth(), 1)
-    const mesAtualEnd      = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-    const mesAnteriorStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const mesAnteriorEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+    const { inicio: hojeInicio, fim: hojeFim } = limitesHojeBRT()
+    const { ano: anoAtual, mes: mesAtual } = anoMesAtualBRT()
+    const { inicio: mesAtualStart, fim: mesAtualEnd } = limitesMesBRT(anoAtual, mesAtual)
+    const anoMesAnterior = mesAtual === 1 ? anoAtual - 1 : anoAtual
+    const mesAnterior = mesAtual === 1 ? 12 : mesAtual - 1
+    const { inicio: mesAnteriorStart, fim: mesAnteriorEnd } = limitesMesBRT(anoMesAnterior, mesAnterior)
 
     const periodoIncluiHoje = toDate >= hojeInicio
 
@@ -86,7 +82,7 @@ export async function GET(request: Request) {
       prisma.subscription.aggregate({
         where: {
           status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.OVERDUE] },
-          nextBillingAt: { lte: now },
+          nextBillingAt: { lte: new Date() },
           client: { establishmentId: ESTAB_ID },
         },
         _count: { id: true },

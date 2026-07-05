@@ -23,7 +23,9 @@ export default function Sidebar() {
   const { data: session } = useSession()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [estabNome, setEstabNome] = useState("BarberOS")
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Todos os grupos carregam condensados por padrão — só expande quando o
+  // usuário clica (preferência fica salva na sessionStorage abaixo).
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(MENU_GROUPS.map(g => g.label)))
   const [tema, setTema] = useState<"dark" | "light">("dark")
 
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.allowedResources?.includes("*")

@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -48,9 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     // Registra como receita no caixa do dia
-    const hoje = new Date()
-    const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-    const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    const { inicio: inicioDia, fim: fimDia } = limitesHojeBRT()
 
     let caixa = await prisma.cashRegister.findFirst({
       where: { establishmentId: estabId, openedAt: { gte: inicioDia, lte: fimDia } },

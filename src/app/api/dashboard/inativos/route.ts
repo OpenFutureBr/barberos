@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, limitesDiaBRT } from "@/lib/data-brt"
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +12,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const dias = Math.max(1, parseInt(searchParams.get("dias") ?? "7") || 7)
 
-    const limiteInicio = new Date()
-    limiteInicio.setDate(limiteInicio.getDate() - dias)
-    limiteInicio.setHours(0, 0, 0, 0)
+    const { inicio: limiteInicio } = limitesDiaBRT(somarDiasISO(hojeISOemBRT(), -dias))
 
     const clientes = await prisma.client.findMany({
       where: { establishmentId: estabId, isActive: true },

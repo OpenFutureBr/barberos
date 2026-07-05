@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, limitesDiaBRT } from "@/lib/data-brt"
 
 const ROLES_PERMITIDOS = ["ADMIN", "ORG_OWNER", "ORG_MANAGER"]
 
@@ -13,10 +14,9 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
-    const amanha = new Date(hoje)
-    amanha.setDate(amanha.getDate() + 1)
+    const hojeISO = hojeISOemBRT()
+    const { inicio: hoje } = limitesDiaBRT(hojeISO)
+    const { inicio: amanha } = limitesDiaBRT(somarDiasISO(hojeISO, 1))
 
     const establishments = await prisma.establishment.findMany({
       where: { organizationId: orgId },

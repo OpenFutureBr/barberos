@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, limitesDiaBRT, anoMesAtualBRT, limitesMesBRT } from "@/lib/data-brt"
 
 // Endpoint de automação de faturamento — pode ser chamado por um admin logado
 // ou por um cron job externo headless. Sem sessão de usuário, exige o header
@@ -37,13 +38,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const diasTolerancia = Number(body.diasTolerancia ?? 7)
 
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-
-  const limiteParaSuspensao = new Date(hoje)
-  limiteParaSuspensao.setDate(hoje.getDate() - diasTolerancia)
-
-  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`
+  const hojeISO = hojeISOemBRT()
+  const hoje = limitesDiaBRT(hojeISO).inicio
+  const limiteParaSuspensao = limitesDiaBRT(somarDiasISO(hojeISO, -diasTolerancia)).inicio
+  const mesAtual = hojeISO.slice(0, 7)
 
   // ── 1. Trial expirado → ACTIVE (ou OVERDUE se já venceu) ─────────────────
   const trialsExpirados = await prisma.organization.findMany({
@@ -205,6 +203,9 @@ export async function POST(req: Request) {
     select: { id: true, establishments: { select: { id: true } } },
   })
 
+  const { ano: anoAtualUso, mes: mesAtualUso } = anoMesAtualBRT()
+  const inicioMesUso = limitesMesBRT(anoAtualUso, mesAtualUso).inicio
+
   for (const org of orgsAtivas) {
     const estabIds = org.establishments.map(e => e.id)
     if (estabIds.length === 0) continue
@@ -214,11 +215,11 @@ export async function POST(req: Request) {
         where: {
           establishmentId: { in: estabIds },
           status: "DONE" as any,
-          scheduledAt: { gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1), lte: hoje },
+          scheduledAt: { gte: inicioMesUso, lte: hoje },
         },
       }),
       prisma.client.count({
-        where: { establishmentId: { in: estabIds }, createdAt: { gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1) } },
+        where: { establishmentId: { in: estabIds }, createdAt: { gte: inicioMesUso } },
       }),
       prisma.user.count({
         where: { organizationId: org.id, isActive: true },

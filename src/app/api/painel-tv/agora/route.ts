@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 export async function GET() {
   try {
@@ -10,8 +11,7 @@ export async function GET() {
 
     const agora = new Date()
     const fim = new Date(agora.getTime() + 30 * 60 * 1000)
-    const inicioDia = new Date(agora)
-    inicioDia.setHours(0, 0, 0, 0)
+    const { inicio: inicioDia } = limitesHojeBRT()
 
     // Busca IN_PROGRESS sempre + agendamentos do dia dentro da janela
     const agendamentos = await prisma.appointment.findMany({

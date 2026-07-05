@@ -1,11 +1,10 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 async function getCaixaHoje(ESTAB: string) {
-  const hoje = new Date()
-  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-  const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+  const { inicio, fim } = limitesHojeBRT()
 
   return prisma.cashRegister.findFirst({
     where: {
@@ -38,9 +37,7 @@ export async function GET(request: Request) {
 
     // Modo resumo: só retorna status + saldo (usado pelo dashboard)
     if (searchParams.get("resumo") === "true") {
-      const hoje = new Date()
-      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+      const { inicio, fim } = limitesHojeBRT()
 
       const caixa = await prisma.cashRegister.findFirst({
         where: { establishmentId: ESTAB, openedAt: { gte: inicio, lte: fim } },
@@ -61,9 +58,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const hoje = new Date()
-    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-    const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    const { inicio, fim } = limitesHojeBRT()
 
     /**
      * Revertido para sequencial (era Promise.all) — o pool do Supabase em

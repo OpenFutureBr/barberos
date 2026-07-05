@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, limitesDiaBRT } from "@/lib/data-brt"
 
 // Ainda não existe integração real de emissão de NF-e — este endpoint expõe
 // os atendimentos concluídos (dados reais) que precisariam de nota, sempre
@@ -14,9 +15,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const dataParam = searchParams.get("data")
 
-    const base = dataParam ? new Date(`${dataParam}T00:00:00`) : new Date()
-    const inicio = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0)
-    const fim = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59)
+    const { inicio, fim } = limitesDiaBRT(dataParam ?? hojeISOemBRT())
 
     const appointments = await prisma.appointment.findMany({
       where: {

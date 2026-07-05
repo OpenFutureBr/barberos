@@ -1,13 +1,17 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, somarMesesISO, limitesDiaBRT, diaISOemBRT } from "@/lib/data-brt"
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
 }
 
+// Agrupa por dia no fuso de Brasília, não no fuso do servidor (produção
+// roda em UTC — sem isso, tudo criado depois das 21h BRT cairia no dia
+// seguinte na timeline do Fluxo de Caixa).
 function chaveData(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return diaISOemBRT(d)
 }
 
 type Lancamento = { desc: string; valor: number; tipo: string }
@@ -23,16 +27,14 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
 
-    const hoje = new Date()
-    const limiteMinimo = new Date(hoje)
-    limiteMinimo.setMonth(limiteMinimo.getMonth() - 3)
-    limiteMinimo.setHours(0, 0, 0, 0)
+    const hojeISO = hojeISOemBRT()
+    const limiteMinimo = limitesDiaBRT(somarMesesISO(hojeISO, -3)).inicio
 
     const fromParam = searchParams.get("from")
     const toParam = searchParams.get("to")
 
-    let inicio = fromParam ? new Date(`${fromParam}T00:00:00`) : new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 30)
-    let fim = toParam ? new Date(`${toParam}T23:59:59`) : new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    let inicio = fromParam ? new Date(`${fromParam}T00:00:00-03:00`) : limitesDiaBRT(somarDiasISO(hojeISO, -30)).inicio
+    let fim = toParam ? new Date(`${toParam}T23:59:59-03:00`) : limitesDiaBRT(hojeISO).fim
 
     // Visão máxima permitida: M-3 em relação à data atual
     if (inicio < limiteMinimo) inicio = limiteMinimo
