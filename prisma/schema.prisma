@@ -31,6 +31,7 @@ model Establishment {
   painelConfig       Json?
   whatsappConfig     Json?
   caixaConfig        Json?              @map("caixa_config")
+  categoriaCores     Json?              @map("categoria_cores")
   isActive           Boolean            @default(true)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -569,6 +570,20 @@ model Subscription {
   @@index([status, nextBillingAt], map: "idx_subscriptions_status_nextBillingAt")
   @@index([mesReferencia], map: "idx_subscriptions_mesReferencia")
   @@map("subscriptions")
+}
+
+model LoginPairing {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  status    String   @default("PENDING") // PENDING | APPROVED | USED | EXPIRED
+  isTV      Boolean  @default(false)
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("login_pairings")
 }
 
 model GiftCard {

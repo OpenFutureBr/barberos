@@ -130,7 +130,35 @@ function ElapsedTimer({ startedAt, scheduledAt, durationMin }: { startedAt: stri
   )
 }
 
-// Marquee vertical suave — itens duplicados para loop seamless
+function FilaRow({ item, pos, destaque }: { item: FilaItem; pos: number; destaque?: "proximo" | "ultimo" }) {
+  const isNaFila = item.status === "IN_QUEUE"
+  const corPos = destaque ? "text-amber-400" : isNaFila ? "text-purple-400" : "text-zinc-600"
+  return (
+    <div className={`flex items-center gap-3 px-4 py-2 flex-shrink-0 ${destaque ? "bg-amber-500/10 border border-amber-500/25 rounded-xl" : "border-b border-zinc-800/40"}`}>
+      <span className={`font-mono text-sm w-5 flex-shrink-0 font-bold ${corPos}`}>
+        {pos}°
+      </span>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isNaFila ? "bg-purple-700 text-white" : destaque ? "bg-amber-500 text-black" : "bg-zinc-800 text-zinc-400"}`}>
+        {item.client.name.charAt(0)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-white text-sm font-semibold truncate leading-tight">{item.client.name}</div>
+        <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name}</div>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <div className={`text-sm font-mono font-bold ${isNaFila ? "text-purple-300" : destaque ? "text-amber-300" : "text-zinc-400"}`}>
+          {fmtHora(item.scheduledAt)}
+        </div>
+        {isNaFila && <div className="text-purple-500 text-xs">Na fila</div>}
+        {destaque === "proximo" && <div className="text-amber-500 text-xs">Próximo</div>}
+        {destaque === "ultimo" && <div className="text-amber-500 text-xs">Último</div>}
+      </div>
+    </div>
+  )
+}
+
+// Primeiro (próximo) e último da fila ficam fixos em destaque; o meio (se
+// houver) rola em marquee entre os dois, para não perder a noção de início/fim.
 function FilaMarquee({ items }: { items: FilaItem[] }) {
   if (items.length === 0) {
     return (
@@ -139,47 +167,38 @@ function FilaMarquee({ items }: { items: FilaItem[] }) {
       </div>
     )
   }
+
+  const primeiro = items[0]
+  const ultimo = items.length > 1 ? items[items.length - 1] : null
+  const meio = items.length > 2 ? items.slice(1, -1) : []
+
   const SECS_PER_ITEM = 4
-  const duration = Math.max(items.length * SECS_PER_ITEM, 12)
-  const doubled = [...items, ...items]
+  const duration = Math.max(meio.length * SECS_PER_ITEM, 12)
+  const doubled = meio.length > 0 ? [...meio, ...meio] : []
 
   return (
-    <div className="overflow-hidden flex-1 relative">
-      <style>{`
-        @keyframes scrollQueue {
-          0%   { transform: translateY(0); }
-          100% { transform: translateY(-50%); }
-        }
-        .fila-scroll { animation: scrollQueue ${duration}s linear infinite; }
-        .fila-scroll:hover { animation-play-state: paused; }
-      `}</style>
-      <div className="fila-scroll flex flex-col">
-        {doubled.map((item, i) => {
-          const pos = (i % items.length) + 1
-          const isNaFila = item.status === "IN_QUEUE"
-          return (
-            <div key={`${item.id}-${i}`}
-              className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/40 flex-shrink-0">
-              <span className={`font-mono text-sm w-5 flex-shrink-0 ${isNaFila ? "text-purple-400 font-bold" : "text-zinc-600"}`}>
-                {pos}°
-              </span>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isNaFila ? "bg-purple-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
-                {item.client.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-white text-sm font-semibold truncate leading-tight">{item.client.name}</div>
-                <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name}</div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className={`text-sm font-mono font-bold ${isNaFila ? "text-purple-300" : "text-zinc-400"}`}>
-                  {fmtHora(item.scheduledAt)}
-                </div>
-                {isNaFila && <div className="text-purple-500 text-xs">Na fila</div>}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+    <div className="flex flex-col flex-1 gap-2 overflow-hidden px-1 pt-1">
+      <FilaRow item={primeiro} pos={1} destaque="proximo" />
+
+      {meio.length > 0 ? (
+        <div className="overflow-hidden flex-1 relative">
+          <style>{`
+            @keyframes scrollQueue {
+              0%   { transform: translateY(0); }
+              100% { transform: translateY(-50%); }
+            }
+            .fila-scroll { animation: scrollQueue ${duration}s linear infinite; }
+            .fila-scroll:hover { animation-play-state: paused; }
+          `}</style>
+          <div className="fila-scroll flex flex-col">
+            {doubled.map((item, i) => (
+              <FilaRow key={`${item.id}-${i}`} item={item} pos={(i % meio.length) + 2} />
+            ))}
+          </div>
+        </div>
+      ) : <div className="flex-1" />}
+
+      {ultimo && <FilaRow item={ultimo} pos={items.length} destaque="ultimo" />}
     </div>
   )
 }

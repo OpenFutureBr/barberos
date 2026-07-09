@@ -262,7 +262,10 @@ export default function ConfiguracoesPage() {
   const [salvo, setSalvo] = useState(false)
   const [erroMsg, setErroMsg] = useState("")
   const [salvandoPlaylists, setSalvandoPlaylists] = useState(false)
-  const [colapsados, setColapsados] = useState<Set<string>>(new Set())
+  const [colapsados, setColapsados] = useState<Set<string>>(() => new Set([
+    "fonte", "logo", "info", "contato", "endereco", "fiscal", "horario",
+    "cashback", "whatsapp", "tv-playlists", "tv-slots", "white-label", "plano",
+  ]))
 
   function toggle(id: string) {
     setColapsados(prev => {

@@ -22,7 +22,15 @@ type Unidade = {
   city: string | null
   state: string | null
   logoUrl: string | null
+  updatedAt: string
   _count: { users: number; clients: number; appointments: number }
+}
+
+// Imagem em cache por 1 ano (ver supabase-storage.ts) — ?v= usa updatedAt
+// como carimbo de versão, trocando a URL quando a foto é atualizada.
+function fotoComVersao(url: string | null | undefined, updatedAt: string | null | undefined) {
+  if (!url || !updatedAt) return url ?? null
+  return `${url}${url.includes("?") ? "&" : "?"}v=${new Date(updatedAt).getTime()}`
 }
 
 type ConfigFull = {
@@ -639,12 +647,22 @@ export default function UnidadesPage() {
             {loading ? "Carregando..." : `${unidades.length} unidade${unidades.length !== 1 ? "s" : ""} · Dashboard consolidado`}
           </p>
         </div>
-        <button
-          onClick={() => setModalNova(true)}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          + Nova unidade
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/dashboard/unidades/relatorio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
+          >
+            Gerar relatório executivo
+          </a>
+          <button
+            onClick={() => setModalNova(true)}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            + Nova unidade
+          </button>
+        </div>
       </div>
 
       {/* KPIs consolidados */}
@@ -706,7 +724,7 @@ export default function UnidadesPage() {
                 onClick={() => setExpandido(expandido === unidade.id ? null : unidade.id)}>
                 <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-amber-500 flex items-center justify-center">
                   {unidade.logoUrl
-                    ? <img src={unidade.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ? <img src={fotoComVersao(unidade.logoUrl, unidade.updatedAt) ?? undefined} alt="Logo" loading="lazy" className="w-full h-full object-cover" />
                     : <span className="text-black font-bold">{unidade.name.charAt(0)}</span>}
                 </div>
                 <div className="flex-1">

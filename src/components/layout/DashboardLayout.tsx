@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { getCache, setCache } from "@/lib/prefetch-cache"
+import { useSession } from "next-auth/react"
+import { getCache, setCache, setCacheScope } from "@/lib/prefetch-cache"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -12,6 +13,7 @@ import MobileNav from "./MobileNav"
 import NavigationProgress from "@/components/NavigationProgress"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
@@ -19,7 +21,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // DashboardLayout remonta a cada navegação (não há app/dashboard/layout.tsx
   // compartilhado), então sem checar o cache antes isso refazia os 4 fetches
   // a cada troca de página mesmo com dado fresco de segundos atrás.
+  //
+  // O escopo do cache (organização+unidade) é fixado antes de qualquer
+  // leitura/escrita abaixo, pra nunca servir dado de outra unidade.
   useEffect(() => {
+    setCacheScope(session?.user?.establishmentId, session?.user?.organizationId)
+
     // Clientes (primeira página) — maior gargalo atual
     if (!getCache("clientes:1:30:")) {
       fetch("/api/clientes?page=1&perPage=30")
@@ -49,7 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .then(d => { if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d) })
         .catch(() => {})
     }
-  }, [])
+  }, [session?.user?.establishmentId, session?.user?.organizationId])
 
   // Carrinho persistente — não some ao fechar o modal
   const [cartItens, setCartItens] = useState<CartItem[]>([])

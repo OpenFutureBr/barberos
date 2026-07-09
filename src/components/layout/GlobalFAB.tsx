@@ -2,80 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL, type Categoria, type TipoCaixa } from "@/lib/categorias-caixa"
 
 const CHAVE_POSICAO_FAB = "fab:posicao"
 const LIMIAR_ARRASTO_PX = 6
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type TipoCaixa = "RECEITA" | "CUSTO" | "DESPESA"
-
-type Categoria = {
-  label: string
-  tipo: TipoCaixa
-}
-
-type GrupoCategoria = {
-  grupo: string
-  cor: string       // classe Tailwind para o badge
-  categorias: Categoria[]
-}
-
-// ─── Categorias de saída ──────────────────────────────────────────────────────
-
-const GRUPOS_SAIDA: GrupoCategoria[] = [
-  {
-    grupo: "Pessoal",
-    cor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    categorias: [
-      { label: "Adiantamento para funcionário", tipo: "CUSTO" },
-      { label: "Pagamento de salário",          tipo: "CUSTO" },
-      { label: "Comissão",                      tipo: "CUSTO" },
-      { label: "Férias / 13º salário",          tipo: "CUSTO" },
-    ],
-  },
-  {
-    grupo: "Fornecedores",
-    cor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    categorias: [
-      { label: "Compra de produtos",            tipo: "CUSTO" },
-      { label: "Material de limpeza",           tipo: "CUSTO" },
-      { label: "Equipamentos / Ferramentas",    tipo: "CUSTO" },
-    ],
-  },
-  {
-    grupo: "Contas",
-    cor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    categorias: [
-      { label: "Aluguel",                       tipo: "DESPESA" },
-      { label: "Água / Luz / Gás",              tipo: "DESPESA" },
-      { label: "Internet / Telefone",           tipo: "DESPESA" },
-      { label: "Software / Sistema",            tipo: "DESPESA" },
-    ],
-  },
-  {
-    grupo: "Outros",
-    cor: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-    categorias: [
-      { label: "Marketing / Publicidade",       tipo: "DESPESA" },
-      { label: "Impostos / Taxas",              tipo: "DESPESA" },
-      { label: "Manutenção",                    tipo: "DESPESA" },
-      { label: "Outros",                        tipo: "DESPESA" },
-    ],
-  },
-]
-
-const TIPO_BADGE: Record<TipoCaixa, string> = {
-  CUSTO:   "bg-orange-500/10 text-orange-400 border border-orange-500/20",
-  DESPESA: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
-  RECEITA: "bg-green-500/10 text-green-400 border border-green-500/20",
-}
-
-const TIPO_LABEL: Record<TipoCaixa, string> = {
-  CUSTO:   "Custo",
-  DESPESA: "Despesa",
-  RECEITA: "Receita",
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -112,7 +42,7 @@ function ModalCaixa({
   categoriasCustom: CategoriaCustom[]
   onClose: () => void
 }) {
-  const [etapa, setEtapa] = useState<"categoria" | "form">(modoInicial === "SAIDA" ? "categoria" : "form")
+  const [etapa, setEtapa] = useState<"categoria" | "form">("categoria")
   const [categoriaEscolhida, setCategoriaEscolhida] = useState<Categoria | null>(null)
   const [grupoEscolhido, setGrupoEscolhido] = useState<string | null>(null)
 
@@ -144,7 +74,7 @@ function ModalCaixa({
     setEtapa("form")
   }
 
-  const tipoLancamento: TipoCaixa = modoInicial === "ENTRADA" ? "RECEITA" : (categoriaEscolhida?.tipo ?? "DESPESA")
+  const tipoLancamento: TipoCaixa = categoriaEscolhida?.tipo ?? (modoInicial === "ENTRADA" ? "RECEITA" : "DESPESA")
   const isEntrada = modoInicial === "ENTRADA"
 
   async function handleSalvar() {
@@ -196,7 +126,7 @@ function ModalCaixa({
         {/* Header */}
         <div className={`flex items-center justify-between px-5 py-4 border-b border-zinc-800 rounded-t-2xl flex-shrink-0 ${headerCor}`}>
           <div className="flex items-center gap-2">
-            {etapa === "form" && !isEntrada && (
+            {etapa === "form" && (
               <button onClick={() => setEtapa("categoria")} className="text-zinc-500 hover:text-zinc-300 mr-1 transition-colors">
                 {ic(ICON_VOLTAR)}
               </button>
@@ -218,10 +148,10 @@ function ModalCaixa({
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none">✕</button>
         </div>
 
-        {/* ── Etapa 1: Escolher categoria (só para saída) ── */}
+        {/* ── Etapa 1: Escolher categoria ── */}
         {etapa === "categoria" && (
           <div className="overflow-y-auto flex-1 p-4 space-y-4">
-            {GRUPOS_SAIDA.map(grupo => (
+            {(isEntrada ? GRUPOS_RECEITA : GRUPOS_DESPESA).map(grupo => (
               <div key={grupo.grupo}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${grupo.cor}`}>
@@ -242,8 +172,8 @@ function ModalCaixa({
               </div>
             ))}
 
-            {/* Categorias customizadas */}
-            {categoriasCustom.length > 0 && (
+            {/* Categorias customizadas (só despesas/custos, ainda não há custom de receita) */}
+            {!isEntrada && categoriasCustom.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-zinc-500/10 text-zinc-400 border-zinc-500/20">
@@ -265,7 +195,7 @@ function ModalCaixa({
             )}
 
             {/* Opção livre */}
-            <button onClick={() => { setCategoriaEscolhida({ label: "", tipo: "DESPESA" }); setGrupoEscolhido(null); setEtapa("form") }}
+            <button onClick={() => { setCategoriaEscolhida({ label: "", tipo: isEntrada ? "RECEITA" : "DESPESA" }); setGrupoEscolhido(null); setEtapa("form") }}
               className="w-full flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-dashed border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-500 hover:text-zinc-300 text-xs transition-all">
               {ic("M12 4v16m-8-8h16")} Outro (digitar manualmente)
             </button>
@@ -491,6 +421,51 @@ export default function GlobalFAB() {
     { label: "Saída de dinheiro",    icon: ICON_MENOS,      color: "text-red-400",   onClick: () => abrirCaixa("SAIDA") },
   ]
 
+  // Tamanho fixo do botão (w-14 h-14 = 56px) — usado só pra saber de qual lado
+  // sobra espaço na tela quando o FAB foi arrastado.
+  const TAMANHO_BOTAO = 56
+  // Sem posição customizada, o FAB fica no canto inferior-direito (classes
+  // CSS abaixo) — então o menu já deve abrir pra cima e pra esquerda, como
+  // sempre foi. Arrastado, decidimos o lado com base no quadrante da tela.
+  const abrirParaCima = posicao ? posicao.y > window.innerHeight / 2 : true
+  const abrirParaEsquerda = posicao ? posicao.x > window.innerWidth / 2 : true
+
+  const estiloPosicao: React.CSSProperties | undefined = posicao
+    ? {
+        ...(abrirParaEsquerda
+          ? { right: window.innerWidth - (posicao.x + TAMANHO_BOTAO), left: "auto" }
+          : { left: posicao.x, right: "auto" }),
+        ...(abrirParaCima
+          ? { bottom: window.innerHeight - (posicao.y + TAMANHO_BOTAO), top: "auto" }
+          : { top: posicao.y, bottom: "auto" }),
+      }
+    : undefined
+
+  const menu = aberto && (
+    <div className={`flex flex-col gap-1.5 ${abrirParaEsquerda ? "items-end" : "items-start"} ${abrirParaCima ? "mb-1" : "mt-1"}`}>
+      {opcoes.map(op => (
+        <button key={op.label} onClick={op.onClick}
+          className={`flex items-center gap-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-sm font-medium px-4 py-2.5 rounded-full shadow-xl transition-all whitespace-nowrap ${op.color ?? "text-white"}`}>
+          {ic(op.icon)}
+          {op.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const botao = (
+    <button
+      onPointerDown={(e) => iniciarArrasto(e.clientX, e.clientY)}
+      className={`w-14 h-14 rounded-full shadow-xl text-2xl font-bold transition-all duration-200 touch-none cursor-grab active:cursor-grabbing ${
+        aberto
+          ? "bg-zinc-700 text-white rotate-45 scale-95"
+          : "bg-amber-500 hover:bg-amber-400 text-black hover:scale-105"
+      }`}
+      aria-label="Ações rápidas — arraste para mover">
+      +
+    </button>
+  )
+
   return (
     <>
       {modalCaixa && (
@@ -503,31 +478,12 @@ export default function GlobalFAB() {
 
       <div
         ref={ref}
-        className={`fixed z-40 flex flex-col items-end gap-2 ${posicao ? "" : "bottom-20 right-4 md:bottom-6 md:right-6"}`}
-        style={posicao ? { left: posicao.x, top: posicao.y, right: "auto", bottom: "auto" } : undefined}
+        className={`fixed z-40 flex flex-col ${abrirParaEsquerda ? "items-end" : "items-start"} gap-2 ${posicao ? "" : "bottom-20 right-4 md:bottom-6 md:right-6"}`}
+        style={estiloPosicao}
       >
-        {aberto && (
-          <div className="flex flex-col items-end gap-1.5 mb-1">
-            {opcoes.map(op => (
-              <button key={op.label} onClick={op.onClick}
-                className={`flex items-center gap-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-sm font-medium px-4 py-2.5 rounded-full shadow-xl transition-all whitespace-nowrap ${op.color ?? "text-white"}`}>
-                {ic(op.icon)}
-                {op.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <button
-          onPointerDown={(e) => iniciarArrasto(e.clientX, e.clientY)}
-          className={`w-14 h-14 rounded-full shadow-xl text-2xl font-bold transition-all duration-200 touch-none cursor-grab active:cursor-grabbing ${
-            aberto
-              ? "bg-zinc-700 text-white rotate-45 scale-95"
-              : "bg-amber-500 hover:bg-amber-400 text-black hover:scale-105"
-          }`}
-          aria-label="Ações rápidas — arraste para mover">
-          +
-        </button>
+        {/* A ordem no DOM decide o lado que "cresce": o botão fica sempre no
+            ponto onde foi solto, e o menu se expande pro lado que tem espaço. */}
+        {abrirParaCima ? (<>{menu}{botao}</>) : (<>{botao}{menu}</>)}
       </div>
     </>
   )

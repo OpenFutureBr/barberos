@@ -19,15 +19,47 @@ function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
 
-function minutosAte(iso: string): number {
-  return Math.round((new Date(iso).getTime() - Date.now()) / 60000)
-}
-
 function minutosDesde(iso: string): number {
   return Math.round((Date.now() - new Date(iso).getTime()) / 60000)
 }
 
 const STATUS_FILA = ["SCHEDULED", "CONFIRMED", "IN_QUEUE", "IN_PROGRESS"]
+const MAX_POR_BARBEIRO = 5
+
+type ItemComEstimativa = Appt & { estimadoMin: number }
+type ColunaBarbeiro = { nome: string; itens: ItemComEstimativa[] }
+
+// Agrupa a fila por barbeiro (como colunas de agenda) e estima, pra cada
+// cliente, quantos minutos faltam considerando quem está na frente dele na
+// mesma coluna (soma a duração de cada serviço anterior).
+function agruparPorBarbeiro(fila: Appt[]): ColunaBarbeiro[] {
+  const porNome = new Map<string, Appt[]>()
+  for (const item of fila) {
+    const lista = porNome.get(item.professional.name) ?? []
+    lista.push(item)
+    porNome.set(item.professional.name, lista)
+  }
+
+  const colunas: ColunaBarbeiro[] = []
+  for (const [nome, itens] of porNome) {
+    const ordenados = [...itens]
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .slice(0, MAX_POR_BARBEIRO)
+
+    let cursorMs = Date.now()
+    const comEstimativa: ItemComEstimativa[] = ordenados.map((it, idx) => {
+      const agendadoMs = new Date(it.scheduledAt).getTime()
+      const inicioEstimadoMs = idx === 0 ? Math.max(cursorMs, agendadoMs) : cursorMs
+      const duracaoMs = (it.service.durationMin ?? 30) * 60000
+      cursorMs = inicioEstimadoMs + duracaoMs
+      return { ...it, estimadoMin: Math.max(0, Math.round((inicioEstimadoMs - Date.now()) / 60000)) }
+    })
+
+    colunas.push({ nome, itens: comEstimativa })
+  }
+
+  return colunas.sort((a, b) => a.nome.localeCompare(b.nome))
+}
 
 // Componente de contador regressivo para um card de atendimento
 function CountdownCard({ appt }: { appt: Appt }) {
@@ -128,6 +160,7 @@ export default function FilaPage() {
 
   // Fila: todos que não estão em andamento
   const fila = appts.filter(a => a.status !== "IN_PROGRESS")
+  const colunas = agruparPorBarbeiro(fila)
 
   // Espera média = só clientes IN_QUEUE, contando desde arrivedAt
   const naFila = fila.filter(a => a.status === "IN_QUEUE")
@@ -176,81 +209,54 @@ export default function FilaPage() {
         </div>
       ) : null}
 
-      {/* Fila */}
-      {fila.length > 0 && (
+      {/* Fila — uma coluna por barbeiro, tipo agenda; só os 5 próximos de cada */}
+      {colunas.length > 0 && (
         <>
           <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2 px-0.5">Aguardando</p>
-          {/* Cabeçalho — só desktop */}
-          <div className="hidden sm:grid sm:grid-cols-5 gap-3 px-3 mb-2 text-xs text-zinc-600 font-mono uppercase tracking-widest">
-            <span>Pos.</span>
-            <span className="col-span-2">Cliente</span>
-            <span>Horário</span>
-            <span>Espera</span>
-          </div>
-
-          <div className="space-y-2">
-            {fila.map((item, idx) => {
-              const mins = minutosAte(item.scheduledAt)
-              const isNaFila = item.status === "IN_QUEUE"
-              const esperandoMin = isNaFila ? minutosDesde(item.arrivedAt ?? item.scheduledAt) : null
-              const isProximo = idx === 0
-
-              const espera = isNaFila ? (
-                <span className="text-purple-400 text-xs font-semibold">
-                  {esperandoMin! <= 0 ? "Chegou agora" : `${esperandoMin}min esp.`}
-                </span>
-              ) : mins > 5 ? (
-                <span className="text-zinc-500 text-xs font-mono">~{mins}min</span>
-              ) : mins >= 0 ? (
-                <span className="text-green-400 text-xs font-semibold">Em breve</span>
-              ) : (
-                <span className="text-amber-400 text-xs font-semibold">{Math.abs(mins)}min atraso</span>
-              )
-
-              return (
-                <div key={item.id}
-                  className={`p-3 rounded-xl border transition-all ${
-                    isNaFila ? "bg-purple-500/8 border-purple-500/25" : isProximo ? "bg-amber-500/5 border-amber-500/25" : "bg-zinc-900 border-zinc-800"
-                  }`}>
-
-                  {/* Mobile layout */}
-                  <div className="sm:hidden flex items-center gap-3">
-                    <div className={`font-bold text-xl font-mono w-8 flex-shrink-0 ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
-                      {idx + 1}º
-                    </div>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : "bg-zinc-700"}`}>
-                      {item.client.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white text-sm font-medium truncate">{item.client.name}</div>
-                      <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name.split(" ")[0]}</div>
-                    </div>
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-zinc-400 text-sm font-mono">{fmtHora(item.scheduledAt)}</div>
-                      <div>{espera}</div>
-                    </div>
-                  </div>
-
-                  {/* Desktop layout */}
-                  <div className="hidden sm:grid sm:grid-cols-5 gap-3 items-center">
-                    <div className={`font-bold text-lg font-mono ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
-                      {idx + 1}º
-                    </div>
-                    <div className="col-span-2 flex items-center gap-2 min-w-0">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : "bg-zinc-700"}`}>
-                        {item.client.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-white text-sm font-medium truncate">{item.client.name}</div>
-                        <div className="text-zinc-500 text-xs truncate">{item.service.name} · {item.professional.name}</div>
-                      </div>
-                    </div>
-                    <div className="text-zinc-400 text-sm font-mono">{fmtHora(item.scheduledAt)}</div>
-                    <div>{espera}</div>
-                  </div>
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {colunas.map(coluna => (
+              <div key={coluna.nome} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col">
+                <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-800/40">
+                  <span className="text-zinc-300 text-sm font-semibold">{coluna.nome}</span>
                 </div>
-              )
-            })}
+                <div className="divide-y divide-zinc-800/60">
+                  {coluna.itens.map((item, idx) => {
+                    const isNaFila = item.status === "IN_QUEUE"
+                    const isProximo = idx === 0
+                    const esperandoMin = isNaFila ? minutosDesde(item.arrivedAt ?? item.scheduledAt) : null
+
+                    const espera = isNaFila ? (
+                      <span className="text-purple-400 text-xs font-semibold">
+                        {esperandoMin! <= 0 ? "Chegou agora" : `${esperandoMin}min esp.`}
+                      </span>
+                    ) : item.estimadoMin <= 0 ? (
+                      <span className="text-green-400 text-xs font-semibold">Em breve</span>
+                    ) : (
+                      <span className={`text-xs font-semibold ${isProximo ? "text-amber-400" : "text-zinc-500"}`}>~{item.estimadoMin}min</span>
+                    )
+
+                    return (
+                      <div key={item.id} className={`flex items-center gap-2.5 px-3 py-2.5 ${isProximo ? "bg-amber-500/8" : ""}`}>
+                        <div className={`font-bold text-sm font-mono w-6 flex-shrink-0 ${isNaFila ? "text-purple-400" : isProximo ? "text-amber-400" : "text-zinc-600"}`}>
+                          {idx + 1}º
+                        </div>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${isNaFila ? "bg-purple-700" : isProximo ? "bg-amber-500 text-black" : "bg-zinc-700"}`}>
+                          {item.client.name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-white text-sm font-medium truncate">{item.client.name}</div>
+                          <div className="text-zinc-500 text-xs truncate">{item.service.name} · {fmtHora(item.scheduledAt)}</div>
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          {espera}
+                          {isProximo && <div className="text-amber-500 text-[10px] mt-0.5">Próximo</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

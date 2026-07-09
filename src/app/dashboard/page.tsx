@@ -117,6 +117,26 @@ export default function DashboardPage() {
   const [customFrom, setCustomFrom] = useState(hojeStr())
   const [customTo, setCustomTo] = useState(hojeStr())
 
+  // Oculta valores financeiros da tela (útil com gente por perto) —
+  // preferência pessoal, fica salva no navegador.
+  const [ocultarValores, setOcultarValores] = useState(false)
+  useEffect(() => {
+    try { setOcultarValores(localStorage.getItem("dashboard-ocultar-valores") === "1") } catch {}
+  }, [])
+  function alternarOcultarValores() {
+    setOcultarValores(prev => {
+      const next = !prev
+      try { localStorage.setItem("dashboard-ocultar-valores", next ? "1" : "0") } catch {}
+      return next
+    })
+  }
+  // Sombreia o fmtMoeda do módulo — todas as chamadas neste componente usam
+  // esta versão, que mostra •••• em vez do valor quando ocultarValores.
+  function fmtMoeda(v: number) {
+    if (ocultarValores) return "R$ ••••"
+    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+  }
+
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
 
   const fetchDados = useCallback(async (forceRefresh = false) => {
@@ -333,6 +353,24 @@ export default function DashboardPage() {
             </span>
           )}
         </div>
+        <button
+          type="button"
+          onClick={alternarOcultarValores}
+          title={ocultarValores ? "Mostrar valores" : "Ocultar valores"}
+          className="flex-shrink-0 text-zinc-500 hover:text-zinc-300 transition-colors p-1.5 rounded-lg hover:bg-zinc-900"
+        >
+          {ocultarValores ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a20.3 20.3 0 015.06-6.06M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a20.3 20.3 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
+        </button>
         <div className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${caixaAberto ? "text-green-400" : "text-zinc-600"}`}>
           <div className={`w-1.5 h-1.5 rounded-full ${caixaAberto ? "bg-green-500 animate-pulse" : "bg-zinc-600"}`} />
           {caixaAberto ? "Caixa aberto" : "Caixa fechado"}

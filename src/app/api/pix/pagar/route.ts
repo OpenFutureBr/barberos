@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { verificarCoberturaAssinatura, consumirCorteAssinatura } from "@/lib/assinatura"
 
 type CashbackConfig = {
   servicos: number
@@ -217,59 +218,26 @@ export async function POST(request: Request) {
     const pixPaidAt = paymentStatus === "PAID" ? new Date() : null
 
     /**
-     * Se for pagamento imediato, verifica cobertura por assinatura.
-     * Se for pagar depois, não consome assinatura nem gera cashback agora.
+     * Se for pagamento imediato, verifica cobertura por assinatura — e se
+     * ainda sobra corte incluso no mês. Só então o corte sai de graça (o
+     * cliente paga só os produtos, derivados do valor informado menos o
+     * preço do serviço); além da quota, cobra normalmente.
      */
     let cobertoPorAssinatura = false
+    let corteGratis = false
 
     if (!isPagarDepois && appt.client) {
-      const assinatura = await prisma.subscription.findUnique({
-        where: {
-          clientId: appt.client.id,
-        },
-        include: {
-          plan: {
-            select: {
-              services: true,
-              atendedomicilio: true,
-            },
-          },
-        },
-      })
+      const cobertura = await verificarCoberturaAssinatura(appt.client.id, appt.service, appt.serviceType)
+      cobertoPorAssinatura = cobertura.coberto
+      corteGratis = cobertura.coberto && cobertura.dentroDaQuota
 
-      if (assinatura && assinatura.status === "ACTIVE") {
-        const categoriaServico = appt.service?.category ?? null
-        const categoriasPlano = assinatura.plan.services
-
-        const categoriaCoberta =
-          categoriasPlano.length === 0 ||
-          (categoriaServico && categoriasPlano.includes(categoriaServico))
-
-        const domicilioCoberto =
-          appt.serviceType !== "HOME_VISIT" || assinatura.plan.atendedomicilio
-
-        cobertoPorAssinatura = !!(categoriaCoberta && domicilioCoberto)
-
-        // Incrementa uso mensal da assinatura apenas se pagamento imediato for coberto
-        if (cobertoPorAssinatura) {
-          const mesAtual = new Date().toISOString().slice(0, 7)
-
-          await prisma.subscription
-            .update({
-              where: {
-                clientId: appt.client.id,
-              },
-              data: {
-                cortesUsados: {
-                  increment: 1,
-                },
-                mesReferencia: mesAtual,
-              },
-            })
-            .catch(() => {})
-        }
+      if (corteGratis) {
+        await consumirCorteAssinatura(appt.client.id).catch(() => {})
       }
     }
+
+    const valorProdutos = Math.max(0, valorPago - (appt.service?.price ?? 0))
+    const valorFinal = corteGratis ? valorProdutos : valorPago
 
     // Cria ou atualiza o Payment
     const payment = await prisma.payment.upsert({
@@ -279,7 +247,7 @@ export async function POST(request: Request) {
       create: {
         method: method as any,
         status: paymentStatus as any,
-        amount: valorPago,
+        amount: valorFinal,
         dueDate: isPagarDepois ? dueDate : null,
         pixStatus: pixStatus as any,
         pixPaidAt,
@@ -289,7 +257,7 @@ export async function POST(request: Request) {
       update: {
         method: method as any,
         status: paymentStatus as any,
-        amount: valorPago,
+        amount: valorFinal,
         dueDate: isPagarDepois ? dueDate : null,
         pixStatus: pixStatus as any,
         pixPaidAt,

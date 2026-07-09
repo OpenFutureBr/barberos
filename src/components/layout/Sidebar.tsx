@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
-import { roleLabel } from "@/lib/role-labels"
 import { getCache, setCache } from "@/lib/prefetch-cache"
 
 const ic = (path: string, fill = false) => (
@@ -16,6 +15,14 @@ const ic = (path: string, fill = false) => (
 
 const SCROLL_KEY = "sidebar-scroll"
 const COLLAPSED_KEY = "sidebar-collapsed"
+
+// A imagem fica em cache por 1 ano (ver supabase-storage.ts) — o ?v= usa o
+// updatedAt do registro pra trocar a URL sempre que a foto for atualizada,
+// em vez de depender do cache expirar.
+function fotoComVersao(url: string | null | undefined, updatedAt: string | null | undefined) {
+  if (!url || !updatedAt) return url ?? null
+  return `${url}${url.includes("?") ? "&" : "?"}v=${new Date(updatedAt).getTime()}`
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -93,7 +100,7 @@ export default function Sidebar() {
   useEffect(() => {
     const aplicar = (d: any) => {
       // Prefer unit logo, fall back to org logo
-      setLogoUrl(d?.logoUrl ?? d?.orgLogoUrl ?? null)
+      setLogoUrl(fotoComVersao(d?.logoUrl ?? d?.orgLogoUrl ?? null, d?.updatedAt))
       if (d?.name) setEstabNome(d.name)
     }
 
@@ -121,10 +128,7 @@ export default function Sidebar() {
     }
   }, [])
 
-  const nomeUsuario = session?.user?.name ?? "Usuário"
-  const inicialUsuario = nomeUsuario.charAt(0).toUpperCase()
   const usernameUsuario = session?.user?.username ?? ""
-  const papelUsuario = session?.user?.role ? roleLabel(session.user.role) : "—"
 
   return (
     <aside className="w-48 bg-zinc-900 border-r border-zinc-800 hidden md:flex flex-col h-screen fixed left-0 top-0 z-30">
@@ -148,14 +152,14 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Usuário logado */}
+      {/* Unidade ativa */}
       <div className="mx-2 mt-2 bg-zinc-800 rounded-lg p-2 flex items-center gap-2 border border-zinc-700">
         <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-xs font-bold text-black flex-shrink-0">
-          {inicialUsuario}
+          {(estabNome.charAt(0) || "U").toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-white text-xs font-medium truncate">{nomeUsuario.split(" ")[0]}</div>
-          <div className="text-zinc-500 text-xs truncate">{papelUsuario}</div>
+          <div className="text-zinc-500 text-xs truncate">Unidade</div>
+          <div className="text-white text-xs font-medium truncate">{estabNome}</div>
         </div>
       </div>
 

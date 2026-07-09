@@ -112,7 +112,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
       <button onClick={onClick} className="w-full text-left">
         <div className="aspect-square bg-zinc-800 rounded-t-xl overflow-hidden relative">
           {foto ? (
-            <img src={foto} alt={nome} className="w-full h-full object-cover"
+            <img src={foto} alt={nome} loading="lazy" className="w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-3xl text-zinc-700">📦</div>
@@ -693,7 +693,7 @@ function EstoqueInner() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {p.photoUrl ? (
-                              <img src={p.photoUrl} alt={p.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-zinc-800" />
+                              <img src={p.photoUrl} alt={p.name} loading="lazy" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-zinc-800" />
                             ) : (
                               <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-600 flex-shrink-0">📦</div>
                             )}
@@ -810,7 +810,7 @@ function EstoqueInner() {
               {/* Foto */}
               <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
                 {foto
-                  ? <img src={foto} alt={nome} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+                  ? <img src={foto} alt={nome} loading="lazy" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
                   : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-sm">📦</div>
                 }
               </div>

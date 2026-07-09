@@ -50,6 +50,7 @@ export async function PUT(request: Request) {
         businessHours: body.businessHours ?? undefined,
         cashbackConfig: body.cashbackConfig ?? undefined,
         painelConfig: body.painelConfig ?? undefined,
+        categoriaCores: body.categoriaCores ?? undefined,
         ...(body.logoUrl ? { logoUrl: body.logoUrl } : {}),
       },
     })

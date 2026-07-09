@@ -101,6 +101,45 @@ export async function geminiText(apiKey: string, prompt: string): Promise<string
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 }
 
+// ─── Gemini Image Edit (gera imagem a partir de imagem + instrução) ──────────
+//
+// Só o Gemini tem modelo de geração/edição de imagem no catálogo — o Groq só
+// tem LLMs e visão-para-texto, sem saída de imagem. Usa o modelo com suporte
+// a responseModalities TEXT+IMAGE ("Nano Banana").
+
+export type ImagemGerada = { mimeType: string; data: string }
+
+export async function geminiEditarImagem(apiKey: string, prompt: string, imageBase64: string): Promise<ImagemGerada> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
+          ],
+        }],
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+      }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Gemini error ${res.status}: ${err}`)
+  }
+  const data = await res.json()
+  const parts = data.candidates?.[0]?.content?.parts ?? []
+  const imagePart = parts.find((p: any) => p.inlineData || p.inline_data)
+  const inline = imagePart?.inlineData ?? imagePart?.inline_data
+  if (!inline?.data) {
+    throw new Error("Gemini não retornou imagem — tente novamente ou ajuste a foto.")
+  }
+  return { mimeType: inline.mimeType ?? inline.mime_type ?? "image/png", data: inline.data }
+}
+
 // ─── Helpers unificados ───────────────────────────────────────────────────────
 
 export async function callVision(cfg: IaConfig, prompt: string, imageBase64: string): Promise<string> {

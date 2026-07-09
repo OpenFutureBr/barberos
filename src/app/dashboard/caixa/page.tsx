@@ -258,6 +258,17 @@ export default function CaixaPage() {
   const [viewFluxo, setViewFluxo] = useState<ViewMode>("lista")
   const [granularidadeFluxo, setGranularidadeFluxo] = useState<Granularidade>("diaria")
   const [bucketFluxo, setBucketFluxo] = useState<string | null>(null)
+  // Linhas de data na Lista de Fluxo carregam condensadas (só o resumo) —
+  // expande sob demanda pra ver os lançamentos daquele dia.
+  const [diasExpandidos, setDiasExpandidos] = useState<Set<string>>(new Set())
+  function toggleDia(data: string) {
+    setDiasExpandidos(prev => {
+      const next = new Set(prev)
+      if (next.has(data)) next.delete(data)
+      else next.add(data)
+      return next
+    })
+  }
 
   // Fluxo de caixa (movido de Financeiro) — filtro por intervalo de datas,
   // padrão últimos 30 dias, limitado a M-3 em relação a hoje
@@ -721,76 +732,79 @@ export default function CaixaPage() {
                   const dataFmt = `${dd}/${mm}`
                   const temSaidas = dia.saidas.length > 0
                   const temPrevistas = (dia.previstas?.length ?? 0) > 0
+                  const expandido = diasExpandidos.has(dia.data)
                   return (
-                    <div key={dia.data} className="p-4 hover:bg-zinc-800/20 transition-colors">
-                      {/* Cabeçalho do dia */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
+                    <div key={dia.data} className="hover:bg-zinc-800/20 transition-colors">
+                      {/* Cabeçalho do dia — clicável, sempre traz o resumo */}
+                      <button type="button" onClick={() => toggleDia(dia.data)}
+                        className="w-full flex items-center justify-between gap-3 p-4 text-left">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className={`text-zinc-600 text-xs flex-shrink-0 transition-transform ${expandido ? "rotate-90" : ""}`}>›</span>
                           <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-center flex-shrink-0">
                             <div className="text-white text-sm font-bold leading-none">{dd}</div>
                             <div className="hidden">{mm}</div>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="text-white text-sm font-medium">{dataFmt}</div>
                             <div className="text-zinc-600 text-xs">
                               {dia.entradas.length + dia.saidas.length} lançamento{dia.entradas.length + dia.saidas.length !== 1 ? "s" : ""}
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className={`font-mono font-bold text-sm ${dia.saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
-                            {fmtMoeda(dia.saldo)}
-                          </div>
-                          <div className="text-zinc-600 text-xs">saldo acum.</div>
-                        </div>
-                      </div>
 
-                      {/* Lançamentos */}
-                      <div className="space-y-1 pl-13">
-                        {dia.entradas.map((e, i) => (
-                          <div key={`e-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-green-500/5 border border-green-500/10">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-green-500 text-xs flex-shrink-0">↑</span>
-                              <span className="text-zinc-300 text-xs truncate">{e.desc}</span>
+                        {/* Resumo do dia — sempre visível, mesmo condensado */}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="text-green-500/70 text-xs font-mono hidden sm:inline">+{fmtMoeda(dia.totalEntradas)}</span>
+                          {temSaidas && <span className="text-red-500/70 text-xs font-mono hidden sm:inline">-{fmtMoeda(dia.totalSaidas)}</span>}
+                          {temPrevistas && <span className="text-purple-400/60 text-xs font-mono hidden sm:inline">◌{fmtMoeda(dia.totalPrevistas ?? 0)}</span>}
+                          <div className="text-right">
+                            <div className={`font-mono font-bold text-sm ${dia.saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
+                              {fmtMoeda(dia.saldo)}
                             </div>
-                            <span className="text-green-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
-                              +{fmtMoeda(e.valor)}
-                            </span>
+                            <div className="text-zinc-600 text-xs">saldo acum.</div>
                           </div>
-                        ))}
-                        {temSaidas && dia.saidas.map((s, i) => (
-                          <div key={`s-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-red-500/5 border border-red-500/10">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-red-500 text-xs flex-shrink-0">↓</span>
-                              <span className="text-zinc-300 text-xs truncate">{s.desc}</span>
-                            </div>
-                            <span className="text-red-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
-                              -{fmtMoeda(s.valor)}
-                            </span>
-                          </div>
-                        ))}
-                        {temPrevistas && dia.previstas.map((p, i) => (
-                          <div key={`p-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg border border-dashed border-purple-500/30 bg-purple-500/5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-purple-400/70 text-xs flex-shrink-0">◌</span>
-                              <span className="text-zinc-500 text-xs truncate">{p.desc}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 leading-none flex-shrink-0">previsto</span>
-                            </div>
-                            <span className="text-purple-400/70 text-xs font-mono font-semibold flex-shrink-0 ml-2">
-                              +{fmtMoeda(p.valor)}
-                            </span>
-                          </div>
-                        ))}
-                        {/* Mini resumo do dia */}
-                        <div className="flex justify-end gap-3 pt-1 pr-1">
-                          <span className="text-green-500/70 text-xs font-mono">+{fmtMoeda(dia.totalEntradas)}</span>
-                          {temSaidas && <span className="text-red-500/70 text-xs font-mono">-{fmtMoeda(dia.totalSaidas)}</span>}
-                          {temPrevistas && <span className="text-purple-400/60 text-xs font-mono">◌{fmtMoeda(dia.totalPrevistas ?? 0)}</span>}
-                          <span className={`text-xs font-mono font-bold ${(dia.totalEntradas - dia.totalSaidas) >= 0 ? "text-zinc-300" : "text-red-400"}`}>
-                            = {fmtMoeda(dia.totalEntradas - dia.totalSaidas)}
-                          </span>
                         </div>
-                      </div>
+                      </button>
+
+                      {/* Lançamentos — só quando expandido */}
+                      {expandido && (
+                        <div className="space-y-1 px-4 pb-4 pl-[4.25rem]">
+                          {dia.entradas.map((e, i) => (
+                            <div key={`e-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-green-500 text-xs flex-shrink-0">↑</span>
+                                <span className="text-zinc-300 text-xs truncate">{e.desc}</span>
+                              </div>
+                              <span className="text-green-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                                +{fmtMoeda(e.valor)}
+                              </span>
+                            </div>
+                          ))}
+                          {temSaidas && dia.saidas.map((s, i) => (
+                            <div key={`s-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-red-500/5 border border-red-500/10">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-red-500 text-xs flex-shrink-0">↓</span>
+                                <span className="text-zinc-300 text-xs truncate">{s.desc}</span>
+                              </div>
+                              <span className="text-red-400 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                                -{fmtMoeda(s.valor)}
+                              </span>
+                            </div>
+                          ))}
+                          {temPrevistas && dia.previstas.map((p, i) => (
+                            <div key={`p-${i}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg border border-dashed border-purple-500/30 bg-purple-500/5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-purple-400/70 text-xs flex-shrink-0">◌</span>
+                                <span className="text-zinc-500 text-xs truncate">{p.desc}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 leading-none flex-shrink-0">previsto</span>
+                              </div>
+                              <span className="text-purple-400/70 text-xs font-mono font-semibold flex-shrink-0 ml-2">
+                                +{fmtMoeda(p.valor)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

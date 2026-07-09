@@ -26,6 +26,13 @@ async function ensureBucket() {
  * Upload a logo buffer to Supabase Storage.
  * path examples: "org/org001.webp", "unit/cm123abc.webp"
  * Returns the public URL.
+ *
+ * cacheControl de 1 ano: a maioria das fotos não muda depois de enviada, e
+ * quem consome essa URL (frontend) deve anexar `?v=<updatedAt>` na hora de
+ * exibir a imagem — isso muda a URL sempre que o registro é atualizado,
+ * então o navegador busca a versão nova em vez de servir a antiga do cache,
+ * sem precisar de um cache curto (que forçava recarregar a imagem toda hora
+ * mesmo quando ela não tinha mudado).
  */
 export async function uploadLogo(storagePath: string, buffer: Buffer, contentType: string): Promise<string> {
   await ensureBucket()
@@ -33,7 +40,7 @@ export async function uploadLogo(storagePath: string, buffer: Buffer, contentTyp
 
   const { error } = await client.storage
     .from(BUCKET)
-    .upload(storagePath, buffer, { contentType, upsert: true })
+    .upload(storagePath, buffer, { contentType, upsert: true, cacheControl: "31536000" })
 
   if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`)
 

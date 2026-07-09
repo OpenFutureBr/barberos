@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL } from "@/lib/categorias-caixa"
 
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -614,7 +615,7 @@ export default function FinanceiroPage() {
                 {dre.receitaProdutos > 0 && (
                   <div className="flex justify-between px-4 py-3 hover:bg-zinc-800/40">
                     <span className="text-zinc-300 text-sm">
-                      Produtos vendidos (PDV)
+                      Produtos (estoque)
                     </span>
                     <span className="text-green-400 font-mono font-bold">
                       + {fmtMoeda(dre.receitaProdutos)}
@@ -1045,6 +1046,49 @@ export default function FinanceiroPage() {
       {/* Categorias de custo/despesa */}
       {aba === "categorias" && (
         <div className="space-y-4">
+          {/* Categorias pré-existentes (receita e despesa) */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-800">
+                <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Receitas pré-definidas</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {GRUPOS_RECEITA.map(grupo => (
+                  <div key={grupo.grupo}>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${grupo.cor}`}>{grupo.grupo}</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {grupo.categorias.map(cat => (
+                        <span key={cat.label} className={`text-xs px-2 py-1 rounded-lg border ${TIPO_BADGE[cat.tipo]}`}>
+                          {cat.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-800">
+                <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Despesas pré-definidas</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {GRUPOS_DESPESA.map(grupo => (
+                  <div key={grupo.grupo}>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${grupo.cor}`}>{grupo.grupo}</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {grupo.categorias.map(cat => (
+                        <span key={cat.label} className={`text-xs px-2 py-1 rounded-lg border ${TIPO_BADGE[cat.tipo]}`}>
+                          {cat.label} <span className="opacity-60">· {TIPO_LABEL[cat.tipo]}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-4">Nova categoria</div>
             <div className="flex gap-2 items-end">

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
 import prisma from "@/lib/prisma"
 import { registrarUpload } from "@/lib/storage"
 import { auth } from "@/lib/auth"
+import { uploadLogo, mimeFromExt } from "@/lib/supabase-storage"
 
+// Antes gravava em public/uploads via fs.writeFile — mesmo problema do
+// servicos/foto: filesystem somente-leitura em produção no Vercel. Agora
+// usa o Supabase Storage já usado para logos.
 export async function POST(request: Request) {
   try {
     const session = await auth()
@@ -23,11 +25,7 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
-    const filename = `corte_${corteId}.${ext}`
-    const uploadDir = join(process.cwd(), "public", "uploads")
-    await mkdir(uploadDir, { recursive: true })
-    await writeFile(join(uploadDir, filename), buffer)
-    const url = `/uploads/${filename}`
+    const url = await uploadLogo(`corte/${corteId}.${ext}`, buffer, mimeFromExt(ext))
     await prisma.haircut.update({ where: { id: corteId }, data: { photoUrl: url } })
     registrarUpload(buffer.length)
     return NextResponse.json({ url })

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
 import prisma from "@/lib/prisma"
 import { registrarUpload } from "@/lib/storage"
 import { auth } from "@/lib/auth"
+import { uploadLogo, mimeFromExt } from "@/lib/supabase-storage"
 
+// Antes gravava em public/uploads via fs.writeFile — funciona em dev, mas o
+// filesystem do Vercel é somente-leitura em produção (fora de /tmp, que é
+// efêmero e não é servido como arquivo estático). O upload falhava ou não
+// persistia depois do deploy. Agora usa o mesmo Supabase Storage já usado
+// para logos.
 export async function POST(request: Request) {
   try {
     const session = await auth()
@@ -25,13 +29,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes)
 
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
-    const filename = `servico_${servicoId}.${ext}`
-    const uploadDir = join(process.cwd(), "public", "uploads")
-
-    await mkdir(uploadDir, { recursive: true })
-    await writeFile(join(uploadDir, filename), buffer)
-
-    const url = `/uploads/${filename}`
+    const url = await uploadLogo(`servico/${servicoId}.${ext}`, buffer, mimeFromExt(ext))
 
     await prisma.service.update({ where: { id: servicoId }, data: { photoUrl: url } })
     registrarUpload(buffer.length)

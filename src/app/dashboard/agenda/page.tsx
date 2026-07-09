@@ -62,7 +62,10 @@ function gerarJanela6Dias(dataISO: string): string[] {
 
 function formatarDataCurta(dataISO: string) {
   const d = new Date(dataISO + "T12:00:00")
-  return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })
+  // timeZone explícito — sem isso, servidor (UTC) e navegador (BRT) podem
+  // formatar o mesmo instante como dias/semanas diferentes, causando erro
+  // de hidratação do React (#418) nessa tela.
+  return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" })
 }
 
 export default function AgendaPage() {

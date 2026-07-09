@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { verificarCoberturaAssinatura, consumirCorteAssinatura } from "@/lib/assinatura"
 
 type MetodoEntrada =
   | "PIX"
@@ -59,7 +60,7 @@ export async function GET(
         where: { id: apptId, establishmentId: estabId },
         include: {
           client: { select: { name: true, phone: true } },
-          service: { select: { name: true, price: true, durationMin: true } },
+          service: { select: { name: true, price: true, durationMin: true, category: true } },
           professional: { select: { name: true } },
           payment: {
             select: {
@@ -90,7 +91,9 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ appt, movimentos })
+    const cobertura = await verificarCoberturaAssinatura(appt.clientId, appt.service, appt.serviceType)
+
+    return NextResponse.json({ appt, movimentos, cobertura })
   } catch (error) {
     console.error("[GET /api/agenda/comanda]", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
@@ -112,7 +115,7 @@ export async function PUT(
     const appt = await prisma.appointment.findUnique({
       where: { id: apptId, establishmentId: estabId },
       include: {
-        service: { select: { price: true } },
+        service: { select: { price: true, category: true } },
       },
     })
 
@@ -124,8 +127,25 @@ export async function PUT(
     }
 
     const method = normalizarMetodo(body.method)
-    const amountInformado = parseValor(body.amount)
-    const amount = amountInformado > 0 ? amountInformado : appt.service.price
+
+    /**
+     * Valor cobrado = produtos consumidos + o corte, EXCETO quando o
+     * cliente tem assinatura ativa que cobre esse serviço e ainda tem corte
+     * incluso disponível no mês — nesse caso o corte não é cobrado, só os
+     * produtos. `produtos` é o total de produtos da comanda; mantemos
+     * compatibilidade com `amount` (uso antigo, todo o valor incluindo o
+     * corte) para não quebrar chamadas antigas.
+     */
+    const cobertura = await verificarCoberturaAssinatura(appt.clientId, appt.service, appt.serviceType)
+    const corteGratis = cobertura.coberto && cobertura.dentroDaQuota
+
+    const produtosInformado = body.produtos !== undefined ? parseValor(body.produtos) : null
+    const amount = produtosInformado !== null
+      ? produtosInformado + (corteGratis ? 0 : appt.service.price)
+      : (() => {
+          const amountInformado = parseValor(body.amount)
+          return amountInformado > 0 ? amountInformado : appt.service.price
+        })()
 
     const isPagarDepois = method === "PAY_LATER"
     const dueDate = body.dueDate ? new Date(body.dueDate) : null
@@ -168,6 +188,10 @@ export async function PUT(
       })
     })
 
+    if (corteGratis && !isPagarDepois) {
+      await consumirCorteAssinatura(appt.clientId).catch(() => {})
+    }
+
     return NextResponse.json({
       ok: true,
       payment: {
@@ -176,6 +200,7 @@ export async function PUT(
         amount,
         dueDate: isPagarDepois ? dueDate : null,
       },
+      cobertoPelaAssinatura: corteGratis,
     })
   } catch (error) {
     console.error("[PUT /api/agenda/comanda]", error)

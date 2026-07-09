@@ -391,7 +391,7 @@ export async function GET(request: Request) {
     // sobre esse teto e contribuiu para "max clients reached in session
     // mode" observado em produção. 2 levas de até 3 queries concorrentes
     // reduz o pico de conexões simultâneas por requisição.
-    const [appointments, movements, pendentes] = await Promise.all([
+    const [appointments, movements, vendasProdutos, transacoesAssinatura, pendentes] = await Promise.all([
       prisma.appointment.findMany({
         where: {
           establishmentId: ESTAB_ID,
@@ -429,6 +429,9 @@ export async function GET(request: Request) {
         },
       }),
 
+      // Produtos consumidos em comandas de agendamento — escopados pelo
+      // establishmentId do produto (antes não filtrava e somava movimentos
+      // de TODOS os estabelecimentos na receita desta unidade).
       prisma.stockMovement.findMany({
         where: {
           createdAt: {
@@ -436,10 +439,53 @@ export async function GET(request: Request) {
             lte: fim,
           },
           type: "SAIDA",
+          // Sem agendamento vinculado — produto consumido numa comanda já
+          // entra pelo valor do Payment do agendamento (receitaProdutosComanda),
+          // somar aqui de novo duplicaria a receita.
+          appointmentId: null,
+          product: {
+            establishmentId: ESTAB_ID,
+          },
         },
         select: {
           quantity: true,
           unitPrice: true,
+        },
+      }),
+
+      // Vendas de produto avulsas (PDV), sem agendamento vinculado
+      prisma.productSale.findMany({
+        where: {
+          createdAt: {
+            gte: inicio,
+            lte: fim,
+          },
+          product: {
+            establishmentId: ESTAB_ID,
+          },
+        },
+        select: {
+          total: true,
+        },
+      }),
+
+      // Receita de assinaturas (mensalidades pagas) — registradas como
+      // Transaction do caixa com esse prefixo de descrição pelo POST
+      // /api/financeiro (marcar-pago) e por assinaturas/renovar.
+      prisma.transaction.findMany({
+        where: {
+          type: "RECEITA",
+          description: { startsWith: "Assinatura ·" },
+          createdAt: {
+            gte: inicio,
+            lte: fim,
+          },
+          cashRegister: {
+            establishmentId: ESTAB_ID,
+          },
+        },
+        select: {
+          amount: true,
         },
       }),
 
@@ -517,6 +563,10 @@ export async function GET(request: Request) {
             lte: anoFim,
           },
           type: "SAIDA",
+          appointmentId: null,
+          product: {
+            establishmentId: ESTAB_ID,
+          },
         },
         select: {
           quantity: true,
@@ -530,14 +580,32 @@ export async function GET(request: Request) {
      * DRE:
      * Mantém sua lógica atual por competência/atendimento DONE.
      * Pendências ficam separadas em "Contas a receber".
+     *
+     * Receita de Serviços x Produtos por atendimento:
+     * quando o cliente é assinante e o corte está dentro da quota do plano,
+     * o Payment.amount do agendamento já vem sem o valor do corte (só
+     * produtos consumidos na comanda) — então min(preço do serviço, valor
+     * pago) fica em 0 e nada é somado em "Serviços" para esse atendimento.
      */
     const receitaServicos = appointments.reduce((s, a) => {
-      return s + (a.payment?.amount ?? a.service.price)
+      const valorTotal = a.payment?.amount ?? a.service.price
+      return s + Math.min(a.service.price, valorTotal)
     }, 0)
 
-    const receitaProdutos = movements.reduce((s, m) => {
+    const receitaProdutosComanda = appointments.reduce((s, a) => {
+      const valorTotal = a.payment?.amount ?? a.service.price
+      return s + Math.max(0, valorTotal - a.service.price)
+    }, 0)
+
+    const receitaProdutosMovimentos = movements.reduce((s, m) => {
       return s + m.quantity * (m.unitPrice ?? 0)
     }, 0)
+
+    const receitaProdutosVenda = vendasProdutos.reduce((s, v) => s + v.total, 0)
+
+    const receitaProdutos = receitaProdutosComanda + receitaProdutosMovimentos + receitaProdutosVenda
+
+    const receitaAssinaturas = transacoesAssinatura.reduce((s, t) => s + t.amount, 0)
 
     const presencial = appointments.filter((a) => a.serviceType !== "HOME_VISIT")
     const domicilio = appointments.filter((a) => a.serviceType === "HOME_VISIT")
@@ -652,8 +720,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       dre: {
         receitaServicos: arredondar(receitaServicos),
+        receitaAssinaturas: arredondar(receitaAssinaturas),
         receitaProdutos: arredondar(receitaProdutos),
-        totalReceitas: arredondar(receitaServicos + receitaProdutos),
+        totalReceitas: arredondar(receitaServicos + receitaAssinaturas + receitaProdutos),
         presencial: {
           atendimentos: presencial.length,
           receita: arredondar(receitaPresencial),

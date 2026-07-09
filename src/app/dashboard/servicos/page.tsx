@@ -14,6 +14,15 @@ const categoriaGradient: Record<string, string> = {
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
+// Cache da imagem é de 1 ano (ver supabase-storage.ts) — o ?v= usa o
+// updatedAt do registro como carimbo de versão, então o navegador só busca
+// de novo quando a foto realmente mudou, em vez de expirar por tempo.
+function fotoComVersao(url: string | null | undefined, updatedAt: string | null | undefined) {
+  if (!url || !updatedAt) return url ?? undefined
+  const v = new Date(updatedAt).getTime()
+  return `${url}${url.includes("?") ? "&" : "?"}v=${v}`
+}
+
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,7 +47,34 @@ export default function ServicosPage() {
   // Lightbox
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null)
 
+  // Cor personalizada por categoria (corte, premium, etc.) — persistida no
+  // estabelecimento, substitui o gradiente padrão do cartão quando definida.
+  const [categoriaCores, setCategoriaCores] = useState<Record<string, string>>({})
+  const [configEstab, setConfigEstab] = useState<any>(null)
+
   useEffect(() => { buscarServicos() }, [])
+
+  useEffect(() => {
+    fetch("/api/configuracoes")
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) return
+        setConfigEstab(d)
+        if (d.categoriaCores && typeof d.categoriaCores === "object") setCategoriaCores(d.categoriaCores)
+      })
+      .catch(() => {})
+  }, [])
+
+  async function mudarCorCategoria(cat: string, cor: string) {
+    const nova = { ...categoriaCores, [cat]: cor }
+    setCategoriaCores(nova)
+    if (!configEstab) return
+    await fetch("/api/configuracoes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...configEstab, categoriaCores: nova }),
+    }).catch(() => {})
+  }
 
   async function buscarServicos() {
     setLoading(true)
@@ -124,7 +160,11 @@ export default function ServicosPage() {
   }
 
   function ServiceCard({ servico, dim = false }: { servico: any; dim?: boolean }) {
+    const cat = servico.category || "Geral"
+    const corCustom = categoriaCores[cat]
     const gradient = categoriaGradient[servico.category] ?? "from-zinc-600 to-zinc-900"
+    const stripeV = corCustom ? { backgroundImage: `linear-gradient(to bottom, ${corCustom}, #09090b)` } : undefined
+    const stripeH = corCustom ? { backgroundImage: `linear-gradient(to right, ${corCustom}, #09090b)` } : undefined
 
     return (
       <div
@@ -139,10 +179,10 @@ export default function ServicosPage() {
           style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "6px 6px" }} />
 
         {/* Left accent stripe */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${corCustom ? "" : `bg-gradient-to-b ${gradient}`}`} style={stripeV} />
 
         {/* Header strip */}
-        <div className={`absolute top-0 left-1 right-0 h-5 bg-gradient-to-r ${gradient} flex items-center px-2 justify-between`}>
+        <div className={`absolute top-0 left-1 right-0 h-5 ${corCustom ? "" : `bg-gradient-to-r ${gradient}`} flex items-center px-2 justify-between`} style={stripeH}>
           <span className="text-white/70 text-[8px] tracking-[0.15em] uppercase font-medium">Barberos</span>
           <span className="text-white/50 text-[8px] tracking-wider uppercase">{servico.category || "Geral"}</span>
         </div>
@@ -153,11 +193,11 @@ export default function ServicosPage() {
           <div className="w-[22%] flex-shrink-0 p-1.5">
             <div
               className={`w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800 ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
-              onClick={servico.photoUrl ? (e) => { e.stopPropagation(); setFotoExpandida(servico.photoUrl) } : undefined}
+              onClick={servico.photoUrl ? (e) => { e.stopPropagation(); setFotoExpandida(fotoComVersao(servico.photoUrl, servico.updatedAt) ?? null) } : undefined}
             >
               {servico.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={servico.photoUrl} alt={servico.name} className="w-full h-full object-cover" />
+                <img src={fotoComVersao(servico.photoUrl, servico.updatedAt)} alt={servico.name} loading="lazy" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <span className="text-lg opacity-20">✂</span>
@@ -280,9 +320,25 @@ export default function ServicosPage() {
             const cats = [...new Set(ativosFiltrados.map(s => s.category || "Geral"))]
             return cats.map(cat => {
               const lista = ativosFiltrados.filter(s => (s.category || "Geral") === cat)
+              const corAtual = categoriaCores[cat] ?? "#71717a"
               return (
                 <div key={cat}>
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2.5">{cat}</p>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <p className="text-zinc-500 text-xs uppercase tracking-wider">{cat}</p>
+                    <label
+                      className="relative w-3 h-3 rounded-full border border-zinc-600 cursor-pointer flex-shrink-0"
+                      style={{ backgroundColor: corAtual }}
+                      title={`Cor da categoria ${cat}`}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <input
+                        type="color"
+                        value={corAtual}
+                        onChange={e => mudarCorCategoria(cat, e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </label>
+                  </div>
                   {/* Desktop: grid 3 colunas */}
                   <div className="hidden md:grid md:grid-cols-3 gap-3">
                     {lista.map(s => <ServiceCard key={s.id} servico={s} />)}
