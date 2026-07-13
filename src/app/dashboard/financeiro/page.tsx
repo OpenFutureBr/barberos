@@ -643,29 +643,6 @@ export default function FinanceiroPage() {
                   </span>
                 </div>
 
-                {(dre.presencial || dre.domicilio) && (
-                  <div className="px-4 py-2 bg-zinc-900 grid grid-cols-2 gap-2 border-t border-zinc-800">
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
-                      <div className="text-zinc-500 text-xs mb-1">Presencial</div>
-                      <div className="text-white text-sm font-bold">
-                        {fmtMoeda(dre.presencial?.receita ?? 0)}
-                      </div>
-                      <div className="text-zinc-600 text-xs">
-                        {dre.presencial?.atendimentos ?? 0} atend.
-                      </div>
-                    </div>
-
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
-                      <div className="text-zinc-500 text-xs mb-1">Domicílio</div>
-                      <div className="text-teal-400 text-sm font-bold">
-                        {fmtMoeda(dre.domicilio?.receita ?? 0)}
-                      </div>
-                      <div className="text-zinc-600 text-xs">
-                        {dre.domicilio?.atendimentos ?? 0} atend.
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <div className="px-4 py-6 text-center text-zinc-600 text-sm">

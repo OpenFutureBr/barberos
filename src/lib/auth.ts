@@ -7,6 +7,18 @@ import { authConfig } from "./auth.config"
 
 export { prisma as authPrisma }
 
+/**
+ * CLT/MEI/AUTônomo só definem forma de repasse — pra fins de permissão são
+ * todos "profissional de corte" (mesmo template). Os RolePermissionTemplate
+ * ficam salvos com a chave "PROFESSIONAL"; sem esse mapeamento, um usuário
+ * com role BARBER_CLT/BARBER_MEI/AUTONOMO nunca batia com nenhum template e
+ * ficava sem nenhum acesso por padrão.
+ */
+function chaveTemplateDoRole(role: string): string {
+  if (role === "BARBER_CLT" || role === "BARBER_MEI" || role === "AUTONOMO") return "PROFESSIONAL"
+  return role
+}
+
 async function montarUsuarioAutorizado(user: NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>) {
   let allowedResources: string[] = []
   let planFeatures: string[] = []
@@ -44,7 +56,7 @@ async function montarUsuarioAutorizado(user: NonNullable<Awaited<ReturnType<type
           : { organizationId: null }
 
         const templates = await prisma.rolePermissionTemplate.findMany({
-          where: { role: user.role, canView: true, ...orgFilter },
+          where: { role: chaveTemplateDoRole(user.role), canView: true, ...orgFilter },
           select: { resource: true, organizationId: true },
         })
         // De-duplicate: org-specific overrides platform-wide

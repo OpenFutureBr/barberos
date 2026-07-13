@@ -219,6 +219,7 @@ function FormularioProfissional({
   const [nome, setNome] = useState(inicial?.name || "")
   const [email, setEmail] = useState(inicial?.email || "")
   const [telefone, setTelefone] = useState(inicial?.phone || "")
+  const [ehBarbeiro, setEhBarbeiro] = useState(inicial?.role ? inicial.role !== "RECEPTIONIST" : true)
   const [vinculo, setVinculo] = useState(inicial?.employmentType || "CLT")
   const [comissao, setComissao] = useState(inicial?.commissionPct?.toString() || "")
   const [bancada, setBancada] = useState(inicial?.benchFee?.toString() || "")
@@ -291,9 +292,9 @@ function FormularioProfissional({
       homeNumber: numero || null,
       homeNeighborhood: bairro || null,
       homeCity: cidade || null,
-      serviceIds,
+      serviceIds: ehBarbeiro ? serviceIds : [],
       schedules,
-      role: vinculo === "SOLO" ? "AUTONOMO" : "BARBER_CLT",
+      role: !ehBarbeiro ? "RECEPTIONIST" : (vinculo === "SOLO" ? "AUTONOMO" : "BARBER_CLT"),
     })
   }
 
@@ -311,6 +312,27 @@ function FormularioProfissional({
             <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
               required placeholder="Ex: Lucas Carvalho"
               className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          </div>
+
+          <div>
+            <label className="text-zinc-400 text-xs mb-2 block">Função *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEhBarbeiro(true)}
+                className={`py-2 rounded-lg text-xs font-medium border transition-all ${
+                  ehBarbeiro ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                ✂ Barbeiro
+              </button>
+              <button type="button" onClick={() => setEhBarbeiro(false)}
+                className={`py-2 rounded-lg text-xs font-medium border transition-all ${
+                  !ehBarbeiro ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                🖥 Recepcionista
+              </button>
+            </div>
+            <p className="text-zinc-600 text-xs mt-1.5">
+              {ehBarbeiro ? "Faz atendimentos, aparece na agenda e recebe comissão/repasse." : "Sem cortes na agenda — acesso ao sistema conforme as permissões definidas."}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -360,22 +382,24 @@ function FormularioProfissional({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Comissão (%)</label>
-              <input value={comissao} onChange={(e) => setComissao(e.target.value)}
-                type="number" min="0" max="100" placeholder="Ex: 40"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          {ehBarbeiro && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Comissão (%)</label>
+                <input value={comissao} onChange={(e) => setComissao(e.target.value)}
+                  type="number" min="0" max="100" placeholder="Ex: 40"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Intervalo entre cortes (min)</label>
+                <input value={breakMin} onChange={(e) => setBreakMin(e.target.value)}
+                  type="number" min="0" max="60" placeholder="10"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
             </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Intervalo entre cortes (min)</label>
-              <input value={breakMin} onChange={(e) => setBreakMin(e.target.value)}
-                type="number" min="0" max="60" placeholder="10"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-            </div>
-          </div>
+          )}
 
-          {vinculo === "MEI" && (
+          {ehBarbeiro && vinculo === "MEI" && (
             <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
               <label className="text-purple-400 text-xs mb-1 block">Taxa de bancada (R$/mês)</label>
               <input value={bancada} onChange={(e) => setBancada(e.target.value)} type="number" placeholder="Ex: 800"
@@ -384,13 +408,15 @@ function FormularioProfissional({
           )}
 
           <div className="flex gap-6">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setAttendsHome(!attendsHome)}
-                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${attendsHome ? "bg-teal-500" : "bg-zinc-700"}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${attendsHome ? "left-5" : "left-1"}`} />
-              </button>
-              <span className="text-zinc-400 text-sm cursor-pointer" onClick={() => setAttendsHome(!attendsHome)}>Atende a domicílio</span>
-            </div>
+            {ehBarbeiro && (
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setAttendsHome(!attendsHome)}
+                  className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${attendsHome ? "bg-teal-500" : "bg-zinc-700"}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${attendsHome ? "left-5" : "left-1"}`} />
+                </button>
+                <span className="text-zinc-400 text-sm cursor-pointer" onClick={() => setAttendsHome(!attendsHome)}>Atende a domicílio</span>
+              </div>
+            )}
             {inicial && (
               <div className="flex items-center gap-3">
                 <button type="button" onClick={() => setIsActive(!isActive)}
@@ -430,7 +456,7 @@ function FormularioProfissional({
             </div>
           </div>
 
-          {servicos.length > 0 && (
+          {ehBarbeiro && servicos.length > 0 && (
             <div>
               <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest border-t border-zinc-800 pt-3 mb-3">Serviços que presta</p>
               <div className="grid grid-cols-2 gap-2">

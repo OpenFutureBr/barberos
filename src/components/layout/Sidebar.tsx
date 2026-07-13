@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { getCache, setCache } from "@/lib/prefetch-cache"
@@ -32,7 +32,17 @@ export default function Sidebar() {
   const [estabNome, setEstabNome] = useState("BarberOS")
   // Todos os grupos carregam condensados por padrão — só expande quando o
   // usuário clica (preferência fica salva na sessionStorage abaixo).
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(MENU_GROUPS.map(g => g.label)))
+  // Lido de forma síncrona (lazy init) pra já nascer com a altura final do
+  // <nav> — o DashboardLayout remonta a cada navegação, e se isso viesse de
+  // um useEffect posterior, a restauração do scroll (que roda antes) veria
+  // o menu ainda todo condensado (mais curto) e ficaria travada no topo.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const saved = sessionStorage.getItem(COLLAPSED_KEY)
+      if (saved) return new Set(JSON.parse(saved))
+    } catch {}
+    return new Set(MENU_GROUPS.map(g => g.label))
+  })
   const [tema, setTema] = useState<"dark" | "light">("dark")
 
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.allowedResources?.includes("*")
@@ -55,10 +65,6 @@ export default function Sidebar() {
 
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(COLLAPSED_KEY)
-      if (saved) setCollapsed(new Set(JSON.parse(saved)))
-    } catch {}
-    try {
       const t = (localStorage.getItem("tema") as "dark" | "light") ?? "dark"
       setTema(t)
       if (t === "light") document.documentElement.classList.add("light")
@@ -74,7 +80,10 @@ export default function Sidebar() {
     window.dispatchEvent(new CustomEvent("temaAlterado", { detail: novo }))
   }
 
-  useEffect(() => {
+  // useLayoutEffect (não useEffect) — aplica o scroll salvo antes do browser
+  // pintar a tela, evitando o "pulo" visível de aparecer no topo e só depois
+  // saltar pra posição certa.
+  useLayoutEffect(() => {
     const saved = sessionStorage.getItem(SCROLL_KEY)
     if (saved && navRef.current) {
       navRef.current.scrollTop = parseInt(saved, 10)
