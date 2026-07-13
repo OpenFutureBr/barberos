@@ -1,11 +1,17 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   const session = await auth()
   const ESTAB_ID = session?.user?.establishmentId
   if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  // Usado tanto por Financeiro quanto por PIX & Cobranças — libera se tiver
+  // qualquer um dos dois recursos.
+  if (!temPermissao(session?.user, "financeiro") && !temPermissao(session?.user, "pix")) {
+    return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+  }
 
   const hoje = new Date()
   hoje.setHours(23, 59, 59, 999)

@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 
 export async function GET(request: Request) {
@@ -8,6 +9,8 @@ export async function GET(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "estoque")
+    if (bloqueio) return bloqueio
 
     const { searchParams } = new URL(request.url)
     const data = searchParams.get("data") // YYYY-MM-DD, opcional

@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { limitesHojeBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 const MESES_LABEL = [
   "Jan",
@@ -368,6 +369,8 @@ export async function GET(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "financeiro")
+    if (bloqueio) return bloqueio
 
     const { searchParams } = new URL(request.url)
 
@@ -761,6 +764,8 @@ export async function POST(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "financeiro")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
     const { action } = body

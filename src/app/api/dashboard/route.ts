@@ -6,6 +6,8 @@ import { limitesHojeBRT, anoMesAtualBRT, limitesMesBRT } from "@/lib/data-brt"
 
 function arredondar(v: number) { return Math.round(v * 100) / 100 }
 
+const ROLES_BARBEIRO = ["BARBER_CLT", "BARBER_MEI", "AUTONOMO"]
+
 function parsePeriodo(request: Request) {
   const { searchParams } = new URL(request.url)
   const fromParam = searchParams.get("from")
@@ -33,6 +35,13 @@ export async function GET(request: Request) {
 
     const periodoIncluiHoje = toDate >= hojeInicio
 
+    // Barbeiro só vê os próprios atendimentos no widget "Agenda de hoje" —
+    // mesma regra do /api/agendamentos, pra não expor cliente/horário de
+    // outros profissionais pra quem só devia ver a própria agenda.
+    const souBarbeiro = ROLES_BARBEIRO.includes(session?.user?.role ?? "")
+    const whereAgendamentosHoje: any = { establishmentId: ESTAB_ID, scheduledAt: { gte: hojeInicio, lte: hojeFim } }
+    if (souBarbeiro) whereAgendamentosHoje.professionalId = session?.user?.id
+
     const [
       clientesVip,
       agendamentosHojeResult,
@@ -51,7 +60,7 @@ export async function GET(request: Request) {
 
       periodoIncluiHoje
         ? prisma.appointment.findMany({
-            where: { establishmentId: ESTAB_ID, scheduledAt: { gte: hojeInicio, lte: hojeFim } },
+            where: whereAgendamentosHoje,
             select: {
               id: true, status: true, scheduledAt: true,
               client:       { select: { id: true, name: true, phone: true } },

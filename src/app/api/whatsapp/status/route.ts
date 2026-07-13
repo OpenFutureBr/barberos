@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 const EVO_URL = process.env.EVOLUTION_API_URL
 const EVO_KEY = process.env.EVOLUTION_API_KEY
@@ -6,8 +8,17 @@ const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE ?? "barberos"
 
 const headers = () => ({ "apikey": EVO_KEY ?? "" })
 
+async function podeGerenciarWhatsapp() {
+  const session = await auth()
+  if (!session?.user?.establishmentId) return false
+  return temPermissao(session.user, "whatsapp") || temPermissao(session.user, "configuracoes")
+}
+
 // GET  — connection state: { state: "open"|"close"|"connecting", qrcode?: string }
 export async function GET() {
+  if (!(await podeGerenciarWhatsapp())) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  }
   try {
     const res = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: headers() })
     if (!res.ok) return NextResponse.json({ state: "close" })
@@ -22,6 +33,9 @@ export async function GET() {
 
 // POST — connect / get QR code
 export async function POST() {
+  if (!(await podeGerenciarWhatsapp())) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  }
   try {
     // Try to connect existing instance
     const res = await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { headers: headers() })

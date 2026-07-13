@@ -36,7 +36,11 @@ export const RESOURCES: Resource[] = [
   { slug: "api_docs",      label: "API Docs",           path: "/dashboard/api-docs",      group: "Sistema" },
 ]
 
+// Path mais específico primeiro — sem isso, "/dashboard" (prefixo de toda
+// subpágina) sempre "ganhava" do find() antes de chegar em "/dashboard/financeiro".
+const RESOURCES_POR_ESPECIFICIDADE = [...RESOURCES].sort((a, b) => b.path.length - a.path.length)
+
 export function pathToSlug(pathname: string): string | null {
-  const r = RESOURCES.find(r => pathname === r.path || pathname.startsWith(r.path + "/"))
+  const r = RESOURCES_POR_ESPECIFICIDADE.find(r => pathname === r.path || pathname.startsWith(r.path + "/"))
   return r?.slug ?? null
 }

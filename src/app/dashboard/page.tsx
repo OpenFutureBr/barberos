@@ -108,6 +108,16 @@ type DashData = {
 type CaixaData = { caixa: { id: string; closedAt: string | null } | null; lancamentos: any[] }
 
 export default function DashboardPage() {
+  // Lido direto do window (em vez de useSearchParams) pra não exigir um
+  // Suspense boundary só por causa desse banner pontual.
+  const [acessoNegado, setAcessoNegado] = useState(false)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("acesso_negado") === "1") {
+      setAcessoNegado(true)
+      window.history.replaceState(null, "", "/dashboard")
+    }
+  }, [])
+
   const [dados, setDados] = useState<DashData | null>(null)
   const [appts, setAppts] = useState<Appt[]>([])
   const [caixa, setCaixa] = useState<CaixaData | null>(null)
@@ -296,6 +306,13 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
+
+      {acessoNegado && (
+        <div className="bg-red-500/10 border border-red-500/25 text-red-400 text-sm rounded-xl px-4 py-3 mb-3 flex items-center justify-between gap-3">
+          <span>Você não tem permissão para acessar essa página.</span>
+          <button onClick={() => setAcessoNegado(false)} className="text-red-400/70 hover:text-red-300 flex-shrink-0">✕</button>
+        </div>
+      )}
 
       {/* ── STICKY: KPIs + FILTRO + CAIXA ── */}
       <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">

@@ -1,8 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-
-
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 
 
@@ -11,6 +10,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+    if (bloqueio) return bloqueio
 
     const { id } = await params
     const body = await request.json()
@@ -72,6 +73,8 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+    if (bloqueio) return bloqueio
 
     const { id } = await params
 

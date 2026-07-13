@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"
 import { ServiceType, AppointmentStatus } from "@prisma/client"
 import { auth } from "@/lib/auth"
 
+const ROLES_BARBEIRO = ["BARBER_CLT", "BARBER_MEI", "AUTONOMO"]
+
 import { addMinutes, addDays, isBefore, isAfter } from "date-fns"
 
 
@@ -30,6 +32,12 @@ export async function GET(request: Request) {
         gte: new Date(`${data}T00:00:00-03:00`),
         lte: new Date(`${data}T23:59:59.999-03:00`),
       }
+    }
+
+    // Barbeiro só vê os próprios atendimentos — recepção e gestores continuam
+    // vendo a agenda inteira do estabelecimento (é o trabalho deles).
+    if (ROLES_BARBEIRO.includes(session.user.role ?? "")) {
+      where.professionalId = session.user.id
     }
 
     const agendamentos = await prisma.appointment.findMany({

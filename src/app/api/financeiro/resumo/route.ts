@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
@@ -11,6 +12,8 @@ export async function GET(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "financeiro")
+    if (bloqueio) return bloqueio
 
     const { searchParams } = new URL(request.url)
 

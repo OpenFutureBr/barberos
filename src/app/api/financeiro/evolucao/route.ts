@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
 
@@ -9,6 +10,10 @@ export async function GET(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    // Usado tanto pelo Dashboard (gráfico de faturamento) quanto por Financeiro.
+    if (!temPermissao(session?.user, "dashboard") && !temPermissao(session?.user, "financeiro")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const { searchParams } = new URL(request.url)
     const ano = parseInt(searchParams.get("ano") ?? String(new Date().getFullYear()))

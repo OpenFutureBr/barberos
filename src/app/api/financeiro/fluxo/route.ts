@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { hojeISOemBRT, somarDiasISO, somarMesesISO, limitesDiaBRT, diaISOemBRT } from "@/lib/data-brt"
+import { temPermissao } from "@/lib/permissoes"
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
@@ -24,6 +25,10 @@ export async function GET(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    // Usado tanto por Caixa (fluxo) quanto por Financeiro.
+    if (!temPermissao(session?.user, "caixa") && !temPermissao(session?.user, "financeiro")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const { searchParams } = new URL(request.url)
 

@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth, gerarUsername } from "@/lib/auth"
 import bcrypt from "bcryptjs"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
 

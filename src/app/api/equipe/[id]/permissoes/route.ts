@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   const estabId = session?.user?.establishmentId
   if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+  if (bloqueio) return bloqueio
 
   const { id } = await params
 
@@ -20,6 +23,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const session = await auth()
   const estabId = session?.user?.establishmentId
   if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+  if (bloqueio) return bloqueio
 
   const { id } = await params
 
