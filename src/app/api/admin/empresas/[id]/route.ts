@@ -426,7 +426,7 @@ export async function GET(_: Request, { params }: RouteParams) {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,
@@ -735,7 +735,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
       return NextResponse.json(
         {
-          error: String(error),
+          error: "Erro interno. Tente novamente.",
         },
         {
           status: 500,

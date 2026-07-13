@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     return NextResponse.json(agendamento)
   } catch (error) {
     console.error("Erro ao criar agendamento:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -230,6 +230,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(agendamento)
   } catch (error) {
     console.error("Erro ao atualizar agendamento:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

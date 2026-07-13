@@ -86,6 +86,6 @@ export async function POST(request: Request) {
     return NextResponse.json(cliente)
   } catch (error) {
     console.error("Erro ao criar cliente:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

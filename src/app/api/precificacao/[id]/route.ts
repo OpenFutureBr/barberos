@@ -1,12 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "precificacao")
+    if (bloqueio) return bloqueio
 
     const { id } = await params
 
@@ -27,7 +30,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(regra)
   } catch (error) {
     console.error("[PUT /api/precificacao/[id]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -36,6 +39,8 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "precificacao")
+    if (bloqueio) return bloqueio
 
     const { id } = await params
 
@@ -46,6 +51,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("[DELETE /api/precificacao/[id]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

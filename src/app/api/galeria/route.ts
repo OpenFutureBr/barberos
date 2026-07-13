@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.json(cortes)
   } catch (error) {
     console.error("[GET /api/galeria]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -51,6 +51,6 @@ export async function POST(request: Request) {
     return NextResponse.json(corte)
   } catch (error) {
     console.error("[POST /api/galeria]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

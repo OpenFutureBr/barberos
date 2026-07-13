@@ -750,7 +750,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,
@@ -906,7 +906,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,

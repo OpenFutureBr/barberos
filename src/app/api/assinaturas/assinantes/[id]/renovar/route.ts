@@ -2,12 +2,15 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { limitesHojeBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const sessionData = await auth()
     const estabId = sessionData?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(sessionData?.user, "assinaturas")
+    if (bloqueio) return bloqueio
 
     const { id } = await params
     const body = await request.json()
@@ -75,6 +78,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json(atualizada)
   } catch (error) {
     console.error("[POST /api/assinaturas/assinantes/[id]/renovar]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

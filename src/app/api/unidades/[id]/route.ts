@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 const ROLES_PERMITIDOS = ["ADMIN", "ORG_OWNER", "ORG_MANAGER"]
 
@@ -9,6 +10,9 @@ async function verificarAcesso(id: string) {
   const orgId = session?.user?.organizationId
   const role = session?.user?.role
   if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "")) return null
+  // Além do papel, respeita se o dono revogou "unidades" nas Permissões —
+  // ORG_MANAGER podia contornar isso, já que o papel sozinho sempre liberava.
+  if (!temPermissao(session?.user, "unidades")) return null
   return prisma.establishment.findFirst({ where: { id, organizationId: orgId } })
 }
 
@@ -19,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!estab) return NextResponse.json({ error: "Não encontrado" }, { status: 404 })
     return NextResponse.json(estab)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -78,6 +82,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(estab)
   } catch (error) {
     console.error("[PUT /api/unidades/[id]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

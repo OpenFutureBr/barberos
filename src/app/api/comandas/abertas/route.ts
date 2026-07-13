@@ -57,6 +57,6 @@ export async function GET() {
     return NextResponse.json(comandas)
   } catch (error) {
     console.error("[GET /api/comandas/abertas]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

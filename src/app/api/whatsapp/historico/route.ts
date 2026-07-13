@@ -45,6 +45,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ logs, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

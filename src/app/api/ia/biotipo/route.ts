@@ -2,10 +2,13 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { getIaConfig, callVision } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+  const bloqueio = bloqueioSemPermissao(session.user, "ia_biotipo")
+  if (bloqueio) return bloqueio
 
   // establishmentId vem da sessão, não do body — o body antes trazia o valor
   // usado direto na query, permitindo que qualquer usuário logado pedisse

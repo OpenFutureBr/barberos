@@ -1,12 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "assinaturas")
+    if (bloqueio) return bloqueio
 
     const mesAtual = new Date().toISOString().slice(0, 7) // YYYY-MM
 
@@ -61,14 +64,23 @@ export async function GET() {
     return NextResponse.json(assinantes)
   } catch (error) {
     console.error("[GET /api/assinaturas/assinantes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "assinaturas")
+    if (bloqueio) return bloqueio
+
     const body = await request.json()
     const { clientId, planId, startedAt } = body
+
+    const clienteDoEstab = await prisma.client.findFirst({ where: { id: clientId, establishmentId: estabId }, select: { id: true } })
+    if (!clienteDoEstab) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
 
     // Verifica se cliente já tem assinatura ativa
     const existente = await prisma.subscription.findUnique({ where: { clientId } })
@@ -76,7 +88,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cliente já possui uma assinatura ativa" }, { status: 400 })
     }
 
-    const plano = await prisma.subscriptionPlan.findUnique({ where: { id: planId } })
+    // Escopo por estabelecimento — antes buscava só por id, permitindo
+    // assinar um cliente num plano de outra unidade.
+    const plano = await prisma.subscriptionPlan.findFirst({ where: { id: planId, establishmentId: estabId } })
     if (!plano) return NextResponse.json({ error: "Plano não encontrado" }, { status: 404 })
 
     const inicio = startedAt ? new Date(startedAt) : new Date()
@@ -111,6 +125,6 @@ export async function POST(request: Request) {
     return NextResponse.json(assinatura)
   } catch (error) {
     console.error("[POST /api/assinaturas/assinantes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

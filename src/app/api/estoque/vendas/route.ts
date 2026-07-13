@@ -34,6 +34,6 @@ export async function GET(request: Request) {
     return NextResponse.json(vendas)
   } catch (error) {
     console.error("[GET /api/estoque/vendas]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

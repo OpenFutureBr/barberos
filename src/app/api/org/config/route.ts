@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 // GET  /api/org/config  — returns orgConfig JSON
 // PUT  /api/org/config  — merges partial update into orgConfig
@@ -10,11 +11,14 @@ export async function GET() {
     const session = await auth()
     const orgId = session?.user?.organizationId
     if (!orgId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    if (!temPermissao(session?.user, "unidades") && !temPermissao(session?.user, "configuracoes")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { orgConfig: true } })
     return NextResponse.json(org?.orgConfig ?? {})
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -35,6 +39,6 @@ export async function PUT(request: Request) {
     await prisma.organization.update({ where: { id: orgId }, data: { orgConfig: updated } })
     return NextResponse.json(updated)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

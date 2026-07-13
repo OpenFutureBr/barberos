@@ -136,7 +136,7 @@ export async function GET(request: Request) {
     console.error("[GET /api/financeiro/repasses]", error)
 
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Erro interno. Tente novamente." },
       { status: 500 },
     )
   }

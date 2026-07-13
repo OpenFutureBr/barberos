@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { hojeISOemBRT, anoMesAtualBRT, limitesMesBRT } from "@/lib/data-brt"
+import { temPermissao } from "@/lib/permissoes"
 
 const ROLES_PERMITIDOS = ["ADMIN", "ORG_OWNER", "ORG_MANAGER"]
 
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "")) {
+    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
@@ -88,6 +89,6 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("[GET /api/unidades/relatorio-executivo]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

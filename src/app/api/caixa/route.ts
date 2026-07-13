@@ -282,7 +282,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("[GET /api/caixa]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -356,6 +356,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
   } catch (error) {
     console.error("[POST /api/caixa]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

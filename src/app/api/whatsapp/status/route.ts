@@ -59,6 +59,6 @@ export async function POST() {
     const qrcode = data?.base64 ?? data?.qrcode?.base64 ?? null
     return NextResponse.json({ qrcode, state: qrcode ? "connecting" : "open" })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

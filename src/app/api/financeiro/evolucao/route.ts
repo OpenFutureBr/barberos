@@ -75,6 +75,6 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("[GET /api/financeiro/evolucao]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

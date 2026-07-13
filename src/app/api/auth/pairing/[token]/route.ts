@@ -25,7 +25,7 @@ export async function GET(
     return NextResponse.json({ status: pareamento.status, isTV: pareamento.isTV })
   } catch (error) {
     console.error("[GET /api/auth/pairing/[token]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -69,6 +69,6 @@ export async function POST(
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("[POST /api/auth/pairing/[token]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

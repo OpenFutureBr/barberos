@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getIaConfig, geminiEditarImagem } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+  const bloqueio = bloqueioSemPermissao(session.user, "ia_biotipo")
+  if (bloqueio) return bloqueio
 
   const { imageBase64, corte, descricao } = await req.json().catch(() => ({}))
   if (!imageBase64) return NextResponse.json({ error: "Imagem obrigatória" }, { status: 400 })

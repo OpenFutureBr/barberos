@@ -2,11 +2,14 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getIaConfig, callText } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(req: Request) {
   try {
     const session = await auth()
     if (!session?.user?.establishmentId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session.user, "clientes_ia")
+    if (bloqueio) return bloqueio
 
     const { clientId } = await req.json()
     if (!clientId) return NextResponse.json({ error: "clientId obrigatório" }, { status: 400 })
@@ -50,6 +53,6 @@ A mensagem deve: ser informal e pessoal, usar o primeiro nome do cliente, mencio
     return NextResponse.json({ mensagem })
   } catch (error) {
     console.error("[POST /api/ia/clientes/mensagem]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

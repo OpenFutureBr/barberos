@@ -49,6 +49,6 @@ export async function GET(request: Request) {
     return NextResponse.json(inativos)
   } catch (error) {
     console.error("[GET /api/dashboard/inativos]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

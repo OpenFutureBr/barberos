@@ -35,7 +35,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(corte)
   } catch (error) {
     console.error("[PUT /api/galeria/[id]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -54,6 +54,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("[DELETE /api/galeria/[id]]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

@@ -572,6 +572,15 @@ model Subscription {
   @@map("subscriptions")
 }
 
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  username  String
+  createdAt DateTime @default(now())
+
+  @@index([username, createdAt])
+  @@map("login_attempts")
+}
+
 model LoginPairing {
   id        String   @id @default(cuid())
   token     String   @unique

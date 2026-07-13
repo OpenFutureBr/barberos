@@ -48,7 +48,7 @@ export async function GET() {
 
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -76,6 +76,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

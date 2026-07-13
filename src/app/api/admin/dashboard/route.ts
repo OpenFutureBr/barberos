@@ -112,7 +112,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,

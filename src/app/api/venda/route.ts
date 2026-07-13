@@ -196,7 +196,7 @@ export async function POST(request: Request) {
     console.error("[POST /api/venda]", error)
 
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Erro interno. Tente novamente." },
       { status: 500 },
     )
   }

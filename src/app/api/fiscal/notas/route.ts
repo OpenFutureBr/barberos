@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { hojeISOemBRT, limitesDiaBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 // Ainda não existe integração real de emissão de NF-e — este endpoint expõe
 // os atendimentos concluídos (dados reais) que precisariam de nota, sempre
@@ -11,6 +12,8 @@ export async function GET(request: Request) {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "fiscal")
+    if (bloqueio) return bloqueio
 
     const { searchParams } = new URL(request.url)
     const dataParam = searchParams.get("data")
@@ -46,6 +49,6 @@ export async function GET(request: Request) {
     return NextResponse.json(notas)
   } catch (error) {
     console.error("[GET /api/fiscal/notas]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

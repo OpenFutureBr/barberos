@@ -19,6 +19,28 @@ function chaveTemplateDoRole(role: string): string {
   return role
 }
 
+const JANELA_RATE_LIMIT_MS = 15 * 60 * 1000 // 15 minutos
+const MAX_TENTATIVAS = 8
+
+/**
+ * Rate limit de login por usuário, guardado no Postgres (não em memória —
+ * serverless não garante a mesma instância entre requisições). Bloqueia
+ * silenciosamente após MAX_TENTATIVAS falhas na janela, devolvendo o mesmo
+ * erro genérico de "usuário ou senha incorretos" pra não revelar ao
+ * atacante que a conta existe ou está temporariamente bloqueada.
+ */
+async function estaBloqueadoPorTentativas(username: string): Promise<boolean> {
+  const desde = new Date(Date.now() - JANELA_RATE_LIMIT_MS)
+  const tentativas = await prisma.loginAttempt.count({
+    where: { username, createdAt: { gte: desde } },
+  })
+  return tentativas >= MAX_TENTATIVAS
+}
+
+async function registrarTentativaFalha(username: string) {
+  await prisma.loginAttempt.create({ data: { username } }).catch(() => {})
+}
+
 async function montarUsuarioAutorizado(user: NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>) {
   let allowedResources: string[] = []
   let planFeatures: string[] = []
@@ -140,6 +162,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           console.log("[AUTH] Tentando login:", username)
 
+          if (await estaBloqueadoPorTentativas(username)) {
+            console.log("[AUTH] Bloqueado por excesso de tentativas:", username)
+            return null
+          }
+
           const user = await prisma.user.findUnique({
             where: {
               username,
@@ -148,6 +175,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           if (!user) {
             console.log("[AUTH] Usuário não encontrado:", username)
+            await registrarTentativaFalha(username)
             return null
           }
 
@@ -165,6 +193,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           if (!senhaCorreta) {
             console.log("[AUTH] Senha incorreta para:", username)
+            await registrarTentativaFalha(username)
             return null
           }
 

@@ -24,7 +24,7 @@ export async function GET() {
       headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" },
     })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -82,6 +82,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ...profissional, username })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
