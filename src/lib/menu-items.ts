@@ -78,7 +78,6 @@ export const MENU_GROUPS: MenuGroup[] = [
     groupIconPath: "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21",
     items: [
       { href: "/dashboard/unidades",    label: "Multi-unidades", resource: "unidades",    iconPath: "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21", feature: "multiUnidade" },
-      { href: "/dashboard/media",       label: "BarberOS Media", resource: "media",       iconPath: "M3.75 19.5l6.75-6.75 2.25 2.25 3.75-3.75 4.5 4.5M21 12V6.75A2.25 2.25 0 0018.75 4.5H5.25A2.25 2.25 0 003 6.75v10.5A2.25 2.25 0 005.25 19.5H21" },
     ],
   },
   {

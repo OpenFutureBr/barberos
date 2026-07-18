@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 
 const nivelStyle: Record<string, string> = {
@@ -102,33 +103,41 @@ export default function CashbackPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
-          <div className="text-amber-400 text-xs font-mono uppercase tracking-widest mb-1">Total distribuído</div>
-          {loading
-            ? <div className="h-8 bg-amber-500/10 rounded animate-pulse" />
-            : <div className="text-amber-400 text-2xl font-bold">{fmtMoeda(totalEarned)}</div>
-          }
-          <div className="text-zinc-500 text-xs mt-1">acumulado no programa</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Total resgatado</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
-            : <div className="text-green-400 text-2xl font-bold">{fmtMoeda(totalRedeemed)}</div>
-          }
-          <div className="text-zinc-600 text-xs mt-1">pelos clientes</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Saldo ativo</div>
-          {loading
-            ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
-            : <div className="text-blue-400 text-2xl font-bold">{fmtMoeda(saldoAtivo)}</div>
-          }
-          <div className="text-zinc-600 text-xs mt-1">em carteiras dos clientes</div>
-        </div>
-      </div>
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="distribuido" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 h-full">
+            <div className="text-amber-400 text-xs font-mono uppercase tracking-widest mb-1">Total distribuído</div>
+            {loading
+              ? <div className="h-8 bg-amber-500/10 rounded animate-pulse" />
+              : <div className="text-amber-400 text-2xl font-bold">{fmtMoeda(totalEarned)}</div>
+            }
+            <div className="text-zinc-500 text-xs mt-1">acumulado no programa</div>
+          </div>,
+          <div key="resgatado" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Total resgatado</div>
+            {loading
+              ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
+              : <div className="text-green-400 text-2xl font-bold">{fmtMoeda(totalRedeemed)}</div>
+            }
+            <div className="text-zinc-600 text-xs mt-1">pelos clientes</div>
+          </div>,
+          <div key="saldo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Saldo ativo</div>
+            {loading
+              ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
+              : <div className="text-blue-400 text-2xl font-bold">{fmtMoeda(saldoAtivo)}</div>
+            }
+            <div className="text-zinc-600 text-xs mt-1">em carteiras dos clientes</div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -204,7 +213,27 @@ export default function CashbackPage() {
           ) : historico.length === 0 ? (
             <div className="p-8 text-center text-zinc-600 text-sm">Nenhuma transação registrada</div>
           ) : (
-            <table className="w-full">
+            <>
+              {/* Lista mobile — nome+descrição / data e hora / valor */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {historico.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white text-sm font-medium truncate">{t.cliente}</div>
+                      <div className="text-zinc-500 text-xs truncate">{t.descricao || tipoLabel[t.tipo] || t.tipo}</div>
+                    </div>
+                    <div className="text-zinc-500 text-xs font-mono text-right flex-shrink-0">
+                      <div>{fmtData(t.createdAt)}</div>
+                      <div>{fmtHora(t.createdAt)}</div>
+                    </div>
+                    <div className={`font-bold font-mono text-sm text-right flex-shrink-0 ${tipoStyle[t.tipo] ?? "text-zinc-400"}`}>
+                      {tipoLabel[t.tipo] ?? t.tipo} {fmtMoeda(t.valor)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <table className="hidden md:table w-full">
               <thead>
                 <tr className="border-b border-zinc-800">
                   <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
@@ -228,6 +257,7 @@ export default function CashbackPage() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
         </div>

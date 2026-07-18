@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL } from "@/lib/categorias-caixa"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -495,65 +496,65 @@ export default function FinanceiroPage() {
         </select>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
-          <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
-            Receita total
-          </div>
-
-          {loading ? (
-            <div className="h-8 bg-green-500/10 rounded animate-pulse" />
-          ) : (
-            <div className="text-green-400 text-2xl font-bold">
-              {fmtMoeda(dre?.totalReceitas ?? 0)}
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="receita" className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 h-full">
+            <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
+              Receita total
             </div>
-          )}
-        </div>
-
-        <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4">
-          <div className="text-orange-400 text-xs font-mono uppercase tracking-widest mb-1">
-            A receber
-          </div>
-
-          {loading ? (
-            <div className="h-8 bg-orange-500/10 rounded animate-pulse" />
-          ) : (
-            <div className="text-orange-400 text-2xl font-bold">
-              {fmtMoeda(resumoPendencias.totalPendente)}
+            {loading ? (
+              <div className="h-8 bg-green-500/10 rounded animate-pulse" />
+            ) : (
+              <div className="text-green-400 text-2xl font-bold">
+                {fmtMoeda(dre?.totalReceitas ?? 0)}
+              </div>
+            )}
+          </div>,
+          <div key="areceber" className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 h-full">
+            <div className="text-orange-400 text-xs font-mono uppercase tracking-widest mb-1">
+              A receber
             </div>
-          )}
-        </div>
-
-        <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-          <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
-            Vencido
-          </div>
-
-          {loading ? (
-            <div className="h-8 bg-red-500/10 rounded animate-pulse" />
-          ) : (
-            <div className="text-red-400 text-2xl font-bold">
-              {fmtMoeda(resumoPendencias.totalVencido)}
+            {loading ? (
+              <div className="h-8 bg-orange-500/10 rounded animate-pulse" />
+            ) : (
+              <div className="text-orange-400 text-2xl font-bold">
+                {fmtMoeda(resumoPendencias.totalPendente)}
+              </div>
+            )}
+          </div>,
+          <div key="vencido" className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 h-full">
+            <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
+              Vencido
             </div>
-          )}
-        </div>
-
-        <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-          <div className="text-blue-400 text-xs font-mono uppercase tracking-widest mb-1">
-            Repasses
-          </div>
-
-          {loading ? (
-            <div className="h-8 bg-blue-500/10 rounded animate-pulse" />
-          ) : (
-            <div className="text-blue-400 text-2xl font-bold">
-              {fmtMoeda(totalRepasses)}
+            {loading ? (
+              <div className="h-8 bg-red-500/10 rounded animate-pulse" />
+            ) : (
+              <div className="text-red-400 text-2xl font-bold">
+                {fmtMoeda(resumoPendencias.totalVencido)}
+              </div>
+            )}
+          </div>,
+          <div key="repasses" className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 h-full">
+            <div className="text-blue-400 text-xs font-mono uppercase tracking-widest mb-1">
+              Repasses
             </div>
-          )}
-        </div>
-
-      </div>
+            {loading ? (
+              <div className="h-8 bg-blue-500/10 rounded animate-pulse" />
+            ) : (
+              <div className="text-blue-400 text-2xl font-bold">
+                {fmtMoeda(totalRepasses)}
+              </div>
+            )}
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -851,7 +852,25 @@ export default function FinanceiroPage() {
             </div>
           ) : (
             <>
-              <table className="w-full">
+              {/* Lista mobile — nome + tipo numa coluna, repasse + atendimentos na outra */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {repassesOrdenados.map((r) => (
+                  <div key={r.profissionalId} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white text-sm font-medium truncate">{r.nome}</div>
+                      <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        {tipoLabel(r.tipo, r.commissionPct, r.benchFeePct, r.benchFee)}
+                      </span>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-green-400 font-bold font-mono text-sm">{fmtMoeda(r.repasse)}</div>
+                      <div className="text-zinc-600 text-xs mt-0.5">{r.atendimentos} atend.</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <table className="hidden md:table w-full">
                 <thead>
                   <tr className="border-b border-zinc-800">
                     <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">
@@ -992,30 +1011,36 @@ export default function FinanceiroPage() {
                 })}
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                  <div className="text-zinc-500 text-xs mb-1">Melhor mês</div>
-                  <div className="text-amber-400 font-bold text-sm">
-                    {melhorMes.valor > 0
-                      ? `${melhorMes.label} · ${fmtMoeda(melhorMes.valor)}`
-                      : "—"}
+              {(() => {
+                const kpisEvolucao = [
+                  <div key="melhor" className="bg-zinc-800 rounded-lg p-3 text-center h-full">
+                    <div className="text-zinc-500 text-xs mb-1">Melhor mês</div>
+                    <div className="text-amber-400 font-bold text-sm">
+                      {melhorMes.valor > 0
+                        ? `${melhorMes.label} · ${fmtMoeda(melhorMes.valor)}`
+                        : "—"}
+                    </div>
+                  </div>,
+                  <div key="meses" className="bg-zinc-800 rounded-lg p-3 text-center h-full">
+                    <div className="text-zinc-500 text-xs mb-1">Meses com dados</div>
+                    <div className="text-white font-bold">
+                      {mesesComDados.length} de 12
+                    </div>
+                  </div>,
+                  <div key="media" className="bg-zinc-800 rounded-lg p-3 text-center h-full">
+                    <div className="text-zinc-500 text-xs mb-1">Média mensal</div>
+                    <div className="text-blue-400 font-bold text-sm">
+                      {mediaEvolucao > 0 ? fmtMoeda(mediaEvolucao) : "—"}
+                    </div>
+                  </div>,
+                ]
+                return (
+                  <div className="mt-4">
+                    <CardCarousel cards={kpisEvolucao} />
+                    <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisEvolucao}</div>
                   </div>
-                </div>
-
-                <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                  <div className="text-zinc-500 text-xs mb-1">Meses com dados</div>
-                  <div className="text-white font-bold">
-                    {mesesComDados.length} de 12
-                  </div>
-                </div>
-
-                <div className="bg-zinc-800 rounded-lg p-3 text-center">
-                  <div className="text-zinc-500 text-xs mb-1">Média mensal</div>
-                  <div className="text-blue-400 font-bold text-sm">
-                    {mediaEvolucao > 0 ? fmtMoeda(mediaEvolucao) : "—"}
-                  </div>
-                </div>
-              </div>
+                )
+              })()}
             </>
           )}
         </div>

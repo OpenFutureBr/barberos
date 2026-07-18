@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -623,24 +624,32 @@ function EstoqueInner() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
-          <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
-          <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
-          <div className="text-red-400 text-xl font-bold">{criticos}</div>
-          <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
-          <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
-          <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
-        </div>
-      </div>
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="valor" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
+            <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
+            <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
+          </div>,
+          <div key="criticos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
+            <div className="text-red-400 text-xl font-bold">{criticos}</div>
+            <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
+          </div>,
+          <div key="catalogo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
+            <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
+            <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -816,7 +825,7 @@ function EstoqueInner() {
               </div>
 
               {/* Nome */}
-              <div className="w-44 flex-shrink-0">
+              <div className="flex-1 min-w-0 md:w-44 md:flex-none">
                 <div className="flex items-center gap-1.5">
                   <span className="text-white text-xs font-medium truncate">{nome}</span>
                   {noEstoque && <span className="text-green-500 text-xs">●</span>}
@@ -825,64 +834,64 @@ function EstoqueInner() {
               </div>
 
               {/* Histórico vendas */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="w-16 md:w-20 flex-shrink-0 text-center">
                 {stats?.totalVendas ? (
                   <span className="text-zinc-300 text-xs">{stats.totalVendas} vend.</span>
                 ) : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Mín */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {stats?.precoMin != null
                   ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMin.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Atual */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {dbProd
                   ? <span className="text-amber-400 text-xs font-medium font-mono">{precoAtual.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Máx */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {stats?.precoMax != null
                   ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMax.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Estoque atual */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {dbProd != null
                   ? <span className={`text-xs font-mono font-medium ${dbProd.stock <= (dbProd.minStock ?? 5) ? "text-red-400" : "text-white"}`}>{dbProd.stock}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Inclusão */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(inclusao)}</span>
               </div>
 
               {/* Última compra */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaCompra ?? null)}</span>
               </div>
 
               {/* Última venda */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaVenda ?? null)}</span>
               </div>
 
               {/* Dia top */}
-              <div className="w-16 flex-shrink-0 text-center">
+              <div className="hidden md:block w-16 flex-shrink-0 text-center">
                 {stats?.diaMaisVende != null && stats.diaMaisVende >= 0
                   ? <span className="text-zinc-300 text-xs">{DIAS_SEMANA[stats.diaMaisVende]}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Hora top */}
-              <div className="w-16 flex-shrink-0 text-center">
+              <div className="hidden md:block w-16 flex-shrink-0 text-center">
                 {stats?.horaMaisVende != null && stats.horaMaisVende >= 0
                   ? <span className="text-zinc-300 text-xs">{String(stats.horaMaisVende).padStart(2, "0")}h</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
@@ -891,7 +900,7 @@ function EstoqueInner() {
               {/* Editar */}
               {onEditar && (
                 <button onClick={(e) => { e.stopPropagation(); onEditar() }}
-                  className="ml-auto text-zinc-700 hover:text-amber-400 text-xs opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                  className="hidden md:block ml-auto text-zinc-700 hover:text-amber-400 text-xs opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                   ✏️
                 </button>
               )}
@@ -928,17 +937,17 @@ function EstoqueInner() {
               return (
                 <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-700 bg-zinc-900/60">
                   <div className="w-9 flex-shrink-0" />
-                  <Th col="nome" label="Produto" className="w-44 flex-shrink-0 justify-start" />
-                  <Th col="vendas" label="Vendas" className="w-20 flex-shrink-0" />
-                  <Th col="precoMin" label="Mín" className="w-20 flex-shrink-0" />
-                  <Th col="preco" label="Atual" className="w-20 flex-shrink-0" />
-                  <Th col="precoMax" label="Máx" className="w-20 flex-shrink-0" />
-                  <Th col="estoque" label="Estoque" className="w-20 flex-shrink-0" />
-                  <Th col="inclusao" label="Inclusão" className="w-20 flex-shrink-0" />
-                  <Th col="compra" label="Ult. compra" className="w-20 flex-shrink-0" />
-                  <Th col="venda" label="Ult. venda" className="w-20 flex-shrink-0" />
-                  <Th col="dia" label="Dia top" className="w-16 flex-shrink-0" />
-                  <Th col="hora" label="Hora top" className="w-16 flex-shrink-0" />
+                  <Th col="nome" label="Produto" className="flex-1 min-w-0 md:w-44 md:flex-none justify-start" />
+                  <Th col="vendas" label="Vendas" className="w-16 md:w-20 flex-shrink-0" />
+                  <div className="hidden md:block"><Th col="precoMin" label="Mín" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="preco" label="Atual" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="precoMax" label="Máx" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="estoque" label="Estoque" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="inclusao" label="Inclusão" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="compra" label="Ult. compra" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="venda" label="Ult. venda" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="dia" label="Dia top" className="w-16 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="hora" label="Hora top" className="w-16 flex-shrink-0" /></div>
                 </div>
               )
             })()}
@@ -1117,11 +1126,12 @@ function EstoqueInner() {
                       {movPag.map((m, i) => (
                         <tr key={m.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === movPag.length - 1 ? "border-0" : ""}`}>
                           <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
-                            {new Date(m.createdAt).toLocaleDateString("pt-BR")} {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            <div>{new Date(m.createdAt).toLocaleDateString("pt-BR")}</div>
+                            <div className="text-zinc-600">{new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
                           </td>
                           <td className="px-4 py-3 text-white text-sm">{m.product?.name || "—"}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
                               {m.type === "ENTRADA" ? "↑ Entrada" : "↓ Saída"}
                             </span>
                           </td>

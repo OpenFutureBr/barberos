@@ -32,6 +32,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
+  // Faz o navegador redimensionar a área de conteúdo (viewport visual) quando
+  // a barra de endereço/opções ou o teclado aparecem, em vez de sobrepor por
+  // cima — sem isso, elementos "fixed" no rodapé ficam calculados contra uma
+  // altura maior que a área realmente visível e somem atrás da barra do navegador.
+  interactiveWidget: "resizes-content",
 }
 
 export default function RootLayout({

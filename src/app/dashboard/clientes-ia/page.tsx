@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 type ClienteIA = {
   id: string
@@ -130,29 +131,37 @@ export default function ClientesIAPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Clientes VIP</div>
-          <div className="text-amber-400 text-2xl font-bold">{loading ? "—" : vips}</div>
-          <div className="text-zinc-600 text-xs mt-1">alta frequência e valor</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Em risco</div>
-          <div className="text-red-400 text-2xl font-bold">{loading ? "—" : emRisco}</div>
-          <div className="text-zinc-600 text-xs mt-1">acima do intervalo habitual</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-zinc-600">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Inativos</div>
-          <div className="text-zinc-400 text-2xl font-bold">{loading ? "—" : inativos}</div>
-          <div className="text-zinc-600 text-xs mt-1">sem visita há muito tempo</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Ticket médio</div>
-          <div className="text-blue-400 text-2xl font-bold">{loading ? "—" : `R$ ${ticketMedio}`}</div>
-          <div className="text-zinc-600 text-xs mt-1">média geral da base</div>
-        </div>
-      </div>
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="vip" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Clientes VIP</div>
+            <div className="text-amber-400 text-2xl font-bold">{loading ? "—" : vips}</div>
+            <div className="text-zinc-600 text-xs mt-1">alta frequência e valor</div>
+          </div>,
+          <div key="risco" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Em risco</div>
+            <div className="text-red-400 text-2xl font-bold">{loading ? "—" : emRisco}</div>
+            <div className="text-zinc-600 text-xs mt-1">acima do intervalo habitual</div>
+          </div>,
+          <div key="inativos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-zinc-600 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Inativos</div>
+            <div className="text-zinc-400 text-2xl font-bold">{loading ? "—" : inativos}</div>
+            <div className="text-zinc-600 text-xs mt-1">sem visita há muito tempo</div>
+          </div>,
+          <div key="ticket" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Ticket médio</div>
+            <div className="text-blue-400 text-2xl font-bold">{loading ? "—" : `R$ ${ticketMedio}`}</div>
+            <div className="text-zinc-600 text-xs mt-1">média geral da base</div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Filtros */}
       <div className="flex items-center justify-between mb-3">
@@ -194,52 +203,57 @@ export default function ClientesIAPage() {
             return (
               <div key={cliente.id}
                 className={`bg-zinc-900 border rounded-xl p-4 transition-all hover:border-zinc-700 ${cliente.risco >= 70 ? "border-red-500/20" : "border-zinc-800"}`}>
-                <div className="flex items-center gap-4">
-                  <div className="text-zinc-600 font-mono text-sm w-6 text-center flex-shrink-0">
-                    {String(i + 1).padStart(2, "0")}
-                  </div>
-                  <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                    {cliente.nome.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-white text-sm font-medium">{cliente.nome}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${seg.style}`}>{seg.icon} {seg.label}</span>
+                <div className="flex items-center gap-3 md:gap-4 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="text-zinc-600 font-mono text-sm w-6 text-center flex-shrink-0">
+                      {String(i + 1).padStart(2, "0")}
                     </div>
-                    <div className="text-zinc-500 text-xs">{cliente.telefone} · {cliente.visitas} visita{cliente.visitas !== 1 ? "s" : ""} · R$ {cliente.totalGasto.toLocaleString("pt-BR")} total</div>
-                  </div>
-                  <div className="flex-shrink-0 text-center w-20">
-                    <div className="text-xs text-zinc-600 mb-1">Score risco</div>
-                    <div className={`text-lg font-bold ${cliente.risco >= 70 ? "text-red-400" : cliente.risco >= 40 ? "text-amber-400" : "text-green-400"}`}>
-                      {cliente.risco}%
+                    <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                      {cliente.nome.charAt(0)}
                     </div>
-                    <div className="h-1 bg-zinc-800 rounded-full overflow-hidden mt-1">
-                      <div className={`h-full rounded-full ${cliente.risco >= 70 ? "bg-red-500" : cliente.risco >= 40 ? "bg-amber-500" : "bg-green-500"}`}
-                        style={{ width: `${cliente.risco}%` }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        <span className="text-white text-sm font-medium truncate">{cliente.nome}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${seg.style}`}>{seg.icon} {seg.label}</span>
+                      </div>
+                      <div className="text-zinc-500 text-xs truncate">{cliente.telefone} · {cliente.visitas} visita{cliente.visitas !== 1 ? "s" : ""} · R$ {cliente.totalGasto.toLocaleString("pt-BR")} total</div>
                     </div>
                   </div>
-                  <div className="flex-shrink-0 text-center w-20">
-                    <div className="text-xs text-zinc-600 mb-1">Sem visita</div>
-                    <div className={`text-lg font-bold ${cliente.diasSemVisita > cliente.intervalo && cliente.intervalo > 0 ? "text-red-400" : "text-zinc-300"}`}>
-                      {cliente.diasSemVisita > 0 ? `${cliente.diasSemVisita}d` : "—"}
+
+                  <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto pl-[48px] md:pl-0">
+                    <div className="flex-shrink-0 text-center w-20">
+                      <div className="text-xs text-zinc-600 mb-1">Score risco</div>
+                      <div className={`text-lg font-bold ${cliente.risco >= 70 ? "text-red-400" : cliente.risco >= 40 ? "text-amber-400" : "text-green-400"}`}>
+                        {cliente.risco}%
+                      </div>
+                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden mt-1">
+                        <div className={`h-full rounded-full ${cliente.risco >= 70 ? "bg-red-500" : cliente.risco >= 40 ? "bg-amber-500" : "bg-green-500"}`}
+                          style={{ width: `${cliente.risco}%` }} />
+                      </div>
                     </div>
-                    <div className="text-xs text-zinc-600">intervalo: {cliente.intervalo > 0 ? `${cliente.intervalo}d` : "—"}</div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    {cliente.risco >= 60 ? (
-                      <button onClick={() => gerarMensagem(cliente)}
-                        className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1.5 rounded-lg text-xs border border-red-500/20 transition-colors">
-                        💬 Recuperar
-                      </button>
-                    ) : cliente.segmento === "VIP" ? (
-                      <button className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 px-3 py-1.5 rounded-lg text-xs border border-amber-500/20 transition-colors">
-                        ★ Mimar VIP
-                      </button>
-                    ) : (
-                      <a href="/dashboard/clientes" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 py-1.5 rounded-lg text-xs border border-zinc-700 transition-colors">
-                        Ver perfil →
-                      </a>
-                    )}
+                    <div className="flex-shrink-0 text-center w-20">
+                      <div className="text-xs text-zinc-600 mb-1">Sem visita</div>
+                      <div className={`text-lg font-bold ${cliente.diasSemVisita > cliente.intervalo && cliente.intervalo > 0 ? "text-red-400" : "text-zinc-300"}`}>
+                        {cliente.diasSemVisita > 0 ? `${cliente.diasSemVisita}d` : "—"}
+                      </div>
+                      <div className="text-xs text-zinc-600">intervalo: {cliente.intervalo > 0 ? `${cliente.intervalo}d` : "—"}</div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {cliente.risco >= 60 ? (
+                        <button onClick={() => gerarMensagem(cliente)}
+                          className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1.5 rounded-lg text-xs border border-red-500/20 transition-colors whitespace-nowrap">
+                          💬 Recuperar
+                        </button>
+                      ) : cliente.segmento === "VIP" ? (
+                        <button className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 px-3 py-1.5 rounded-lg text-xs border border-amber-500/20 transition-colors whitespace-nowrap">
+                          ★ Mimar VIP
+                        </button>
+                      ) : (
+                        <a href="/dashboard/clientes" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 py-1.5 rounded-lg text-xs border border-zinc-700 transition-colors whitespace-nowrap">
+                          Ver perfil →
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

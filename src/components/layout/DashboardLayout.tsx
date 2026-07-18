@@ -101,7 +101,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-dvh bg-zinc-950">
       <NavigationProgress />
       <Sidebar />
       <Topbar
@@ -109,7 +109,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onAbrirVenda={() => setModalVendaAberto(true)}
         cartCount={cartCount}
       />
-      <main className="md:ml-48 pt-11 min-h-screen">
+      <main className="md:ml-48 pt-11 min-h-dvh">
         <div className="p-4 pb-24 md:pb-4">{children}</div>
       </main>
       <AgendaModal

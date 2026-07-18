@@ -15,6 +15,8 @@ const ROLES = [
 type Perm = { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }
 type Matrix = Record<string, Record<string, Perm>>
 
+const FIELD_LABEL: Record<string, string> = { canView: "Ver", canCreate: "Criar", canEdit: "Editar", canDelete: "Excluir" }
+
 const NONE: Perm = { canView: false, canCreate: false, canEdit: false, canDelete: false }
 const V: Perm    = { canView: true,  canCreate: false, canEdit: false, canDelete: false }
 const VC: Perm   = { canView: true,  canCreate: true,  canEdit: false, canDelete: false }
@@ -30,7 +32,7 @@ const SUGESTAO_RECOMENDADA: Record<string, Record<string, Perm>> = {
     pix: VCE, caixa: VCE, financeiro: V, fiscal: V, precificacao: VCED,
     cashback: V, assinaturas: V, clientes_ia: V,
     whatsapp: V,
-    unidades: VCE, white_label: V, media: V,
+    unidades: VCE, white_label: V,
     configuracoes: V, permissoes: NONE, ajuda: V, api_docs: NONE,
   },
   UNIT_MANAGER: {
@@ -39,7 +41,7 @@ const SUGESTAO_RECOMENDADA: Record<string, Record<string, Perm>> = {
     pix: VCE, caixa: VCE, financeiro: V, fiscal: NONE, precificacao: NONE,
     cashback: V, assinaturas: V, clientes_ia: V,
     whatsapp: VCE,
-    unidades: NONE, white_label: NONE, media: NONE,
+    unidades: NONE, white_label: NONE,
     configuracoes: V, permissoes: NONE, ajuda: V, api_docs: NONE,
   },
   RECEPTIONIST: {
@@ -48,7 +50,7 @@ const SUGESTAO_RECOMENDADA: Record<string, Record<string, Perm>> = {
     pix: V, caixa: VC, financeiro: NONE, fiscal: NONE, precificacao: NONE,
     cashback: V, assinaturas: NONE, clientes_ia: NONE,
     whatsapp: VCE,
-    unidades: NONE, white_label: NONE, media: NONE,
+    unidades: NONE, white_label: NONE,
     configuracoes: NONE, permissoes: NONE, ajuda: V, api_docs: NONE,
   },
   PROFESSIONAL: {
@@ -57,7 +59,7 @@ const SUGESTAO_RECOMENDADA: Record<string, Record<string, Perm>> = {
     pix: NONE, caixa: NONE, financeiro: NONE, fiscal: NONE, precificacao: NONE,
     cashback: V, assinaturas: NONE, clientes_ia: NONE,
     whatsapp: NONE,
-    unidades: NONE, white_label: NONE, media: NONE,
+    unidades: NONE, white_label: NONE,
     configuracoes: NONE, permissoes: NONE, ajuda: V, api_docs: NONE,
   },
 }
@@ -207,7 +209,7 @@ export default function PermissoesPadraoPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 max-w-5xl">
+      <div className="p-3 md:p-6 max-w-5xl">
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>
             <h1 className="text-white text-2xl font-bold">Permissões por Função</h1>
@@ -281,7 +283,8 @@ export default function PermissoesPadraoPage() {
         />
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-[1fr_60px_60px_60px_60px_50px] gap-0 px-5 py-3 border-b border-zinc-800">
+          {/* Cabeçalho de colunas — só desktop, no mobile cada toggle já vem com seu rótulo */}
+          <div className="hidden md:grid grid-cols-[1fr_60px_60px_60px_60px_50px] gap-0 px-5 py-3 border-b border-zinc-800">
             <div className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Recurso</div>
             <div className="text-zinc-500 text-xs text-center" title="Ver">Ver</div>
             <div className="text-zinc-500 text-xs text-center" title="Criar">Criar</div>
@@ -305,42 +308,66 @@ export default function PermissoesPadraoPage() {
               })
               return (
                 <div key={grupo}>
-                  <div className="grid grid-cols-[1fr_60px_60px_60px_60px_50px] gap-0 px-5 py-2 bg-zinc-800/50 items-center">
+                  <div className="flex items-center justify-between gap-3 px-4 md:px-5 py-2 bg-zinc-800/50">
                     <div className="text-zinc-500 text-xs font-semibold uppercase tracking-widest">{grupo}</div>
-                    <div className="col-span-4" />
-                    <div className="flex items-center justify-center">
-                      <button
-                        onClick={() => toggleGrupo(grupo, !grupoTodoOn)}
-                        title={`Marcar/desmarcar tudo em ${grupo}`}
-                        className={`w-5 h-5 rounded border-2 transition-colors ${grupoTodoOn ? "bg-blue-500 border-blue-500" : "border-zinc-600 hover:border-zinc-400"}`}
-                      >
-                        {grupoTodoOn && <span className="text-white text-xs font-bold">✓</span>}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => toggleGrupo(grupo, !grupoTodoOn)}
+                      title={`Marcar/desmarcar tudo em ${grupo}`}
+                      className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border transition-colors flex-shrink-0 ${grupoTodoOn ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "bg-zinc-800 text-zinc-500 border-zinc-700"}`}
+                    >
+                      {grupoTodoOn && "✓"} Tudo
+                    </button>
                   </div>
                   {resourcesDoGrupo.map(res => {
                     const perm = matrix[activeRole]?.[res.slug] ?? { ...NONE }
                     const allOn = perm.canView && perm.canCreate && perm.canEdit && perm.canDelete
                     return (
-                      <div key={res.slug} className="grid grid-cols-[1fr_60px_60px_60px_60px_50px] gap-0 px-5 py-3 border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
-                        <div className="text-white text-sm">{res.label}</div>
-                        {(["canView", "canCreate", "canEdit", "canDelete"] as const).map(field => (
-                          <div key={field} className="flex items-center justify-center">
+                      <div key={res.slug}>
+                        {/* Linha mobile — cada toggle com rótulo próprio */}
+                        <div className="md:hidden px-4 py-3 border-b border-zinc-800/50">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="text-white text-sm">{res.label}</span>
                             <button
-                              onClick={() => toggle(activeRole, res.slug, field)}
-                              className={`w-5 h-5 rounded border-2 transition-colors ${perm[field] ? "bg-amber-500 border-amber-500" : "border-zinc-600 hover:border-zinc-400"}`}
+                              onClick={() => toggleAll(res.slug, !allOn)}
+                              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border flex-shrink-0 transition-colors ${allOn ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "bg-zinc-800 text-zinc-500 border-zinc-700"}`}
                             >
-                              {perm[field] && <span className="text-black text-xs font-bold">✓</span>}
+                              {allOn && "✓"} Tudo
                             </button>
                           </div>
-                        ))}
-                        <div className="flex items-center justify-center">
-                          <button
-                            onClick={() => toggleAll(res.slug, !allOn)}
-                            className={`w-5 h-5 rounded border-2 transition-colors ${allOn ? "bg-blue-500 border-blue-500" : "border-zinc-600 hover:border-zinc-400"}`}
-                          >
-                            {allOn && <span className="text-white text-xs font-bold">✓</span>}
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {(["canView", "canCreate", "canEdit", "canDelete"] as const).map(field => (
+                              <button
+                                key={field}
+                                onClick={() => toggle(activeRole, res.slug, field)}
+                                className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${perm[field] ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-500 border-zinc-700"}`}
+                              >
+                                {perm[field] && "✓"} {FIELD_LABEL[field]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Linha desktop — grid de colunas fixas */}
+                        <div className="hidden md:grid grid-cols-[1fr_60px_60px_60px_60px_50px] gap-0 px-5 py-3 border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
+                          <div className="text-white text-sm">{res.label}</div>
+                          {(["canView", "canCreate", "canEdit", "canDelete"] as const).map(field => (
+                            <div key={field} className="flex items-center justify-center">
+                              <button
+                                onClick={() => toggle(activeRole, res.slug, field)}
+                                className={`w-5 h-5 rounded border-2 transition-colors ${perm[field] ? "bg-amber-500 border-amber-500" : "border-zinc-600 hover:border-zinc-400"}`}
+                              >
+                                {perm[field] && <span className="text-black text-xs font-bold">✓</span>}
+                              </button>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-center">
+                            <button
+                              onClick={() => toggleAll(res.slug, !allOn)}
+                              className={`w-5 h-5 rounded border-2 transition-colors ${allOn ? "bg-blue-500 border-blue-500" : "border-zinc-600 hover:border-zinc-400"}`}
+                            >
+                              {allOn && <span className="text-white text-xs font-bold">✓</span>}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )

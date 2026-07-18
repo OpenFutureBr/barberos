@@ -29,7 +29,6 @@ export const RESOURCES: Resource[] = [
   { slug: "whatsapp",     label: "WhatsApp",           path: "/dashboard/whatsapp",   group: "Comunicação" },
   { slug: "unidades",     label: "Multi-unidades",     path: "/dashboard/unidades",   group: "Escala" },
   { slug: "white_label",  label: "White-label",        path: "/dashboard/white-label", group: "Escala" },
-  { slug: "media",        label: "BarberOS Media",     path: "/dashboard/media",      group: "Escala" },
   { slug: "configuracoes", label: "Configurações",     path: "/dashboard/configuracoes", group: "Sistema" },
   { slug: "permissoes",    label: "Permissões",         path: "/dashboard/permissoes",    group: "Sistema" },
   { slug: "ajuda",         label: "Central de Ajuda",   path: "/dashboard/ajuda",         group: "Sistema" },

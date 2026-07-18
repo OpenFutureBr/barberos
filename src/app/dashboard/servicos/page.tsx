@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 const categoriaGradient: Record<string, string> = {
   Corte: "from-blue-700 to-blue-950",
@@ -343,14 +344,8 @@ export default function ServicosPage() {
                   <div className="hidden md:grid md:grid-cols-3 gap-3">
                     {lista.map(s => <ServiceCard key={s.id} servico={s} />)}
                   </div>
-                  {/* Mobile: carrossel horizontal, 1 linha */}
-                  <div className="md:hidden flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none snap-x snap-mandatory">
-                    {lista.map(s => (
-                      <div key={s.id} className="flex-shrink-0 snap-center w-[80vw]">
-                        <ServiceCard servico={s} />
-                      </div>
-                    ))}
-                  </div>
+                  {/* Mobile: carrossel horizontal, mesmo padrão do dashboard */}
+                  <CardCarousel cards={lista.map(s => <ServiceCard key={s.id} servico={s} />)} />
                 </div>
               )
             })
@@ -361,13 +356,7 @@ export default function ServicosPage() {
               <div className="hidden md:grid md:grid-cols-3 gap-3">
                 {filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)}
               </div>
-              <div className="md:hidden flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none snap-x snap-mandatory">
-                {filtrar(inativos).map(s => (
-                  <div key={s.id} className="flex-shrink-0 snap-center w-[80vw]">
-                    <ServiceCard servico={s} dim />
-                  </div>
-                ))}
-              </div>
+              <CardCarousel cards={filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)} />
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 // ---- types ----
 type ApptStatus = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "NO_SHOW"
@@ -249,34 +250,42 @@ export default function DomicilioPage() {
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-teal-500/5 border border-teal-500/20 rounded-xl p-4">
-          <div className="text-teal-400 text-xs font-mono uppercase tracking-widest mb-1">Rota de hoje</div>
-          <div className="text-teal-400 text-2xl font-bold">{concluidos}/{appointments.length}</div>
-          <div className="text-zinc-500 text-xs mt-1">
-            {emRota > 0 ? `${emRota} em rota agora` : "atendimentos concluídos"}
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="rota" className="bg-teal-500/5 border border-teal-500/20 rounded-xl p-4 h-full">
+            <div className="text-teal-400 text-xs font-mono uppercase tracking-widest mb-1">Rota de hoje</div>
+            <div className="text-teal-400 text-2xl font-bold">{concluidos}/{appointments.length}</div>
+            <div className="text-zinc-500 text-xs mt-1">
+              {emRota > 0 ? `${emRota} em rota agora` : "atendimentos concluídos"}
+            </div>
+          </div>,
+          <div key="distancia" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Distância total</div>
+            <div className="text-white text-2xl font-bold">
+              {totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—"}
+            </div>
+            <div className="text-zinc-600 text-xs mt-1">percurso do dia</div>
+          </div>,
+          <div key="kit" className={`rounded-xl p-4 border h-full ${kitCritico > 0 ? "bg-red-500/5 border-red-500/20" : "bg-zinc-900 border-zinc-800"}`}>
+            <div className={`text-xs uppercase tracking-wide mb-1 ${kitCritico > 0 ? "text-red-400" : "text-zinc-500"}`}>
+              {kitCritico > 0 ? "⚠ Kit crítico" : "Kit pessoal"}
+            </div>
+            <div className={`text-2xl font-bold ${kitCritico > 0 ? "text-red-400" : "text-green-400"}`}>
+              {kitLoaded ? (kitCritico > 0 ? `${kitCritico} itens` : "OK") : "—"}
+            </div>
+            <div className="text-zinc-600 text-xs mt-1">
+              {kitLoaded ? (kitCritico > 0 ? "abaixo do mínimo" : "todos os itens OK") : "carregue a aba Kit"}
+            </div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
           </div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Distância total</div>
-          <div className="text-white text-2xl font-bold">
-            {totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—"}
-          </div>
-          <div className="text-zinc-600 text-xs mt-1">percurso do dia</div>
-        </div>
-        <div className={`rounded-xl p-4 border ${kitCritico > 0 ? "bg-red-500/5 border-red-500/20" : "bg-zinc-900 border-zinc-800"}`}>
-          <div className={`text-xs uppercase tracking-wide mb-1 ${kitCritico > 0 ? "text-red-400" : "text-zinc-500"}`}>
-            {kitCritico > 0 ? "⚠ Kit crítico" : "Kit pessoal"}
-          </div>
-          <div className={`text-2xl font-bold ${kitCritico > 0 ? "text-red-400" : "text-green-400"}`}>
-            {kitLoaded ? (kitCritico > 0 ? `${kitCritico} itens` : "OK") : "—"}
-          </div>
-          <div className="text-zinc-600 text-xs mt-1">
-            {kitLoaded ? (kitCritico > 0 ? "abaixo do mínimo" : "todos os itens OK") : "carregue a aba Kit"}
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">

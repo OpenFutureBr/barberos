@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
 import { getCache, setCache } from "@/lib/prefetch-cache"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -204,29 +205,37 @@ export default function PixPage() {
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-green-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Recebido hoje</div>
-          <div className="text-green-400 text-xl font-bold">{fmtMoeda(totalPago)}</div>
-        </div>
-        <button onClick={() => setFiltro("A_COBRAR")}
-          className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 text-left hover:bg-zinc-800/60 transition-colors">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">A cobrar</div>
-          <div className="text-amber-400 text-xl font-bold">{fmtMoeda(totalACobrar)}</div>
-          {pendentes.length > 0 && (
-            <div className="text-zinc-600 text-xs mt-0.5">{pendentes.length} pendência{pendentes.length !== 1 ? "s" : ""} anterior{pendentes.length !== 1 ? "es" : ""}</div>
-          )}
-        </button>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Atendimentos</div>
-          <div className="text-blue-400 text-xl font-bold">{cobrancas.filter(c => !["CANCELLED","NO_SHOW"].includes(c.status)).length}</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Chave PIX</div>
-          <div className="text-white text-xs font-mono truncate">{config?.pixKey ?? "—"}</div>
-        </div>
-      </div>
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="recebido" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-green-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Recebido hoje</div>
+            <div className="text-green-400 text-xl font-bold">{fmtMoeda(totalPago)}</div>
+          </div>,
+          <button key="acobrar" onClick={() => setFiltro("A_COBRAR")}
+            className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 text-left hover:bg-zinc-800/60 transition-colors h-full w-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">A cobrar</div>
+            <div className="text-amber-400 text-xl font-bold">{fmtMoeda(totalACobrar)}</div>
+            {pendentes.length > 0 && (
+              <div className="text-zinc-600 text-xs mt-0.5">{pendentes.length} pendência{pendentes.length !== 1 ? "s" : ""} anterior{pendentes.length !== 1 ? "es" : ""}</div>
+            )}
+          </button>,
+          <div key="atendimentos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Atendimentos</div>
+            <div className="text-blue-400 text-xl font-bold">{cobrancas.filter(c => !["CANCELLED","NO_SHOW"].includes(c.status)).length}</div>
+          </div>,
+          <div key="chave" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Chave PIX</div>
+            <div className="text-white text-xs font-mono truncate">{config?.pixKey ?? "—"}</div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Filtros */}
       <div className="flex gap-1 mb-3 flex-wrap">
@@ -305,24 +314,32 @@ export default function PixPage() {
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-medium">{pendentes.length}</span>
             </div>
 
-            {/* KPIs */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-                <div className="text-zinc-500 text-xs mb-1">Total pendente</div>
-                <div className="text-amber-400 font-bold text-lg font-mono">{fmtMoeda(totalPend)}</div>
-                <div className="text-zinc-600 text-xs">{pendentes.length} cobrança{pendentes.length !== 1 ? "s" : ""}</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-                <div className="text-zinc-500 text-xs mb-1">Vencido</div>
-                <div className="text-red-400 font-bold text-lg font-mono">{fmtMoeda(totalVenc)}</div>
-                <div className="text-zinc-600 text-xs">{vencidos.length} cobrança{vencidos.length !== 1 ? "s" : ""}</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-                <div className="text-zinc-500 text-xs mb-1">A vencer</div>
-                <div className="text-green-400 font-bold text-lg font-mono">{fmtMoeda(totalAVenc)}</div>
-                <div className="text-zinc-600 text-xs">{aVencer.length} cobrança{aVencer.length !== 1 ? "s" : ""}</div>
-              </div>
-            </div>
+            {/* KPIs — carrossel no mobile, grid no desktop */}
+            {(() => {
+              const kpisPend = [
+                <div key="total" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
+                  <div className="text-zinc-500 text-xs mb-1">Total pendente</div>
+                  <div className="text-amber-400 font-bold text-lg font-mono">{fmtMoeda(totalPend)}</div>
+                  <div className="text-zinc-600 text-xs">{pendentes.length} cobrança{pendentes.length !== 1 ? "s" : ""}</div>
+                </div>,
+                <div key="vencido" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
+                  <div className="text-zinc-500 text-xs mb-1">Vencido</div>
+                  <div className="text-red-400 font-bold text-lg font-mono">{fmtMoeda(totalVenc)}</div>
+                  <div className="text-zinc-600 text-xs">{vencidos.length} cobrança{vencidos.length !== 1 ? "s" : ""}</div>
+                </div>,
+                <div key="avencer" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
+                  <div className="text-zinc-500 text-xs mb-1">A vencer</div>
+                  <div className="text-green-400 font-bold text-lg font-mono">{fmtMoeda(totalAVenc)}</div>
+                  <div className="text-zinc-600 text-xs">{aVencer.length} cobrança{aVencer.length !== 1 ? "s" : ""}</div>
+                </div>,
+              ]
+              return (
+                <div className="mb-4">
+                  <CardCarousel cards={kpisPend} />
+                  <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisPend}</div>
+                </div>
+              )
+            })()}
 
             {/* Lista */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
