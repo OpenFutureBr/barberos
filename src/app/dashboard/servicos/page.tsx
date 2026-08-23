@@ -71,11 +71,8 @@ function ServiceCard({ servico, dim = false, categoriaCores, onEditar, onExpandF
           className="absolute inset-0 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-700/60 flex flex-col cursor-pointer group transition-colors hover:border-zinc-500"
           style={{ backfaceVisibility: "hidden" }}
         >
-          {/* Notch (furo de crachá) */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-9 h-2 rounded-full bg-black/40 z-10" />
-
-          {/* Cabeçalho colorido por categoria */}
-          <div className={`relative h-16 shrink-0 ${corCustom ? "" : `bg-gradient-to-br ${gradient}`} flex flex-col items-center justify-center pt-1`} style={headerStyle}>
+          {/* Cabeçalho colorido por categoria — a foto sobrepõe a metade inferior */}
+          <div className={`relative h-20 shrink-0 ${corCustom ? "" : `bg-gradient-to-br ${gradient}`} flex flex-col items-center justify-start pt-2.5`} style={headerStyle}>
             <span className="text-white/80 text-[8px] tracking-[0.2em] uppercase font-semibold">Barberos</span>
             <span className="text-white/55 text-[8px] tracking-wider uppercase mt-0.5">{cat}</span>
           </div>
@@ -90,17 +87,17 @@ function ServiceCard({ servico, dim = false, categoriaCores, onEditar, onExpandF
             ⟲ Verso
           </button>
 
-          {/* Foto circular sobreposta */}
-          <div className="relative -mt-8 flex justify-center shrink-0 z-10">
+          {/* Foto — a protagonista do card, bem maior, sobreposta ao cabeçalho */}
+          <div className="relative -mt-10 flex justify-center shrink-0 z-10">
             <div
-              className={`w-16 h-16 rounded-full ring-4 ring-zinc-900 overflow-hidden bg-zinc-800 flex items-center justify-center ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
+              className={`w-32 h-32 rounded-full ring-[6px] ring-zinc-900 overflow-hidden bg-zinc-800 flex items-center justify-center shadow-lg shadow-black/50 ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
               onClick={servico.photoUrl ? (e) => { e.stopPropagation(); onExpandFoto(fotoComVersao(servico.photoUrl, servico.updatedAt) ?? "") } : undefined}
             >
               {servico.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={fotoComVersao(servico.photoUrl, servico.updatedAt)} alt={servico.name} loading="lazy" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-2xl text-zinc-600">✂</span>
+                <span className="text-4xl text-zinc-600">✂</span>
               )}
             </div>
           </div>
