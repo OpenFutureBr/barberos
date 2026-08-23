@@ -1,9 +1,17 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const sessionData = await auth()
+    const estabId = sessionData?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(sessionData?.user, "assinaturas")
+    if (bloqueio) return bloqueio
+
     const { id } = await params
     const body = await request.json()
     const metodo: string = body.metodo ?? "PIX"
@@ -17,6 +25,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     if (!assinatura) return NextResponse.json({ error: "Assinatura não encontrada" }, { status: 404 })
+
+    // Garante que a assinatura pertence ao estabelecimento de quem chamou —
+    // antes a sessão só era lida depois, e só para escolher o caixa do dia.
+    if (assinatura.plan.establishmentId !== estabId) {
+      return NextResponse.json({ error: "Assinatura não encontrada" }, { status: 404 })
+    }
 
     // Nova data de renovação: a partir da próxima data de cobrança (ou hoje se estiver vencida)
     const base = assinatura.nextBillingAt > new Date() ? assinatura.nextBillingAt : new Date()
@@ -38,12 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     // Registra como receita no caixa do dia
-    const sessionData = await auth()
-    const estabId = sessionData?.user?.establishmentId ?? assinatura.plan?.establishmentId ?? ""
-
-    const hoje = new Date()
-    const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-    const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    const { inicio: inicioDia, fim: fimDia } = limitesHojeBRT()
 
     let caixa = await prisma.cashRegister.findFirst({
       where: { establishmentId: estabId, openedAt: { gte: inicioDia, lte: fimDia } },
@@ -69,6 +78,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json(atualizada)
   } catch (error) {
     console.error("[POST /api/assinaturas/assinantes/[id]/renovar]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

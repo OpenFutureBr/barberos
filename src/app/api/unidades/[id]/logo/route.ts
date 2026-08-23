@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { uploadLogo, urlToStoragePath, deleteLogo, mimeFromExt } from "@/lib/supabase-storage"
 import { registrarUpload } from "@/lib/storage"
+import { temPermissao } from "@/lib/permissoes"
 
 const MAX_SIZE = 3 * 1024 * 1024
 const EXTS = ["jpg", "jpeg", "png", "webp", "svg"]
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "")) {
+    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
@@ -51,6 +52,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ url: publicUrl })
   } catch (error) {
     console.error("[POST /api/unidades/[id]/logo]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

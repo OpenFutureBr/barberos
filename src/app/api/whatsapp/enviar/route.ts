@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 const EVO_URL = process.env.EVOLUTION_API_URL
 const EVO_KEY = process.env.EVOLUTION_API_KEY
@@ -11,6 +12,10 @@ export async function POST(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     const userId = session?.user?.id
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    if (!temPermissao(session?.user, "whatsapp") && !temPermissao(session?.user, "clientes_ia")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const { telefone, mensagem, clientId, clientName } = await request.json()
 
@@ -67,6 +72,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, data })
   } catch (error) {
     console.error("[WhatsApp] Erro:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

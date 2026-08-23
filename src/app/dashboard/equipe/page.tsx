@@ -4,6 +4,19 @@ import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { RESOURCES } from "@/lib/resources"
 import { roleLabel, roleBadge } from "@/lib/role-labels"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
+
+// Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
+function ic(path: string, cls = "w-3.5 h-3.5") {
+  return (
+    <svg className={`${cls} flex-shrink-0`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d={path} />
+    </svg>
+  )
+}
+const ICON_ACESSO = "M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.169.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
+const ICON_RESET = "M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+const ICON_DESATIVAR = "M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 
 // ── Modal de Permissões ────────────────────────────────────────────────────
 
@@ -218,6 +231,7 @@ function FormularioProfissional({
   const [nome, setNome] = useState(inicial?.name || "")
   const [email, setEmail] = useState(inicial?.email || "")
   const [telefone, setTelefone] = useState(inicial?.phone || "")
+  const [ehBarbeiro, setEhBarbeiro] = useState(inicial?.role ? inicial.role !== "RECEPTIONIST" : true)
   const [vinculo, setVinculo] = useState(inicial?.employmentType || "CLT")
   const [comissao, setComissao] = useState(inicial?.commissionPct?.toString() || "")
   const [bancada, setBancada] = useState(inicial?.benchFee?.toString() || "")
@@ -290,9 +304,9 @@ function FormularioProfissional({
       homeNumber: numero || null,
       homeNeighborhood: bairro || null,
       homeCity: cidade || null,
-      serviceIds,
+      serviceIds: ehBarbeiro ? serviceIds : [],
       schedules,
-      role: vinculo === "SOLO" ? "AUTONOMO" : "BARBER_CLT",
+      role: !ehBarbeiro ? "RECEPTIONIST" : (vinculo === "SOLO" ? "AUTONOMO" : "BARBER_CLT"),
     })
   }
 
@@ -310,6 +324,27 @@ function FormularioProfissional({
             <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
               required placeholder="Ex: Lucas Carvalho"
               className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          </div>
+
+          <div>
+            <label className="text-zinc-400 text-xs mb-2 block">Função *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEhBarbeiro(true)}
+                className={`py-2 rounded-lg text-xs font-medium border transition-all ${
+                  ehBarbeiro ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                ✂ Barbeiro
+              </button>
+              <button type="button" onClick={() => setEhBarbeiro(false)}
+                className={`py-2 rounded-lg text-xs font-medium border transition-all ${
+                  !ehBarbeiro ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                🖥 Recepcionista
+              </button>
+            </div>
+            <p className="text-zinc-600 text-xs mt-1.5">
+              {ehBarbeiro ? "Faz atendimentos, aparece na agenda e recebe comissão/repasse." : "Sem cortes na agenda — acesso ao sistema conforme as permissões definidas."}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -359,22 +394,24 @@ function FormularioProfissional({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Comissão (%)</label>
-              <input value={comissao} onChange={(e) => setComissao(e.target.value)}
-                type="number" min="0" max="100" placeholder="Ex: 40"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+          {ehBarbeiro && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Comissão (%)</label>
+                <input value={comissao} onChange={(e) => setComissao(e.target.value)}
+                  type="number" min="0" max="100" placeholder="Ex: 40"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Intervalo entre cortes (min)</label>
+                <input value={breakMin} onChange={(e) => setBreakMin(e.target.value)}
+                  type="number" min="0" max="60" placeholder="10"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
             </div>
-            <div>
-              <label className="text-zinc-400 text-xs mb-1 block">Intervalo entre cortes (min)</label>
-              <input value={breakMin} onChange={(e) => setBreakMin(e.target.value)}
-                type="number" min="0" max="60" placeholder="10"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
-            </div>
-          </div>
+          )}
 
-          {vinculo === "MEI" && (
+          {ehBarbeiro && vinculo === "MEI" && (
             <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
               <label className="text-purple-400 text-xs mb-1 block">Taxa de bancada (R$/mês)</label>
               <input value={bancada} onChange={(e) => setBancada(e.target.value)} type="number" placeholder="Ex: 800"
@@ -383,13 +420,15 @@ function FormularioProfissional({
           )}
 
           <div className="flex gap-6">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setAttendsHome(!attendsHome)}
-                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${attendsHome ? "bg-teal-500" : "bg-zinc-700"}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${attendsHome ? "left-5" : "left-1"}`} />
-              </button>
-              <span className="text-zinc-400 text-sm cursor-pointer" onClick={() => setAttendsHome(!attendsHome)}>Atende a domicílio</span>
-            </div>
+            {ehBarbeiro && (
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setAttendsHome(!attendsHome)}
+                  className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${attendsHome ? "bg-teal-500" : "bg-zinc-700"}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${attendsHome ? "left-5" : "left-1"}`} />
+                </button>
+                <span className="text-zinc-400 text-sm cursor-pointer" onClick={() => setAttendsHome(!attendsHome)}>Atende a domicílio</span>
+              </div>
+            )}
             {inicial && (
               <div className="flex items-center gap-3">
                 <button type="button" onClick={() => setIsActive(!isActive)}
@@ -429,7 +468,7 @@ function FormularioProfissional({
             </div>
           </div>
 
-          {servicos.length > 0 && (
+          {ehBarbeiro && servicos.length > 0 && (
             <div>
               <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest border-t border-zinc-800 pt-3 mb-3">Serviços que presta</p>
               <div className="grid grid-cols-2 gap-2">
@@ -533,19 +572,18 @@ export default function EquipePage() {
 
   useEffect(() => {
     buscarEquipe()
-    fetch("/api/servicos").then(r => r.json()).then(d => setServicos(Array.isArray(d) ? d : []))
+    fetchJsonSafe<any[]>("/api/servicos", "servicos:lista").then(d => setServicos(d ?? []))
   }, [])
 
+  // fetchJsonSafe mantém o último dado bom em cache se a busca falhar — nunca
+  // zera a lista de profissionais por causa de uma falha transitória.
   async function buscarEquipe(forcar = false) {
     if (cacheEquipe.current && !forcar) { setEquipe(cacheEquipe.current); setLoading(false); return }
     setLoading(true)
-    try {
-      const res = await fetch("/api/equipe")
-      const data = await res.json()
-      const lista = Array.isArray(data) ? data : []
-      cacheEquipe.current = lista
-      setEquipe(lista)
-    } catch {} finally { setLoading(false) }
+    const lista = (await fetchJsonSafe<any[]>("/api/equipe", "equipe:lista")) ?? []
+    cacheEquipe.current = lista
+    setEquipe(lista)
+    setLoading(false)
   }
 
   async function handleCriar(dados: any) {
@@ -620,66 +658,116 @@ export default function EquipePage() {
         ) : equipeFiltrada.map((prof) => {
           const idade = calcularIdade(prof.birthDate)
           const tempoCasa = calcularTempoCasa(prof.admissionDate)
+          const avatar = prof.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)
           return (
             <div key={prof.id} onClick={() => { setProfSelecionado(prof); setErroModal(""); setModalEditar(true) }}
-              className={`bg-zinc-900 border rounded-xl p-4 flex items-center gap-4 transition-colors cursor-pointer ${prof.isActive ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800 opacity-60"}`}>
-              <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                {prof.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <span className="text-white text-sm font-medium">{prof.name}</span>
-                  {prof.role && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${roleBadge(prof.role)}`}>
-                      {roleLabel(prof.role)}
-                    </span>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${vinculoStyle[prof.employmentType] ?? vinculoStyle.CLT}`}>
-                    {vinculoLabel[prof.employmentType] ?? prof.employmentType}
-                  </span>
-                  {prof.attendsHome && <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">Domicílio</span>}
-                  {!prof.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-500 border border-zinc-600">Inativo</span>}
-                </div>
-                <div className="text-zinc-500 text-xs">
-                  {prof.username && <span className="text-amber-500/70 font-mono">@{prof.username} · </span>}
-                  {prof.email}{prof.phone ? ` · ${prof.phone}` : ""}{idade ? ` · ${idade} anos` : ""}
-                </div>
-                {tempoCasa && (
-                  <div className="text-zinc-600 text-xs mt-0.5">🏠 {tempoCasa} de casa</div>
-                )}
-                {prof.userServices?.length > 0 && (
-                  <div className="flex gap-1 mt-1 flex-wrap">
-                    {prof.userServices.slice(0, 3).map((us: any) => (
-                      <span key={us.serviceId} className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-500 rounded">{us.service?.name}</span>
-                    ))}
-                    {prof.userServices.length > 3 && <span className="text-xs text-zinc-600">+{prof.userServices.length - 3}</span>}
+              className={`bg-zinc-900 border rounded-xl p-4 transition-colors cursor-pointer ${prof.isActive ? "border-zinc-800 hover:border-zinc-700" : "border-zinc-800 opacity-60"}`}>
+
+              {/* ── Mobile: card vertical ── */}
+              <div className="md:hidden">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                    {avatar}
                   </div>
-                )}
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-amber-400 font-bold text-sm">{prof.commissionPct ? `${prof.commissionPct}%` : "—"}</div>
-                <div className="text-zinc-600 text-xs">
-                  {prof.employmentType === "MEI" ? "comissão + bancada" : prof.employmentType === "SOLO" ? "PIX direto" : "de comissão"}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-white text-sm font-medium truncate">{prof.name}</div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-nowrap overflow-hidden">
+                      {prof.role && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap flex-shrink-0 ${roleBadge(prof.role)}`}>
+                          {roleLabel(prof.role)}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${vinculoStyle[prof.employmentType] ?? vinculoStyle.CLT}`}>
+                        {vinculoLabel[prof.employmentType] ?? prof.employmentType}
+                      </span>
+                    </div>
+                    {tempoCasa && <div className="text-zinc-500 text-xs mt-1.5">{tempoCasa} de casa</div>}
+                    {idade && <div className="text-zinc-600 text-xs mt-0.5">{idade} anos</div>}
+                  </div>
                 </div>
-                {prof.breakBetweenAppts && <div className="text-zinc-600 text-xs">{prof.breakBetweenAppts}min intervalo</div>}
-              </div>
-              <div className="flex-shrink-0 flex flex-col gap-1.5">
-                <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalPermissoes(true) }}
-                  className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs px-3 py-1.5 rounded-lg border border-blue-500/20 transition-colors whitespace-nowrap">
-                  🔐 Acesso
-                </button>
-                {prof.username && (
-                  <button
-                    onClick={e => { e.stopPropagation(); handleResetarSenha(prof) }}
-                    disabled={resetandoSenha === prof.id}
-                    className="bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors disabled:opacity-50 whitespace-nowrap">
-                    {resetandoSenha === prof.id ? "..." : "🔑 Resetar"}
+                <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-zinc-800">
+                  {prof.username ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleResetarSenha(prof) }}
+                      disabled={resetandoSenha === prof.id}
+                      className="flex flex-col items-center gap-1 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 text-[11px]">
+                      {ic(ICON_RESET)}
+                      {resetandoSenha === prof.id ? "..." : "Resetar"}
+                    </button>
+                  ) : <div />}
+                  <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalPermissoes(true) }}
+                    className="flex flex-col items-center gap-1 py-1.5 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors text-[11px]">
+                    {ic(ICON_ACESSO)}
+                    Acesso
                   </button>
-                )}
-                <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
-                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors">
-                  Desativar
-                </button>
+                  <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
+                    className="flex flex-col items-center gap-1 py-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors text-[11px]">
+                    {ic(ICON_DESATIVAR)}
+                    Desativar
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Desktop: card horizontal ── */}
+              <div className="hidden md:flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                  {avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="text-white text-sm font-medium">{prof.name}</span>
+                    {prof.role && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${roleBadge(prof.role)}`}>
+                        {roleLabel(prof.role)}
+                      </span>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${vinculoStyle[prof.employmentType] ?? vinculoStyle.CLT}`}>
+                      {vinculoLabel[prof.employmentType] ?? prof.employmentType}
+                    </span>
+                    {prof.attendsHome && <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">Domicílio</span>}
+                    {!prof.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-500 border border-zinc-600">Inativo</span>}
+                  </div>
+                  <div className="text-zinc-500 text-xs">
+                    {prof.username && <span className="text-amber-500/70 font-mono">@{prof.username} · </span>}
+                    {prof.email}{prof.phone ? ` · ${prof.phone}` : ""}{idade ? ` · ${idade} anos` : ""}
+                  </div>
+                  {tempoCasa && (
+                    <div className="text-zinc-600 text-xs mt-0.5">{tempoCasa} de casa</div>
+                  )}
+                  {prof.userServices?.length > 0 && (
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {prof.userServices.slice(0, 3).map((us: any) => (
+                        <span key={us.serviceId} className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-500 rounded">{us.service?.name}</span>
+                      ))}
+                      {prof.userServices.length > 3 && <span className="text-xs text-zinc-600">+{prof.userServices.length - 3}</span>}
+                    </div>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-amber-400 font-bold text-sm">{prof.commissionPct ? `${prof.commissionPct}%` : "—"}</div>
+                  <div className="text-zinc-600 text-xs">
+                    {prof.employmentType === "MEI" ? "comissão + bancada" : prof.employmentType === "SOLO" ? "PIX direto" : "de comissão"}
+                  </div>
+                  {prof.breakBetweenAppts && <div className="text-zinc-600 text-xs">{prof.breakBetweenAppts}min intervalo</div>}
+                </div>
+                <div className="flex-shrink-0 flex flex-col gap-1.5">
+                  <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalPermissoes(true) }}
+                    className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs px-3 py-1.5 rounded-lg border border-blue-500/20 transition-colors whitespace-nowrap">
+                    {ic(ICON_ACESSO)} Acesso
+                  </button>
+                  {prof.username && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleResetarSenha(prof) }}
+                      disabled={resetandoSenha === prof.id}
+                      className="flex items-center gap-1.5 bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors disabled:opacity-50 whitespace-nowrap">
+                      {ic(ICON_RESET)} {resetandoSenha === prof.id ? "..." : "Resetar"}
+                    </button>
+                  )}
+                  <button onClick={e => { e.stopPropagation(); setProfSelecionado(prof); setModalExcluir(true) }}
+                    className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors">
+                    {ic(ICON_DESATIVAR)} Desativar
+                  </button>
+                </div>
               </div>
             </div>
           )

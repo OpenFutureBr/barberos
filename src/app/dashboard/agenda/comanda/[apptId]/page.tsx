@@ -38,6 +38,7 @@ export default function ComandaPage() {
   const [appt, setAppt] = useState<any | null>(null)
   const [itens, setItens] = useState<ComandaItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [cobertura, setCobertura] = useState<{ coberto: boolean; dentroDaQuota: boolean } | null>(null)
 
   const [pagamento, setPagamento] = useState("PIX")
   const [dueDate, setDueDate] = useState("")
@@ -50,6 +51,7 @@ export default function ComandaPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.appt) setAppt(d.appt)
+        if (d.cobertura) setCobertura(d.cobertura)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -104,12 +106,14 @@ export default function ComandaPage() {
       }
 
       // 2. Finaliza agendamento e registra pagamento
+      // Envia só o total de produtos — o servidor decide se cobra o corte
+      // (não cobra se o cliente for assinante dentro da quota do plano).
       const resPagamento = await fetch(`/api/agenda/comanda/${apptId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method: normalizarMetodoParaApi(pagamento),
-          amount: total,
+          produtos: totalProdutos,
           dueDate: isPagarDepois ? dueDate : null,
         }),
       })
@@ -155,7 +159,8 @@ export default function ComandaPage() {
     )
   }
 
-  const precoCorte = Number(appt.service?.price ?? 0)
+  const corteGratis = !!(cobertura?.coberto && cobertura?.dentroDaQuota)
+  const precoCorte = corteGratis ? 0 : Number(appt.service?.price ?? 0)
   const totalProdutos = itens.reduce(
     (s, i) => s + i.qty * Number(i.produto.salePrice ?? 0),
     0,
@@ -205,10 +210,15 @@ export default function ComandaPage() {
             <div className="flex items-center gap-2">
               <span>✂️</span>
               <span className="text-white text-sm">{appt.service?.name}</span>
+              {corteGratis && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none">
+                  coberto pela assinatura
+                </span>
+              )}
             </div>
 
-            <span className="text-white font-medium font-mono">
-              R$ {precoCorte.toFixed(2)}
+            <span className={`font-medium font-mono ${corteGratis ? "text-zinc-500 line-through" : "text-white"}`}>
+              R$ {Number(appt.service?.price ?? 0).toFixed(2)}
             </span>
           </div>
 

@@ -1,24 +1,34 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET(req: Request) {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "cashback")
+    if (bloqueio) return bloqueio
 
     const { searchParams } = new URL(req.url)
     const limite = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "30"), 1), 100)
 
     const clientes = await prisma.client.findMany({
       where: { establishmentId: estabId, isActive: true },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        cashbackBalance: true,
+        loyaltyLevel: true,
         loyaltyAccount: {
-          include: {
+          select: {
+            totalEarned: true,
+            totalRedeemed: true,
             transactions: {
               orderBy: { createdAt: "desc" },
               take: limite,
+              select: { id: true, type: true, amount: true, description: true, createdAt: true },
             },
           },
         },
@@ -60,6 +70,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ saldoAtivo, totalEarned, totalRedeemed, ranking, historico })
   } catch (error) {
     console.error("[GET /api/cashback]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

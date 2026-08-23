@@ -11,8 +11,6 @@ export async function GET() {
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
     const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const hoje = new Date()
-    const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
 
     const appts = await prisma.appointment.findMany({
       where: {
@@ -59,6 +57,6 @@ export async function GET() {
     return NextResponse.json(comandas)
   } catch (error) {
     console.error("[GET /api/comandas/abertas]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

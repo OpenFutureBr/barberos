@@ -1,14 +1,19 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { id } = await params
 
     // Roda cliente (dados básicos + loyalty) e agendamentos em PARALELO
     const [cliente, appointments] = await Promise.all([
       prisma.client.findUnique({
-        where: { id },
+        where: { id, establishmentId: estabId },
         include: {
           loyaltyAccount: {
             include: {
@@ -74,7 +79,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { id } = await params
+
+    const existente = await prisma.client.findFirst({ where: { id, establishmentId: estabId }, select: { id: true } })
+    if (!existente) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+
     const body = await request.json()
     const cliente = await prisma.client.update({
       where: { id },
@@ -99,7 +112,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const { id } = await params
+
+    const existente = await prisma.client.findFirst({ where: { id, establishmentId: estabId }, select: { id: true } })
+    if (!existente) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+
     await prisma.client.update({ where: { id }, data: { isActive: false } })
     return NextResponse.json({ ok: true })
   } catch (error) {

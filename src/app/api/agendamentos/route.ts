@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"
 import { ServiceType, AppointmentStatus } from "@prisma/client"
 import { auth } from "@/lib/auth"
 
+const ROLES_BARBEIRO = ["BARBER_CLT", "BARBER_MEI", "AUTONOMO"]
+
 import { addMinutes, addDays, isBefore, isAfter } from "date-fns"
 
 
@@ -32,6 +34,12 @@ export async function GET(request: Request) {
       }
     }
 
+    // Barbeiro só vê os próprios atendimentos — recepção e gestores continuam
+    // vendo a agenda inteira do estabelecimento (é o trabalho deles).
+    if (ROLES_BARBEIRO.includes(session.user.role ?? "")) {
+      where.professionalId = session.user.id
+    }
+
     const agendamentos = await prisma.appointment.findMany({
       where,
       include: {
@@ -42,10 +50,12 @@ export async function GET(request: Request) {
       orderBy: { scheduledAt: "asc" },
     })
 
-    return NextResponse.json(agendamentos)
+    return NextResponse.json(agendamentos, {
+      headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" },
+    })
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -169,7 +179,7 @@ export async function POST(request: Request) {
     return NextResponse.json(agendamento)
   } catch (error) {
     console.error("Erro ao criar agendamento:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -220,6 +230,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(agendamento)
   } catch (error) {
     console.error("Erro ao atualizar agendamento:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

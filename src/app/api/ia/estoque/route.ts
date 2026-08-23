@@ -2,12 +2,15 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getIaConfig, callText } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "ia_estoque")
+    if (bloqueio) return bloqueio
 
     const agora = new Date()
     const ha7dias = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -111,6 +114,6 @@ Destaque qual produto é mais urgente e por quê. Seja específico com números.
     return NextResponse.json({ previsoes, insight })
   } catch (error) {
     console.error("[GET /api/ia/estoque]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

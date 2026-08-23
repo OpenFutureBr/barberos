@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getIaConfig, callText } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 function calcularRisco(diasSemVisita: number, avgIntervalo: number | null): number {
   if (!avgIntervalo || avgIntervalo === 0) {
@@ -22,6 +23,8 @@ export async function GET() {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "clientes_ia")
+    if (bloqueio) return bloqueio
 
     const clientes = await prisma.client.findMany({
       where: { establishmentId: estabId, isActive: true },
@@ -94,6 +97,6 @@ Aponte o cliente mais crítico, a receita potencial em risco e a ação mais urg
     return NextResponse.json({ clientes: clientesProcessados, insight })
   } catch (error) {
     console.error("[GET /api/ia/clientes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

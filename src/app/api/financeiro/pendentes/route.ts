@@ -1,15 +1,24 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   const session = await auth()
   const ESTAB_ID = session?.user?.establishmentId
   if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  // Usado tanto por Financeiro quanto por PIX & Cobranças — libera se tiver
+  // qualquer um dos dois recursos.
+  if (!temPermissao(session?.user, "financeiro") && !temPermissao(session?.user, "pix")) {
+    return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+  }
 
   const hoje = new Date()
   hoje.setHours(23, 59, 59, 999)
 
+  // take: 300 em cada lista — circuit-breaker contra crescimento sem limite;
+  // como já vem ordenado por vencimento (mais urgente primeiro), truncar
+  // mantém os itens mais relevantes na resposta.
   const [pagamentos, assinaturas] = await Promise.all([
     // Pagamentos PAY_LATER pendentes
     prisma.payment.findMany({
@@ -34,6 +43,7 @@ export async function GET() {
         },
       },
       orderBy: { dueDate: "asc" },
+      take: 300,
     }),
 
     // Assinaturas ativas com vencimento <= hoje
@@ -52,6 +62,7 @@ export async function GET() {
         plan: { select: { name: true } },
       },
       orderBy: { nextBillingAt: "asc" },
+      take: 300,
     }),
   ])
 

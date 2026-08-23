@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
 
 type RouteParams = {
   params: Promise<{
@@ -7,11 +8,19 @@ type RouteParams = {
   }>
 }
 
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
+
 function arredondar(valor: number) {
   return Math.round(valor * 100) / 100
 }
 
 export async function GET(_: Request, { params }: RouteParams) {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   try {
     const { id } = await params
 
@@ -417,7 +426,7 @@ export async function GET(_: Request, { params }: RouteParams) {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,
@@ -426,7 +435,9 @@ export async function GET(_: Request, { params }: RouteParams) {
   }
 }
 
-  export async function PATCH(request: Request, { params }: RouteParams) {
+export async function PATCH(request: Request, { params }: RouteParams) {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
@@ -724,7 +735,7 @@ export async function GET(_: Request, { params }: RouteParams) {
 
       return NextResponse.json(
         {
-          error: String(error),
+          error: "Erro interno. Tente novamente.",
         },
         {
           status: 500,

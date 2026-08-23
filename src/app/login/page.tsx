@@ -1,8 +1,125 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+
+async function irParaDestino(router: ReturnType<typeof useRouter>, isTV: boolean) {
+  if (isTV) {
+    router.push("/dashboard/painel-tv")
+    router.refresh()
+    return
+  }
+  const session = await getSession()
+  const destino = session?.user?.role === "ADMIN" ? "/admin" : "/dashboard"
+  router.push(destino)
+  router.refresh()
+}
+
+function LoginQR() {
+  const router = useRouter()
+  const [ehTV, setEhTV] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [status, setStatus] = useState<"gerando" | "aguardando" | "aprovado" | "expirado" | "erro">("gerando")
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const gerarCodigo = useCallback(async () => {
+    setStatus("gerando")
+    try {
+      const res = await fetch("/api/auth/pairing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isTV: ehTV }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.token) { setStatus("erro"); return }
+      setToken(data.token)
+      setStatus("aguardando")
+    } catch {
+      setStatus("erro")
+    }
+  }, [ehTV])
+
+  useEffect(() => { gerarCodigo() }, [gerarCodigo])
+
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    if (!token || status !== "aguardando") return
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/auth/pairing/${token}`)
+        const data = await res.json()
+        if (data.status === "APPROVED") {
+          setStatus("aprovado")
+          if (pollRef.current) clearInterval(pollRef.current)
+          const signRes = await signIn("credentials", { pairingToken: token, redirect: false })
+          if (signRes?.error) { setStatus("erro"); return }
+          await irParaDestino(router, ehTV)
+        } else if (data.status === "EXPIRED" || data.status === "NOT_FOUND") {
+          setStatus("expirado")
+          if (pollRef.current) clearInterval(pollRef.current)
+        }
+      } catch {}
+    }, 2500)
+
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [token, status, ehTV, router])
+
+  const origin = typeof window !== "undefined" ? window.location.origin : ""
+  const qrUrl = token
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${origin}/parear/${token}`)}`
+    : null
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
+      <div className="flex flex-col items-center gap-3">
+        {status === "expirado" ? (
+          <div className="text-center py-6">
+            <p className="text-zinc-400 text-sm mb-3">Código expirado.</p>
+            <button onClick={gerarCodigo} className="text-amber-400 hover:text-amber-300 text-sm font-medium transition-colors">
+              Gerar novo código
+            </button>
+          </div>
+        ) : status === "erro" ? (
+          <div className="text-center py-6">
+            <p className="text-red-400 text-sm mb-3">Não foi possível gerar o código.</p>
+            <button onClick={gerarCodigo} className="text-amber-400 hover:text-amber-300 text-sm font-medium transition-colors">
+              Tentar novamente
+            </button>
+          </div>
+        ) : status === "aprovado" ? (
+          <div className="text-center py-10">
+            <div className="text-green-400 text-2xl mb-2">✓</div>
+            <p className="text-zinc-300 text-sm">Aprovado! Entrando...</p>
+          </div>
+        ) : qrUrl ? (
+          <>
+            <div className="bg-white p-3 rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrUrl} alt="QR Code de login" width={200} height={200} data-no-invert />
+            </div>
+            <p className="text-zinc-400 text-xs text-center leading-relaxed">
+              Abra a câmera do celular já conectado ao BarberOS<br />e aponte para o código.
+            </p>
+          </>
+        ) : (
+          <div className="h-[200px] w-[200px] bg-zinc-800 rounded-xl animate-pulse" />
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 justify-center text-xs text-zinc-500 pt-1 border-t border-zinc-800">
+        <input
+          type="checkbox"
+          checked={ehTV}
+          onChange={e => { setEhTV(e.target.checked); gerarCodigo() }}
+          className="accent-amber-500"
+        />
+        Este aparelho é uma TV (abrir Painel de TV direto)
+      </label>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -11,6 +128,7 @@ export default function LoginPage() {
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [erro, setErro] = useState("")
   const [carregando, setCarregando] = useState(false)
+  const [modo, setModo] = useState<"senha" | "qr">("senha")
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,6 +162,20 @@ export default function LoginPage() {
           <p className="text-zinc-500 text-sm mt-1">Sistema de Gestão</p>
         </div>
 
+        <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl p-1 mb-3 gap-1">
+          <button type="button" onClick={() => setModo("senha")}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${modo === "senha" ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-zinc-200"}`}>
+            Usuário e senha
+          </button>
+          <button type="button" onClick={() => setModo("qr")}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${modo === "qr" ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-zinc-200"}`}>
+            QR Code
+          </button>
+        </div>
+
+        {modo === "qr" ? (
+          <LoginQR />
+        ) : (
         <form onSubmit={handleSubmit} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
           <div>
             <label className="text-zinc-400 text-xs block mb-1.5">Usuário</label>
@@ -109,6 +241,7 @@ export default function LoginPage() {
             <span className="text-zinc-500">Peça ao administrador para resetar o seu acesso.</span>
           </p>
         </form>
+        )}
 
         <p className="text-center text-zinc-600 text-xs mt-6">
           Acesso restrito a colaboradores autorizados

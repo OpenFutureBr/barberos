@@ -29,20 +29,22 @@ export async function GET(req: Request) {
     return NextResponse.json([], { status: 400 })
   }
 
+  // prof/servico escopados pelo mesmo estabId — sem isso, dava pra consultar
+  // disponibilidade de um profissional/serviço de outra barbearia.
   const [estab, prof, servico, agendamentos] = await Promise.all([
     prisma.establishment.findUnique({
       where: { id: estabId },
       select: { businessHours: true },
     }),
     prisma.user.findUnique({
-      where: { id: profId },
+      where: { id: profId, establishmentId: estabId },
       select: {
         breakBetweenAppts: true,
         schedules: { select: { dayOfWeek: true, startTime: true, endTime: true, isActive: true } },
       },
     }),
     prisma.service.findUnique({
-      where: { id: serviceId },
+      where: { id: serviceId, establishmentId: estabId },
       select: { durationMin: true },
     }),
     prisma.appointment.findMany({

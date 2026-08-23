@@ -2,42 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
-
-const ALL_RESOURCES = [
-  // group, slug, label
-  { group: "Principal",     slug: "dashboard",    label: "Dashboard" },
-  { group: "Principal",     slug: "agenda",       label: "Agenda" },
-  { group: "Principal",     slug: "fila",         label: "Fila de Espera" },
-  { group: "Principal",     slug: "painel_tv",    label: "Painel TV" },
-  { group: "Gestão",        slug: "clientes",     label: "Clientes" },
-  { group: "Gestão",        slug: "servicos",     label: "Serviços" },
-  { group: "Gestão",        slug: "galeria",      label: "Galeria de Cortes" },
-  { group: "Gestão",        slug: "equipe",       label: "Equipe" },
-  { group: "Gestão",        slug: "estoque",      label: "Estoque" },
-  { group: "Gestão",        slug: "ia_estoque",   label: "IA Estoque" },
-  { group: "Gestão",        slug: "domicilio",    label: "Domicílio" },
-  { group: "Gestão",        slug: "ia_biotipo",   label: "IA Biotipo" },
-  { group: "Financeiro",    slug: "pix",          label: "PIX & Cobranças" },
-  { group: "Financeiro",    slug: "caixa",        label: "Caixa" },
-  { group: "Financeiro",    slug: "financeiro",   label: "Financeiro" },
-  { group: "Financeiro",    slug: "fiscal",       label: "Fiscal & NF-e" },
-  { group: "Financeiro",    slug: "precificacao", label: "Precificação" },
-  { group: "Fidelidade",    slug: "cashback",     label: "Cashback" },
-  { group: "Fidelidade",    slug: "assinaturas",  label: "Assinaturas" },
-  { group: "Fidelidade",    slug: "clientes_ia",  label: "Central IA" },
-  { group: "Comunicação",   slug: "whatsapp",     label: "WhatsApp" },
-  { group: "Escala",        slug: "unidades",     label: "Multi-unidades" },
-  { group: "Escala",        slug: "white_label",  label: "White-label" },
-  { group: "Escala",        slug: "media",        label: "BarberOS Media" },
-  { group: "Sistema",       slug: "configuracoes",label: "Configurações" },
-  { group: "Sistema",       slug: "api_docs",     label: "API Docs" },
-]
+import { RESOURCES as ALL_RESOURCES } from "@/lib/resources"
 
 const ROLES = [
   { slug: "ORG_MANAGER",   label: "Gerente",          desc: "Gestão completa exceto configurações sensíveis" },
   { slug: "UNIT_MANAGER",  label: "Gerente de Unidade", desc: "Gestão operacional de uma unidade" },
   { slug: "RECEPTIONIST",  label: "Recepcionista",    desc: "Agenda, caixa e atendimento ao cliente" },
-  { slug: "PROFESSIONAL",  label: "Profissional",     desc: "Acesso à própria agenda e galeria" },
+  { slug: "PROFESSIONAL",  label: "Profissional",     desc: "Acesso à própria agenda" },
 ]
 
 const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }>> = {
@@ -48,7 +19,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     painel_tv: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     clientes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
     servicos: { canView: true, canCreate: true, canEdit: true, canDelete: true },
-    galeria: { canView: true, canCreate: true, canEdit: true, canDelete: true },
     equipe: { canView: true, canCreate: true, canEdit: true, canDelete: false },
     estoque: { canView: true, canCreate: true, canEdit: true, canDelete: true },
     ia_estoque: { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -65,7 +35,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     whatsapp: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     unidades: { canView: true, canCreate: false, canEdit: true, canDelete: false },
     white_label: { canView: false, canCreate: false, canEdit: false, canDelete: false },
-    media: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     configuracoes: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     api_docs: { canView: false, canCreate: false, canEdit: false, canDelete: false },
   },
@@ -76,7 +45,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     painel_tv: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     clientes: { canView: true, canCreate: true, canEdit: true, canDelete: false },
     servicos: { canView: true, canCreate: false, canEdit: false, canDelete: false },
-    galeria: { canView: true, canCreate: true, canEdit: true, canDelete: true },
     equipe: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     estoque: { canView: true, canCreate: true, canEdit: true, canDelete: false },
     ia_estoque: { canView: false, canCreate: false, canEdit: false, canDelete: false },
@@ -93,7 +61,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     whatsapp: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     unidades: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     white_label: { canView: false, canCreate: false, canEdit: false, canDelete: false },
-    media: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     configuracoes: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     api_docs: { canView: false, canCreate: false, canEdit: false, canDelete: false },
   },
@@ -104,7 +71,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     painel_tv: { canView: true, canCreate: false, canEdit: false, canDelete: false },
     clientes: { canView: true, canCreate: true, canEdit: true, canDelete: false },
     servicos: { canView: true, canCreate: false, canEdit: false, canDelete: false },
-    galeria: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     equipe: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     estoque: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     ia_estoque: { canView: false, canCreate: false, canEdit: false, canDelete: false },
@@ -121,7 +87,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     whatsapp: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     unidades: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     white_label: { canView: false, canCreate: false, canEdit: false, canDelete: false },
-    media: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     configuracoes: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     api_docs: { canView: false, canCreate: false, canEdit: false, canDelete: false },
   },
@@ -132,7 +97,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     painel_tv: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     clientes: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     servicos: { canView: true, canCreate: false, canEdit: false, canDelete: false },
-    galeria: { canView: true, canCreate: true, canEdit: true, canDelete: true },
     equipe: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     estoque: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     ia_estoque: { canView: false, canCreate: false, canEdit: false, canDelete: false },
@@ -149,7 +113,6 @@ const DEFAULTS: Record<string, Record<string, { canView: boolean; canCreate: boo
     whatsapp: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     unidades: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     white_label: { canView: false, canCreate: false, canEdit: false, canDelete: false },
-    media: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     configuracoes: { canView: false, canCreate: false, canEdit: false, canDelete: false },
     api_docs: { canView: false, canCreate: false, canEdit: false, canDelete: false },
   },

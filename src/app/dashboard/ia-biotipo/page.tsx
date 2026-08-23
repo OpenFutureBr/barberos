@@ -28,6 +28,34 @@ export default function IABiotipoPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  // Preview do corte aplicado na foto (Gemini gera a imagem editada)
+  const [gerandoPreview, setGerandoPreview] = useState<string | null>(null) // nome do corte em geração
+  const [previewImg, setPreviewImg] = useState<{ corte: string; src: string } | null>(null)
+  const [erroPreview, setErroPreview] = useState("")
+
+  async function gerarPreviewCorte(corte: string, descricao: string) {
+    if (!imageBase64) return
+    setGerandoPreview(corte)
+    setErroPreview("")
+    try {
+      const res = await fetch("/api/ia/biotipo/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64, corte, descricao }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErroPreview(data.error ?? "Erro ao gerar preview")
+        return
+      }
+      setPreviewImg({ corte, src: `data:${data.mimeType};base64,${data.imageBase64}` })
+    } catch {
+      setErroPreview("Erro ao conectar para gerar o preview")
+    } finally {
+      setGerandoPreview(null)
+    }
+  }
+
   const abrirCamera = useCallback(async () => {
     setErro("")
     try {
@@ -268,7 +296,14 @@ export default function IABiotipoPage() {
                       <div className="h-1 bg-zinc-700 rounded-full overflow-hidden mb-1.5">
                         <div className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-zinc-500"}`} style={{ width: `${c.pct}%` }} />
                       </div>
-                      <div className="text-zinc-500 text-xs">{c.description}</div>
+                      <div className="text-zinc-500 text-xs mb-2">{c.description}</div>
+                      <button
+                        onClick={() => gerarPreviewCorte(c.name, c.description)}
+                        disabled={gerandoPreview === c.name}
+                        className="text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50 font-medium transition-colors"
+                      >
+                        {gerandoPreview === c.name ? "Gerando preview..." : "🖼 Ver como fica no cliente"}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -290,7 +325,14 @@ export default function IABiotipoPage() {
                       <div className="h-1 bg-zinc-700 rounded-full overflow-hidden mb-1.5">
                         <div className="h-full rounded-full bg-zinc-600" style={{ width: `${c.pct}%` }} />
                       </div>
-                      <div className="text-zinc-600 text-xs">{c.description}</div>
+                      <div className="text-zinc-600 text-xs mb-2">{c.description}</div>
+                      <button
+                        onClick={() => gerarPreviewCorte(c.name, c.description)}
+                        disabled={gerandoPreview === c.name}
+                        className="text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50 font-medium transition-colors"
+                      >
+                        {gerandoPreview === c.name ? "Gerando preview..." : "🖼 Ver como fica no cliente"}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -302,6 +344,38 @@ export default function IABiotipoPage() {
                 Nenhuma sugestão retornada. Tente com outra foto.
               </div>
             )}
+
+            {erroPreview && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm">{erroPreview}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de preview antes/depois */}
+      {previewImg && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewImg(null)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <span className="text-white font-semibold text-sm">Preview: {previewImg.corte}</span>
+              <button onClick={() => setPreviewImg(null)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-4">
+              <div>
+                <div className="text-zinc-500 text-xs uppercase tracking-wider mb-1.5 text-center">Antes</div>
+                {imagemPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagemPreview} alt="Antes" className="w-full rounded-xl object-cover aspect-square" />
+                )}
+              </div>
+              <div>
+                <div className="text-amber-400 text-xs uppercase tracking-wider mb-1.5 text-center">Depois</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewImg.src} alt="Depois" className="w-full rounded-xl object-cover aspect-square" data-no-invert />
+              </div>
+            </div>
+            <p className="text-zinc-600 text-xs text-center pb-4">Gerado por IA (Gemini) — imagem ilustrativa, resultado real pode variar.</p>
           </div>
         </div>
       )}

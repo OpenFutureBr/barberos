@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 export async function GET() {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const planos = await prisma.planDefinition.findMany({
     orderBy: { priceMonthly: "asc" },
     include: { _count: { select: { organizations: true } } },
@@ -27,6 +36,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const body = await req.json()
   const { id, name, description, priceMonthly, maxEstablishments, maxUsers,
     maxClients, maxAppointments, maxStorageMb, features } = body

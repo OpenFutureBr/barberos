@@ -46,6 +46,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: publicUrl })
   } catch (error) {
     console.error("[POST /api/configuracoes/logo]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

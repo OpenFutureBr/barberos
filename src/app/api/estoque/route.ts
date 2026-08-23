@@ -1,9 +1,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-
-
-
+import { temPermissao, bloqueioSemPermissao } from "@/lib/permissoes"
 
 
 function float(v: unknown): number {
@@ -23,6 +21,11 @@ export async function GET() {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    // Também usado pelo picker de produtos da comanda (Agenda) — libera se
+    // tiver "estoque" (gestão) ou só "agenda" (fechar comanda com produto).
+    if (!temPermissao(session?.user, "estoque") && !temPermissao(session?.user, "agenda")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const produtos = await prisma.product.findMany({
       where: { establishmentId: estabId },
@@ -37,7 +40,7 @@ export async function GET() {
     return NextResponse.json(produtos)
   } catch (error) {
     console.error("[GET /api/estoque]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -46,6 +49,8 @@ export async function POST(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "estoque")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
     console.log("[POST /api/estoque] body:", body)
@@ -81,14 +86,23 @@ export async function POST(request: Request) {
     return NextResponse.json(produto)
   } catch (error) {
     console.error("[POST /api/estoque]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
 export async function PUT(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "estoque")
+    if (bloqueio) return bloqueio
+
     const body = await request.json()
     console.log("[PUT /api/estoque] body:", body)
+
+    const alvo = await prisma.product.findFirst({ where: { id: String(body.id), establishmentId: estabId }, select: { id: true } })
+    if (!alvo) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
 
     const data: Record<string, unknown> = {}
     if (body.name !== undefined) data.name = String(body.name)
@@ -107,6 +121,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(produto)
   } catch (error) {
     console.error("[PUT /api/estoque]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

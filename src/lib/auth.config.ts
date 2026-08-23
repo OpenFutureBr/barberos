@@ -8,6 +8,9 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt" as const,
+    // Antes usava o padrão do NextAuth (30 dias) — reduzido pra limitar a
+    // janela de exposição caso um token vaze/seja roubado.
+    maxAge: 7 * 24 * 60 * 60, // 7 dias
   },
   providers: [], // providers reais ficam em auth.ts (Node.js)
   callbacks: {

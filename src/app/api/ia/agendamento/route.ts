@@ -2,12 +2,15 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getIaConfig, callText } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(req: Request) {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "agenda")
+    if (bloqueio) return bloqueio
 
     const { clienteId, servicoId } = await req.json()
     if (!clienteId || !servicoId) return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 })
@@ -21,11 +24,11 @@ export async function POST(req: Request) {
 
     const [cliente, servico, historico] = await Promise.all([
       prisma.client.findUnique({
-        where: { id: clienteId },
+        where: { id: clienteId, establishmentId: estabId },
         select: { name: true, cashbackBalance: true, loyaltyLevel: true, favoritoCorte: true, totalAtendimentos: true },
       }),
       prisma.service.findUnique({
-        where: { id: servicoId },
+        where: { id: servicoId, establishmentId: estabId },
         select: { name: true, price: true, durationMin: true },
       }),
       prisma.appointment.findMany({

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -225,20 +226,26 @@ export default function AssinaturasPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        {[
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
           { label: "Planos ativos", val: planosAtivos.length, cor: "text-amber-400" },
           { label: "Assinantes", val: totalAssinantes, cor: "text-white" },
           { label: "Receita mensal", val: fmtMoeda(totalReceita), cor: "text-green-400" },
           { label: "Em atraso", val: atrasados, cor: atrasados > 0 ? "text-red-400" : "text-zinc-600" },
         ].map(k => (
-          <div key={k.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+          <div key={k.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
             <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">{k.label}</div>
             {loading ? <div className="h-7 bg-zinc-800 rounded animate-pulse" /> : <div className={`text-xl font-bold ${k.cor}`}>{k.val}</div>}
           </div>
-        ))}
-      </div>
+        ))
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -259,7 +266,7 @@ export default function AssinaturasPage() {
             <button onClick={() => abrirModalPlano()} className="text-amber-500 text-sm hover:text-amber-400 transition-colors">+ Criar primeiro plano</button>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {planos.map(p => (
               <div key={p.id} className={`bg-zinc-900 border rounded-xl p-4 transition-all ${p.isActive ? "border-zinc-700" : "border-zinc-800 opacity-60"}`}>
                 <div className="flex items-start justify-between mb-2">

@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
+import { pathToSlug } from "@/lib/resources"
+import { temPermissao } from "@/lib/permissoes"
 
 function redirectTo(
   req: Parameters<Parameters<typeof auth>[0]>[0],
@@ -44,6 +46,17 @@ export const proxy = auth((req) => {
   // Somente ADMIN pode acessar /admin
   if (pathname.startsWith("/admin") && role !== "ADMIN") {
     return redirectTo(req, "/dashboard")
+  }
+
+  // Bloqueia navegação direta por URL a páginas fora das permissões do
+  // usuário — antes só o Sidebar escondia o link, mas a página abria igual
+  // pra quem digitasse/adivinhasse a URL. A home "/dashboard" fica sempre
+  // acessível (evita loop de redirect pra ela mesma).
+  if (pathname.startsWith("/dashboard") && pathname !== "/dashboard" && role !== "ORG_OWNER") {
+    const resource = pathToSlug(pathname)
+    if (resource && !temPermissao(req.auth?.user, resource)) {
+      return redirectTo(req, "/dashboard?acesso_negado=1")
+    }
   }
 
   return NextResponse.next()

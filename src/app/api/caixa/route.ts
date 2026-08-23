@@ -1,11 +1,10 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
 
 async function getCaixaHoje(ESTAB: string) {
-  const hoje = new Date()
-  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-  const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+  const { inicio, fim } = limitesHojeBRT()
 
   return prisma.cashRegister.findFirst({
     where: {
@@ -38,9 +37,7 @@ export async function GET(request: Request) {
 
     // Modo resumo: só retorna status + saldo (usado pelo dashboard)
     if (searchParams.get("resumo") === "true") {
-      const hoje = new Date()
-      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+      const { inicio, fim } = limitesHojeBRT()
 
       const caixa = await prisma.cashRegister.findFirst({
         where: { establishmentId: ESTAB, openedAt: { gte: inicio, lte: fim } },
@@ -61,16 +58,18 @@ export async function GET(request: Request) {
       })
     }
 
-    const caixa = await getCaixaHoje(ESTAB)
-
-    const hoje = new Date()
-    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-    const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    const { inicio, fim } = limitesHojeBRT()
 
     /**
-     * Pagamentos confirmados hoje.
+     * Revertido para sequencial (era Promise.all) — o pool do Supabase em
+     * session mode tem um teto duro de conexões simultâneas (pool_size: 15)
+     * compartilhado entre todas as instâncias serverless. Rodar 3 queries
+     * concorrentes por requisição nesta rota (chamada pelo PDV, tela quente)
+     * multiplicava a pressão sobre esse teto e causava
+     * "DriverAdapterError: max clients reached in session mode".
+     * Sequencial usa 1 conexão por vez — mais lento, mas não estoura o pool.
      *
-     * Regra:
+     * Regra dos pagamentos:
      * - Só entra no caixa se status = PAID
      * - Não entra se tiver dueDate, porque pagamento "Pagar depois"
      *   será lançado no caixa via Transaction quando for quitado no Financeiro.
@@ -79,6 +78,8 @@ export async function GET(request: Request) {
      * - pendente entrar no caixa antes de receber
      * - duplicidade quando uma pendência é marcada como paga
      */
+    const caixa = await getCaixaHoje(ESTAB)
+
     const pagamentos = await prisma.payment.findMany({
       where: {
         status: "PAID",
@@ -110,30 +111,6 @@ export async function GET(request: Request) {
       },
     })
 
-    /**
-     * Todos os pagamentos vinculados aos movimentos de hoje.
-     * Usado para saber se um movimento de produto pertence a uma comanda
-     * que já tem pagamento/pendência vinculada.
-     *
-     * Assim o produto da comanda não aparece como venda avulsa indevida.
-     */
-    const pagamentosDeAgendamentos = await prisma.payment.findMany({
-      where: {
-        appointment: {
-          establishmentId: ESTAB,
-        },
-      },
-      select: {
-        appointmentId: true,
-        status: true,
-        dueDate: true,
-      },
-    })
-
-    const appointmentIdsComQualquerPagamento = new Set(
-      pagamentosDeAgendamentos.map((p) => p.appointmentId),
-    )
-
     // Todos os movimentos SAIDA com unitPrice hoje
     const movimentos = await prisma.stockMovement.findMany({
       where: {
@@ -157,6 +134,37 @@ export async function GET(request: Request) {
         createdAt: "asc",
       },
     })
+
+    /**
+     * Pagamentos vinculados aos agendamentos dos movimentos de hoje.
+     * Usado para saber se um movimento de produto pertence a uma comanda
+     * que já tem pagamento/pendência vinculada (inclusive pago em outro dia,
+     * caso de "Pagar depois").
+     *
+     * Antes buscava TODOS os pagamentos do estabelecimento (histórico inteiro);
+     * agora restringe pelo conjunto de appointmentId que aparece nos movimentos
+     * de hoje — mesmo resultado, sem varrer o histórico completo.
+     *
+     * Assim o produto da comanda não aparece como venda avulsa indevida.
+     */
+    const apptIdsDosMovimentos = [
+      ...new Set(movimentos.map((m) => m.appointmentId).filter((id): id is string => !!id)),
+    ]
+
+    const pagamentosDeAgendamentos = apptIdsDosMovimentos.length
+      ? await prisma.payment.findMany({
+          where: { appointmentId: { in: apptIdsDosMovimentos } },
+          select: {
+            appointmentId: true,
+            status: true,
+            dueDate: true,
+          },
+        })
+      : []
+
+    const appointmentIdsComQualquerPagamento = new Set(
+      pagamentosDeAgendamentos.map((p) => p.appointmentId),
+    )
 
     // Agrupa produtos por appointmentId apenas para pagamentos imediatos exibidos no caixa
     const prodsPorAppt: Record<string, { nome: string; qty: number; valor: number }[]> = {}
@@ -274,7 +282,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("[GET /api/caixa]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -348,6 +356,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
   } catch (error) {
     console.error("[POST /api/caixa]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

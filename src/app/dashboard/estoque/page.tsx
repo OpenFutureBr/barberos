@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -111,7 +113,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
       <button onClick={onClick} className="w-full text-left">
         <div className="aspect-square bg-zinc-800 rounded-t-xl overflow-hidden relative">
           {foto ? (
-            <img src={foto} alt={nome} className="w-full h-full object-cover"
+            <img src={foto} alt={nome} loading="lazy" className="w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-3xl text-zinc-700">📦</div>
@@ -325,44 +327,32 @@ function EstoqueInner() {
     fetch("/api/clientes?modo=simples").then(r => r.json()).then(d => setClientes(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
+  // fetchJsonSafe mantém o último dado bom em cache se a busca falhar — nunca
+  // zera a lista de produtos/movimentos/vendas por causa de uma falha
+  // transitória (ex: pool de conexões esgotado no servidor).
   async function buscarProdutos() {
     setLoading(true)
-    try {
-      const res = await fetch("/api/estoque")
-      const data = await res.json()
-      const lista = Array.isArray(data) ? data : []
-      setProdutos(lista)
-      const cats = [...new Set(lista.map((p: any) => p.category).filter(Boolean))] as string[]
-      setGruposExtras(cats)
-    } catch { setErro("Erro ao carregar") }
-    finally { setLoading(false) }
+    const lista = (await fetchJsonSafe<any[]>("/api/estoque", "estoque:produtos")) ?? []
+    setProdutos(lista)
+    const cats = [...new Set(lista.map((p: any) => p.category).filter(Boolean))] as string[]
+    setGruposExtras(cats)
+    setLoading(false)
   }
 
   async function buscarVendas(data?: string) {
     setLoadingVendas(true)
-    setErroVendas("")
-    try {
-      const d = data !== undefined ? data : filtroDataVendas
-      const url = d ? `/api/estoque/vendas?data=${d}` : "/api/estoque/vendas"
-      const res = await fetch(url)
-      const payload = await res.json()
-      if (!res.ok) { setErroVendas(payload.error || `Erro ${res.status}`); return }
-      setVendas(Array.isArray(payload) ? payload : [])
-    } catch (err) {
-      setErroVendas(String(err))
-    } finally {
-      setLoadingVendas(false)
-    }
+    const d = data !== undefined ? data : filtroDataVendas
+    const url = d ? `/api/estoque/vendas?data=${d}` : "/api/estoque/vendas"
+    const payload = (await fetchJsonSafe<any[]>(url, `estoque:vendas:${d || "todas"}`)) ?? []
+    setVendas(payload)
+    setLoadingVendas(false)
   }
 
   async function buscarMovimentos() {
     setLoadingMovimentos(true)
-    try {
-      const res = await fetch("/api/estoque/movimentos")
-      const data = await res.json()
-      setMovimentos(Array.isArray(data) ? data : [])
-    } catch { /* silencioso */ }
-    finally { setLoadingMovimentos(false) }
+    const data = (await fetchJsonSafe<any[]>("/api/estoque/movimentos", "estoque:movimentos")) ?? []
+    setMovimentos(data)
+    setLoadingMovimentos(false)
   }
 
   function fecharModalEntrada() {
@@ -611,15 +601,18 @@ function EstoqueInner() {
     await buscarProdutos()
   }
 
-  const produtosFiltrados = produtos.filter(p =>
+  // Memoizado — antes recalculava esses 4 filter/reduce sobre `produtos` a
+  // cada render da página (ex.: digitar em qualquer modal aberto), mesmo sem
+  // `produtos`/`busca` terem mudado.
+  const produtosFiltrados = useMemo(() => produtos.filter(p =>
     p.isActive && (p.name?.toLowerCase().includes(busca.toLowerCase()) || p.barcode?.includes(busca))
-  )
-  const criticos = produtos.filter(p => p.isActive && p.stock <= p.minStock).length
-  const totalEstoque = produtos.filter(p => p.isActive).reduce((s: number, p: any) => s + (p.stock * p.costPrice), 0)
+  ), [produtos, busca])
+  const criticos = useMemo(() => produtos.filter(p => p.isActive && p.stock <= p.minStock).length, [produtos])
+  const totalEstoque = useMemo(() => produtos.filter(p => p.isActive).reduce((s: number, p: any) => s + (p.stock * p.costPrice), 0), [produtos])
 
   // Produtos do DB que NÃO estão no catálogo pré-definido (criados manualmente)
-  const nomesCatalogo = new Set(catalogoProdutos.map(p => p.name))
-  const meusProdutos = produtos.filter(p => !nomesCatalogo.has(p.name))
+  const nomesCatalogo = useMemo(() => new Set(catalogoProdutos.map(p => p.name)), [])
+  const meusProdutos = useMemo(() => produtos.filter(p => !nomesCatalogo.has(p.name)), [produtos, nomesCatalogo])
 
   return (
     <DashboardLayout>
@@ -631,24 +624,32 @@ function EstoqueInner() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
-          <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
-          <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
-          <div className="text-red-400 text-xl font-bold">{criticos}</div>
-          <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500">
-          <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
-          <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
-          <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
-        </div>
-      </div>
+      {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
+      {(() => {
+        const kpis = [
+          <div key="valor" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
+            <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
+            <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
+          </div>,
+          <div key="criticos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
+            <div className="text-red-400 text-xl font-bold">{criticos}</div>
+            <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
+          </div>,
+          <div key="catalogo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
+            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
+            <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
+            <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
+          </div>,
+        ]
+        return (
+          <div className="mb-4">
+            <CardCarousel cards={kpis} />
+            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
+          </div>
+        )
+      })()}
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -701,7 +702,7 @@ function EstoqueInner() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {p.photoUrl ? (
-                              <img src={p.photoUrl} alt={p.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-zinc-800" />
+                              <img src={p.photoUrl} alt={p.name} loading="lazy" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-zinc-800" />
                             ) : (
                               <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-600 flex-shrink-0">📦</div>
                             )}
@@ -745,14 +746,32 @@ function EstoqueInner() {
         // Grupos disponíveis para as abas
         const gruposDisponiveis = ["Todos", ...Object.keys(GRUPOS).filter(g => catalogoProdutos.some(p => p.category === g)), ...(meusProdutos.length ? ["Meus Produtos"] : [])]
 
-        // Ordenação dos itens
+        // Ordenação dos itens.
+        // Antes: para cada comparação do sort, refazia produtos.find() (O(n))
+        // e getStats() (percorre stockMovements) para os dois lados — em uma
+        // ordenação O(n log n) isso repetia o mesmo cálculo várias vezes para
+        // o mesmo produto. Agora indexa produtos por nome e cacheia getStats
+        // por produto antes de ordenar — mesmo resultado, sem recomputação.
         function sortarItens<T extends any[]>(itens: T, ehDbItem: boolean): T {
           if (!sortCol) return itens
+
+          let produtoPorNome: Map<string, any> | null = null
+          if (!ehDbItem) {
+            produtoPorNome = new Map()
+            for (const p of produtos) if (!produtoPorNome.has(p.name)) produtoPorNome.set(p.name, p)
+          }
+          const statsCache = new Map<any, ReturnType<typeof getStats>>()
+          const getStatsCached = (prod: any) => {
+            if (!prod) return null
+            if (!statsCache.has(prod)) statsCache.set(prod, getStats(prod))
+            return statsCache.get(prod)
+          }
+
           return [...itens].sort((a, b) => {
-            const dbA = ehDbItem ? a : (produtos.find(p => p.name === a.name) ?? null)
-            const dbB = ehDbItem ? b : (produtos.find(p => p.name === b.name) ?? null)
-            const stA = getStats(dbA)
-            const stB = getStats(dbB)
+            const dbA = ehDbItem ? a : (produtoPorNome!.get(a.name) ?? null)
+            const dbB = ehDbItem ? b : (produtoPorNome!.get(b.name) ?? null)
+            const stA = getStatsCached(dbA)
+            const stB = getStatsCached(dbB)
             let va: any, vb: any
             switch (sortCol) {
               case "nome":    va = a.name ?? ""; vb = b.name ?? ""; break
@@ -800,13 +819,13 @@ function EstoqueInner() {
               {/* Foto */}
               <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
                 {foto
-                  ? <img src={foto} alt={nome} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+                  ? <img src={foto} alt={nome} loading="lazy" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
                   : <div className="w-full h-full flex items-center justify-center text-zinc-700 text-sm">📦</div>
                 }
               </div>
 
               {/* Nome */}
-              <div className="w-44 flex-shrink-0">
+              <div className="flex-1 min-w-0 md:w-44 md:flex-none">
                 <div className="flex items-center gap-1.5">
                   <span className="text-white text-xs font-medium truncate">{nome}</span>
                   {noEstoque && <span className="text-green-500 text-xs">●</span>}
@@ -815,64 +834,64 @@ function EstoqueInner() {
               </div>
 
               {/* Histórico vendas */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="w-16 md:w-20 flex-shrink-0 text-center">
                 {stats?.totalVendas ? (
                   <span className="text-zinc-300 text-xs">{stats.totalVendas} vend.</span>
                 ) : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Mín */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {stats?.precoMin != null
                   ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMin.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Atual */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {dbProd
                   ? <span className="text-amber-400 text-xs font-medium font-mono">{precoAtual.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Máx */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {stats?.precoMax != null
                   ? <span className="text-zinc-400 text-xs font-mono">{stats.precoMax.toFixed(2)}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Estoque atual */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 {dbProd != null
                   ? <span className={`text-xs font-mono font-medium ${dbProd.stock <= (dbProd.minStock ?? 5) ? "text-red-400" : "text-white"}`}>{dbProd.stock}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Inclusão */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(inclusao)}</span>
               </div>
 
               {/* Última compra */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaCompra ?? null)}</span>
               </div>
 
               {/* Última venda */}
-              <div className="w-20 flex-shrink-0 text-center">
+              <div className="hidden md:block w-20 flex-shrink-0 text-center">
                 <span className="text-zinc-600 text-xs">{fmtData(stats?.ultimaVenda ?? null)}</span>
               </div>
 
               {/* Dia top */}
-              <div className="w-16 flex-shrink-0 text-center">
+              <div className="hidden md:block w-16 flex-shrink-0 text-center">
                 {stats?.diaMaisVende != null && stats.diaMaisVende >= 0
                   ? <span className="text-zinc-300 text-xs">{DIAS_SEMANA[stats.diaMaisVende]}</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
               </div>
 
               {/* Hora top */}
-              <div className="w-16 flex-shrink-0 text-center">
+              <div className="hidden md:block w-16 flex-shrink-0 text-center">
                 {stats?.horaMaisVende != null && stats.horaMaisVende >= 0
                   ? <span className="text-zinc-300 text-xs">{String(stats.horaMaisVende).padStart(2, "0")}h</span>
                   : <span className="text-zinc-700 text-xs">—</span>}
@@ -881,7 +900,7 @@ function EstoqueInner() {
               {/* Editar */}
               {onEditar && (
                 <button onClick={(e) => { e.stopPropagation(); onEditar() }}
-                  className="ml-auto text-zinc-700 hover:text-amber-400 text-xs opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                  className="hidden md:block ml-auto text-zinc-700 hover:text-amber-400 text-xs opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                   ✏️
                 </button>
               )}
@@ -918,17 +937,17 @@ function EstoqueInner() {
               return (
                 <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-700 bg-zinc-900/60">
                   <div className="w-9 flex-shrink-0" />
-                  <Th col="nome" label="Produto" className="w-44 flex-shrink-0 justify-start" />
-                  <Th col="vendas" label="Vendas" className="w-20 flex-shrink-0" />
-                  <Th col="precoMin" label="Mín" className="w-20 flex-shrink-0" />
-                  <Th col="preco" label="Atual" className="w-20 flex-shrink-0" />
-                  <Th col="precoMax" label="Máx" className="w-20 flex-shrink-0" />
-                  <Th col="estoque" label="Estoque" className="w-20 flex-shrink-0" />
-                  <Th col="inclusao" label="Inclusão" className="w-20 flex-shrink-0" />
-                  <Th col="compra" label="Ult. compra" className="w-20 flex-shrink-0" />
-                  <Th col="venda" label="Ult. venda" className="w-20 flex-shrink-0" />
-                  <Th col="dia" label="Dia top" className="w-16 flex-shrink-0" />
-                  <Th col="hora" label="Hora top" className="w-16 flex-shrink-0" />
+                  <Th col="nome" label="Produto" className="flex-1 min-w-0 md:w-44 md:flex-none justify-start" />
+                  <Th col="vendas" label="Vendas" className="w-16 md:w-20 flex-shrink-0" />
+                  <div className="hidden md:block"><Th col="precoMin" label="Mín" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="preco" label="Atual" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="precoMax" label="Máx" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="estoque" label="Estoque" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="inclusao" label="Inclusão" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="compra" label="Ult. compra" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="venda" label="Ult. venda" className="w-20 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="dia" label="Dia top" className="w-16 flex-shrink-0" /></div>
+                  <div className="hidden md:block"><Th col="hora" label="Hora top" className="w-16 flex-shrink-0" /></div>
                 </div>
               )
             })()}
@@ -1107,11 +1126,12 @@ function EstoqueInner() {
                       {movPag.map((m, i) => (
                         <tr key={m.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === movPag.length - 1 ? "border-0" : ""}`}>
                           <td className="px-4 py-3 text-zinc-500 text-xs font-mono whitespace-nowrap">
-                            {new Date(m.createdAt).toLocaleDateString("pt-BR")} {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            <div>{new Date(m.createdAt).toLocaleDateString("pt-BR")}</div>
+                            <div className="text-zinc-600">{new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
                           </td>
                           <td className="px-4 py-3 text-white text-sm">{m.product?.name || "—"}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
                               {m.type === "ENTRADA" ? "↑ Entrada" : "↓ Saída"}
                             </span>
                           </td>

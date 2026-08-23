@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { temPermissao } from "@/lib/permissoes"
 
 // GET  /api/unidades/[id]/servicos
 // Returns all org services with isEnabled flag for this unit
@@ -13,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !["ADMIN", "ORG_OWNER", "ORG_MANAGER"].includes(role ?? "")) {
+    if (!orgId || !["ADMIN", "ORG_OWNER", "ORG_MANAGER"].includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
@@ -46,7 +47,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -56,7 +57,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !["ADMIN", "ORG_OWNER", "ORG_MANAGER"].includes(role ?? "")) {
+    if (!orgId || !["ADMIN", "ORG_OWNER", "ORG_MANAGER"].includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
@@ -77,6 +78,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

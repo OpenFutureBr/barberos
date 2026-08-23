@@ -2,12 +2,19 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { getIaConfig, callVision } from "@/lib/ia-providers"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+  const bloqueio = bloqueioSemPermissao(session.user, "ia_biotipo")
+  if (bloqueio) return bloqueio
 
-  const { imageBase64, clientId, establishmentId } = await req.json().catch(() => ({}))
+  // establishmentId vem da sessão, não do body — o body antes trazia o valor
+  // usado direto na query, permitindo que qualquer usuário logado pedisse
+  // sugestões de catálogo de outra organização.
+  const establishmentId = session.user.establishmentId
+  const { imageBase64, clientId } = await req.json().catch(() => ({}))
   if (!imageBase64) return NextResponse.json({ error: "Imagem obrigatória" }, { status: 400 })
 
   const cfg = await getIaConfig()
@@ -55,8 +62,9 @@ Responda APENAS com o JSON puro, sem markdown, sem blocos de código, sem explic
     // Indica qual provider foi usado
     result._provider = cfg.visionProvider === "gemini" && cfg.geminiApiKey ? "gemini" : "groq"
 
-    // Salvar no perfil do cliente se fornecido
-    if (clientId) {
+    // Salvar no perfil do cliente se fornecido — só se pertencer ao
+    // estabelecimento de quem chamou (evita escrever em cliente de outra org).
+    if (clientId && establishmentId) {
       const suggestions = {
         faceShape: result.faceShape,
         confidence: result.confidence,
@@ -68,8 +76,8 @@ Responda APENAS com o JSON puro, sem markdown, sem blocos de código, sem explic
         chosenCut: null,
         chosenServiceId: null,
       }
-      await prisma.client.update({
-        where: { id: clientId },
+      await prisma.client.updateMany({
+        where: { id: clientId, establishmentId },
         data: {
           faceShape: result.faceShape,
           aiAnalysedAt: new Date(),

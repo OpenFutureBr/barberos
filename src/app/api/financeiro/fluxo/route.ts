@@ -1,32 +1,51 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, somarMesesISO, limitesDiaBRT, diaISOemBRT } from "@/lib/data-brt"
+import { temPermissao } from "@/lib/permissoes"
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
 }
 
+// Agrupa por dia no fuso de Brasília, não no fuso do servidor (produção
+// roda em UTC — sem isso, tudo criado depois das 21h BRT cairia no dia
+// seguinte na timeline do Fluxo de Caixa).
 function chaveData(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return diaISOemBRT(d)
 }
 
 type Lancamento = { desc: string; valor: number; tipo: string }
 type LancamentoPrevisto = { desc: string; valor: number; clienteId: string }
+
+const STATUS_NAO_PROJETAVEL = ["DONE", "CANCELLED"] as const
 
 export async function GET(request: Request) {
   try {
     const session = await auth()
     const ESTAB_ID = session?.user?.establishmentId
     if (!ESTAB_ID) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    // Usado tanto por Caixa (fluxo) quanto por Financeiro.
+    if (!temPermissao(session?.user, "caixa") && !temPermissao(session?.user, "financeiro")) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
     const { searchParams } = new URL(request.url)
-    const ano = parseInt(searchParams.get("ano") || String(new Date().getFullYear()))
-    const mes = parseInt(searchParams.get("mes") || String(new Date().getMonth() + 1))
 
-    const inicio = new Date(ano, mes - 1, 1)
-    const fim = new Date(ano, mes, 0, 23, 59, 59)
+    const hojeISO = hojeISOemBRT()
+    const limiteMinimo = limitesDiaBRT(somarMesesISO(hojeISO, -3)).inicio
 
-    const [pagamentos, transacoes, assinaturas] = await Promise.all([
+    const fromParam = searchParams.get("from")
+    const toParam = searchParams.get("to")
+
+    let inicio = fromParam ? new Date(`${fromParam}T00:00:00-03:00`) : limitesDiaBRT(somarDiasISO(hojeISO, -30)).inicio
+    let fim = toParam ? new Date(`${toParam}T23:59:59-03:00`) : limitesDiaBRT(hojeISO).fim
+
+    // Visão máxima permitida: M-3 em relação à data atual
+    if (inicio < limiteMinimo) inicio = limiteMinimo
+    if (fim < inicio) fim = inicio
+
+    const [pagamentos, transacoes, assinaturas, pagamentosPendentes, apptsSemPagamento] = await Promise.all([
       prisma.payment.findMany({
         where: {
           status: "PAID",
@@ -65,7 +84,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "asc" },
       }),
 
-      // Assinaturas ativas cujo próximo vencimento cai no mês
+      // Assinaturas ativas cujo próximo vencimento cai no período
       prisma.subscription.findMany({
         where: {
           status: "ACTIVE",
@@ -81,12 +100,41 @@ export async function GET(request: Request) {
           plan: { select: { name: true } },
         },
       }),
+
+      // Projeção de receita — parte 1: pagamentos pendentes (ex.: "Pagar depois"),
+      // projetados no vencimento (ou na data do agendamento, se não houver).
+      prisma.payment.findMany({
+        where: {
+          status: "PENDING",
+          appointment: { establishmentId: ESTAB_ID },
+        },
+        select: {
+          amount: true,
+          dueDate: true,
+          appointment: { select: { scheduledAt: true } },
+        },
+      }),
+
+      // Projeção de receita — parte 2: agendamentos ainda não concluídos nem
+      // cancelados e que ainda não têm nenhum pagamento vinculado (senão a
+      // receita já está contada na parte 1, para não duplicar).
+      prisma.appointment.findMany({
+        where: {
+          establishmentId: ESTAB_ID,
+          status: { notIn: STATUS_NAO_PROJETAVEL as any },
+          payment: null,
+        },
+        select: {
+          scheduledAt: true,
+          service: { select: { price: true } },
+        },
+      }),
     ])
 
-    const dayMap = new Map<string, { entradas: Lancamento[]; saidas: Lancamento[]; previstas: LancamentoPrevisto[] }>()
+    const dayMap = new Map<string, { entradas: Lancamento[]; saidas: Lancamento[]; previstas: LancamentoPrevisto[]; projetado: number }>()
 
     const getOrCreate = (key: string) => {
-      if (!dayMap.has(key)) dayMap.set(key, { entradas: [], saidas: [], previstas: [] })
+      if (!dayMap.has(key)) dayMap.set(key, { entradas: [], saidas: [], previstas: [], projetado: 0 })
       return dayMap.get(key)!
     }
 
@@ -125,13 +173,30 @@ export async function GET(request: Request) {
       })
     }
 
+    // Projeção: bucket por dia dentro do período solicitado
+    for (const p of pagamentosPendentes) {
+      const dataRef = p.dueDate ?? p.appointment?.scheduledAt
+      if (!dataRef) continue
+      const dataResolvida = new Date(dataRef)
+      if (dataResolvida < inicio || dataResolvida > fim) continue
+      const key = chaveData(dataResolvida)
+      getOrCreate(key).projetado += p.amount
+    }
+
+    for (const a of apptsSemPagamento) {
+      const dataResolvida = new Date(a.scheduledAt)
+      if (dataResolvida < inicio || dataResolvida > fim) continue
+      const key = chaveData(dataResolvida)
+      getOrCreate(key).projetado += a.service?.price ?? 0
+    }
+
     const days = Array.from(dayMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([data, { entradas, saidas, previstas }]) => {
+      .map(([data, { entradas, saidas, previstas, projetado }]) => {
         const totalEntradas = arredondar(entradas.reduce((s, e) => s + e.valor, 0))
         const totalSaidas = arredondar(saidas.reduce((s, e) => s + e.valor, 0))
         const totalPrevistas = arredondar(previstas.reduce((s, e) => s + e.valor, 0))
-        return { data, entradas, saidas, previstas, totalEntradas, totalSaidas, totalPrevistas }
+        return { data, entradas, saidas, previstas, totalEntradas, totalSaidas, totalPrevistas, receitaProjetada: arredondar(projetado) }
       })
 
     let saldoAcumulado = 0
@@ -143,13 +208,19 @@ export async function GET(request: Request) {
     const totalEntradas = arredondar(days.reduce((s, d) => s + d.totalEntradas, 0))
     const totalSaidas = arredondar(days.reduce((s, d) => s + d.totalSaidas, 0))
     const totalPrevistas = arredondar(assinaturas.reduce((s, a) => s + a.price, 0))
+    const totalProjetado = arredondar(days.reduce((s, d) => s + d.receitaProjetada, 0))
 
     return NextResponse.json({
+      from: chaveData(inicio),
+      to: chaveData(fim),
       days: daysComSaldo,
       totalEntradas,
       totalSaidas,
       totalPrevistas,
+      totalProjetado,
       saldoFinal: arredondar(totalEntradas - totalSaidas),
+    }, {
+      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" },
     })
   } catch (e) {
     console.error("[GET /api/financeiro/fluxo]", e)

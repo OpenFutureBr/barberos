@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth, gerarUsername } from "@/lib/auth"
 import bcrypt from "bcryptjs"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
@@ -13,7 +14,9 @@ export async function GET() {
       where: { establishmentId: estabId },
       include: {
         schedules: true,
-        userServices: { include: { service: true } },
+        // Só id/nome do serviço são usados na tela de equipe — evita trazer
+        // preço, duração, foto etc. de cada serviço vinculado ao profissional.
+        userServices: { select: { serviceId: true, service: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: "desc" },
     })
@@ -21,7 +24,7 @@ export async function GET() {
       headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" },
     })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -30,6 +33,8 @@ export async function POST(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "equipe")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
 
@@ -77,6 +82,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ...profissional, username })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

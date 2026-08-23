@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const { id } = await params
   const body = await req.json()
 

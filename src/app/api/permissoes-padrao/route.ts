@@ -17,7 +17,7 @@ export async function GET() {
     }
 
     // Load both platform defaults and org overrides
-    const [platformDefaults, orgOverrides] = await Promise.all([
+    const [platformDefaults, orgOverrides, contagemPorRole] = await Promise.all([
       prisma.rolePermissionTemplate.findMany({
         where: { organizationId: null },
         orderBy: [{ role: "asc" }, { resource: "asc" }],
@@ -25,6 +25,11 @@ export async function GET() {
       prisma.rolePermissionTemplate.findMany({
         where: { organizationId: orgId },
         orderBy: [{ role: "asc" }, { resource: "asc" }],
+      }),
+      prisma.user.groupBy({
+        by: ["role"],
+        where: { organizationId: orgId, isActive: true },
+        _count: { _all: true },
       }),
     ])
 
@@ -37,12 +42,21 @@ export async function GET() {
       merged.set(`${t.role}::${t.resource}`, t)
     }
 
+    // BARBER_CLT/BARBER_MEI/AUTONOMO contam juntos como "PROFESSIONAL" — são
+    // todos profissionais de corte, só o repasse muda (ver auth.ts).
+    const userCounts: Record<string, number> = {}
+    for (const c of contagemPorRole) {
+      const chave = ["BARBER_CLT", "BARBER_MEI", "AUTONOMO"].includes(c.role) ? "PROFESSIONAL" : c.role
+      userCounts[chave] = (userCounts[chave] ?? 0) + c._count._all
+    }
+
     return NextResponse.json({
       templates: Array.from(merged.values()),
       hasOrgOverrides: orgOverrides.length > 0,
+      userCounts,
     })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -85,6 +99,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ updated: results.length })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, lazy, Suspense } from "react"
 import { useSession } from "next-auth/react"
+import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
@@ -558,13 +559,27 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   useEffect(() => {
     if (!aberto) return
-    // Busca businessHours sempre (independente de dadosPreCarregados)
-    fetch("/api/configuracoes").then(r => r.json()).then(d => {
-      if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
-    }).catch(() => {})
-    fetch("/api/precificacao").then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setRegrasPrecificacao(d)
-    }).catch(() => {})
+
+    // businessHours — usa cache preenchido pelo DashboardLayout se ainda válido
+    const cfgCache = getCache("configuracoes")
+    if (cfgCache && Array.isArray(cfgCache.businessHours)) {
+      setBusinessHours(cfgCache.businessHours)
+    } else {
+      fetch("/api/configuracoes").then(r => r.json()).then(d => {
+        if (!d.error) setCache("configuracoes", d)
+        if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
+      }).catch(() => {})
+    }
+
+    // regras de precificação — idem
+    const precCache = getCache("precificacao")
+    if (precCache) {
+      setRegrasPrecificacao(precCache)
+    } else {
+      fetch("/api/precificacao").then(r => r.json()).then(d => {
+        if (Array.isArray(d)) { setCache("precificacao", d); setRegrasPrecificacao(d) }
+      }).catch(() => {})
+    }
 
     if (dadosPreCarregados) {
       setProfissionais(dadosPreCarregados.profissionais)
@@ -577,23 +592,30 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
         fetch("/api/equipe").then(r => r.json()),
         fetch("/api/clientes?modo=simples").then(r => r.json()),
         fetch("/api/servicos").then(r => r.json()),
-        fetch(`/api/agendamentos?data=${dataSelecionada}`).then(r => r.json()),
-      ]).then(([profs, cls, svcs, appts]) => {
+      ]).then(([profs, cls, svcs]) => {
         setProfissionais(Array.isArray(profs) ? profs : [])
         setClientes(Array.isArray(cls) ? cls : [])
         setServicos(Array.isArray(svcs) ? svcs : [])
-        setAgendamentos(Array.isArray(appts) ? appts : [])
       }).catch(console.error)
       .finally(() => setCarregando(false))
     }
   }, [aberto])
 
-  // Busca agendamentos quando data muda
+  // Busca agendamentos quando data muda — usa cache (preenchido pelo DashboardLayout
+  // para o dia de hoje) e revalida em segundo plano
   useEffect(() => {
     if (!aberto) return
+    const cacheKey = `agendamentos:${dataSelecionada}`
+    const cached = getCache(cacheKey, 30_000)
+    if (cached) setAgendamentos(cached)
+
     fetch(`/api/agendamentos?data=${dataSelecionada}`)
       .then(r => r.json())
-      .then(appts => setAgendamentos(Array.isArray(appts) ? appts : []))
+      .then(appts => {
+        if (!Array.isArray(appts)) return
+        setCache(cacheKey, appts)
+        setAgendamentos(appts)
+      })
       .catch(console.error)
   }, [dataSelecionada, aberto])
 
@@ -773,6 +795,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       }
 
       resetar()
+      invalidateCache("agendamentos:")
       window.dispatchEvent(new CustomEvent("agendamentoSalvo"))
       onFechar()
     } catch (e) {

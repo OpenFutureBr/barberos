@@ -1,22 +1,24 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { anoMesAtualBRT, limitesMesBRT } from "@/lib/data-brt"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 function arredondar(valor: number) {
   return Math.round(valor * 100) / 100
 }
 
 export async function GET() {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   try {
-    const hoje = new Date()
-    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
-    const fimMes = new Date(
-      hoje.getFullYear(),
-      hoje.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-    )
+    const { ano, mes } = anoMesAtualBRT()
+    const { inicio: inicioMes, fim: fimMes } = limitesMesBRT(ano, mes)
 
     const [
       totalEmpresas,
@@ -110,7 +112,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        error: String(error),
+        error: "Erro interno. Tente novamente.",
       },
       {
         status: 500,

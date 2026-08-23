@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
@@ -24,6 +25,8 @@ type Servico = {
   durationMin: number
   isActive: boolean
   category: string | null
+  availableHome?: boolean
+  photoUrl?: string | null
 }
 
 const regraVazia: Omit<Regra, "id"> = {
@@ -65,6 +68,31 @@ export default function PrecificacaoPage() {
   const [iaSugestoes, setIaSugestoes] = useState<string>("")
   const [iaLoading, setIaLoading] = useState(false)
   const [iaErro, setIaErro] = useState("")
+
+  // Edição inline do preço — envia o serviço completo pro PUT (que não faz
+  // merge parcial: campos ausentes no body seriam zerados), garantindo que a
+  // mudança feita aqui reflita na mesma tabela de serviços usada em todo o
+  // resto do app (Serviços, Agenda, PDV — todos leem o mesmo Service.price).
+  const [editandoPrecoId, setEditandoPrecoId] = useState<string | null>(null)
+  const [salvandoPrecoId, setSalvandoPrecoId] = useState<string | null>(null)
+
+  async function salvarPreco(s: Servico, valorStr: string) {
+    const novoPreco = parseFloat(valorStr.replace(",", "."))
+    if (!novoPreco || novoPreco <= 0 || novoPreco === s.price) { setEditandoPrecoId(null); return }
+    setSalvandoPrecoId(s.id)
+    try {
+      const res = await fetch("/api/servicos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...s, price: novoPreco }),
+      })
+      const data = await res.json()
+      if (res.ok) setServicos(prev => prev.map(sv => sv.id === s.id ? { ...sv, ...data } : sv))
+    } finally {
+      setSalvandoPrecoId(null)
+      setEditandoPrecoId(null)
+    }
+  }
 
   async function consultarIA() {
     setIaLoading(true)
@@ -192,54 +220,10 @@ export default function PrecificacaoPage() {
         <p className="text-zinc-500 text-sm">Regras de acréscimo e desconto aplicadas nos cortes ao agendar</p>
       </div>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
 
-        {/* Coluna esquerda — preços dos serviços */}
-        <div className="flex-1 min-w-0">
-          <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Preços dos cortes</div>
-          {loading ? (
-            <div className="space-y-2">
-              {[1,2,3,4].map(i => <div key={i} className="h-14 bg-zinc-900 rounded-xl animate-pulse" />)}
-            </div>
-          ) : servicos.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center text-zinc-600 text-sm">
-              Nenhum serviço ativo cadastrado
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {servicos.map(s => (
-                <div key={s.id} className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-white text-sm font-medium">{s.name}</div>
-                    <div className="text-zinc-500 text-xs mt-0.5">{s.durationMin}min{s.category ? ` · ${s.category}` : ""}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-amber-400 font-bold font-mono">{fmtMoeda(s.price)}</div>
-                  </div>
-                </div>
-              ))}
-              <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 mt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-purple-400 text-xs font-mono uppercase tracking-widest">⬡ Sugestão IA</span>
-                  <button onClick={consultarIA} disabled={iaLoading}
-                    className="bg-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50 text-purple-300 text-xs px-3 py-1.5 rounded-lg border border-purple-500/20 transition-colors">
-                    {iaLoading ? "Analisando..." : "Analisar preços"}
-                  </button>
-                </div>
-                {iaErro && <div className="text-red-400 text-xs">{iaErro}</div>}
-                {iaLoading && <div className="text-zinc-500 text-xs animate-pulse">IA analisando movimentos dos últimos 90 dias...</div>}
-                {iaSugestoes ? (
-                  <div className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{iaSugestoes}</div>
-                ) : !iaLoading && !iaErro ? (
-                  <div className="text-zinc-600 text-xs">Clique em "Analisar preços" para obter sugestões baseadas nos seus atendimentos reais.</div>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Coluna direita — regras de precificação */}
-        <div className="w-[48%] flex-shrink-0">
+        {/* Regras — carrossel no mobile (vem primeiro), lista no desktop (coluna direita) */}
+        <div className="order-1 md:order-2 w-full md:w-[48%] md:flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Regras</span>
@@ -268,107 +252,180 @@ export default function PrecificacaoPage() {
                 + Criar primeira regra
               </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {regras.map(regra => {
-                const expandido = expandidos.has(regra.id)
-                return (
-                  <div key={regra.id} className={`bg-zinc-900 border rounded-xl transition-all ${regra.isActive ? "border-zinc-700" : "border-zinc-800 opacity-60"}`}>
-                    {/* Cabeçalho sempre visível */}
-                    <div className="flex items-center gap-2 px-3 py-2.5">
-                      {/* Toggle ativo */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(regra)}
-                        className={`w-8 h-5 rounded-full flex-shrink-0 relative transition-colors ${regra.isActive ? "bg-amber-500" : "bg-zinc-700"}`}
-                      >
-                        <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${regra.isActive ? "left-4" : "left-0.5"}`} />
-                      </button>
+          ) : (() => {
+            const cards = regras.map(regra => {
+              const expandido = expandidos.has(regra.id)
+              return (
+                <div key={regra.id} className={`bg-zinc-900 border rounded-xl transition-all h-full ${regra.isActive ? "border-zinc-700" : "border-zinc-800 opacity-60"}`}>
+                  {/* Cabeçalho sempre visível */}
+                  <div className="flex items-center gap-2 px-3 py-2.5">
+                    {/* Toggle ativo */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(regra)}
+                      className={`w-8 h-5 rounded-full flex-shrink-0 relative transition-colors ${regra.isActive ? "bg-amber-500" : "bg-zinc-700"}`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${regra.isActive ? "left-4" : "left-0.5"}`} />
+                    </button>
 
-                      {/* Nome — clica para expandir */}
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandido(regra.id)}
-                        className="flex-1 text-left min-w-0"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-white text-xs font-medium truncate">{regra.name}</span>
-                          {regra.markupPct > 0 && (
-                            <span className="text-xs font-mono font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0">+{regra.markupPct}%</span>
-                          )}
-                          {regra.discountPct > 0 && (
-                            <span className="text-xs font-mono font-bold text-green-400 bg-green-500/10 px-1 py-0.5 rounded flex-shrink-0">-{regra.discountPct}%</span>
-                          )}
-                        </div>
-                        {!expandido && regra.description && (
-                          <div className="text-zinc-600 text-xs truncate mt-0.5">{regra.description}</div>
+                    {/* Nome — clica para expandir */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandido(regra.id)}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-white text-xs font-medium truncate">{regra.name}</span>
+                        {regra.markupPct > 0 && (
+                          <span className="text-xs font-mono font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0">+{regra.markupPct}%</span>
                         )}
-                      </button>
-
-                      {/* Chevron */}
-                      <span
-                        onClick={() => toggleExpandido(regra.id)}
-                        className="text-zinc-600 text-xs cursor-pointer hover:text-zinc-400 transition-all flex-shrink-0"
-                        style={{ display: "inline-block", transform: expandido ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
-                      >
-                        ›
-                      </span>
-
-                      {/* Ações */}
-                      <button
-                        onClick={() => abrirEdicao(regra)}
-                        className="text-zinc-600 hover:text-zinc-200 text-xs px-1.5 py-1 rounded hover:bg-zinc-800 transition-colors flex-shrink-0"
-                      >
-                        ✏
-                      </button>
-                      <button
-                        onClick={() => handleExcluir(regra.id)}
-                        className="text-zinc-700 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-zinc-800 transition-colors flex-shrink-0"
-                      >
-                        🗑
-                      </button>
-                    </div>
-
-                    {/* Tabela — só quando expandido */}
-                    {expandido && (
-                      <div className="border-t border-zinc-800 px-3 pb-3 pt-2">
-                        {regra.description && (
-                          <div className="text-zinc-500 text-xs mb-2">{regra.description}</div>
+                        {regra.discountPct > 0 && (
+                          <span className="text-xs font-mono font-bold text-green-400 bg-green-500/10 px-1 py-0.5 rounded flex-shrink-0">-{regra.discountPct}%</span>
                         )}
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-left border-b border-zinc-800">
-                              <th className="text-zinc-500 font-normal pb-1.5 pr-4">Dia</th>
-                              <th className="text-zinc-500 font-normal pb-1.5 pr-4">Horário</th>
-                              <th className="text-zinc-500 font-normal pb-1.5 pr-3 text-center">Desconto</th>
-                              <th className="text-zinc-500 font-normal pb-1.5 text-center">Acréscimo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {regra.daysOfWeek.slice().sort().map(dia => (
-                              <tr key={dia} className="border-b border-zinc-800/30">
-                                <td className="py-1.5 pr-4 text-white font-medium">{DIAS[dia]}</td>
-                                <td className="py-1.5 pr-4 text-zinc-400 font-mono">{fmtHorario(regra.startTime, regra.endTime)}</td>
-                                <td className="py-1.5 pr-3 text-center">
-                                  {regra.discountPct > 0
-                                    ? <span className="text-green-400 font-bold">-{regra.discountPct}%</span>
-                                    : <span className="text-zinc-700">—</span>}
-                                </td>
-                                <td className="py-1.5 text-center">
-                                  {regra.markupPct > 0
-                                    ? <span className="text-red-400 font-bold">+{regra.markupPct}%</span>
-                                    : <span className="text-zinc-700">—</span>}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="text-zinc-600 text-xs mt-1.5">{descricaoDias(regra.daysOfWeek)}</div>
                       </div>
-                    )}
+                      {!expandido && regra.description && (
+                        <div className="text-zinc-600 text-xs truncate mt-0.5">{regra.description}</div>
+                      )}
+                    </button>
+
+                    {/* Chevron */}
+                    <span
+                      onClick={() => toggleExpandido(regra.id)}
+                      className="text-zinc-600 text-xs cursor-pointer hover:text-zinc-400 transition-all flex-shrink-0"
+                      style={{ display: "inline-block", transform: expandido ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
+                    >
+                      ›
+                    </span>
+
+                    {/* Ações */}
+                    <button
+                      onClick={() => abrirEdicao(regra)}
+                      className="text-zinc-600 hover:text-zinc-200 text-xs px-1.5 py-1 rounded hover:bg-zinc-800 transition-colors flex-shrink-0"
+                    >
+                      ✏
+                    </button>
+                    <button
+                      onClick={() => handleExcluir(regra.id)}
+                      className="text-zinc-700 hover:text-red-400 text-xs px-1.5 py-1 rounded hover:bg-zinc-800 transition-colors flex-shrink-0"
+                    >
+                      🗑
+                    </button>
                   </div>
-                )
-              })}
+
+                  {/* Tabela — só quando expandido */}
+                  {expandido && (
+                    <div className="border-t border-zinc-800 px-3 pb-3 pt-2">
+                      {regra.description && (
+                        <div className="text-zinc-500 text-xs mb-2">{regra.description}</div>
+                      )}
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left border-b border-zinc-800">
+                            <th className="text-zinc-500 font-normal pb-1.5 pr-4">Dia</th>
+                            <th className="text-zinc-500 font-normal pb-1.5 pr-4">Horário</th>
+                            <th className="text-zinc-500 font-normal pb-1.5 pr-3 text-center">Desconto</th>
+                            <th className="text-zinc-500 font-normal pb-1.5 text-center">Acréscimo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {regra.daysOfWeek.slice().sort().map(dia => (
+                            <tr key={dia} className="border-b border-zinc-800/30">
+                              <td className="py-1.5 pr-4 text-white font-medium">{DIAS[dia]}</td>
+                              <td className="py-1.5 pr-4 text-zinc-400 font-mono">{fmtHorario(regra.startTime, regra.endTime)}</td>
+                              <td className="py-1.5 pr-3 text-center">
+                                {regra.discountPct > 0
+                                  ? <span className="text-green-400 font-bold">-{regra.discountPct}%</span>
+                                  : <span className="text-zinc-700">—</span>}
+                              </td>
+                              <td className="py-1.5 text-center">
+                                {regra.markupPct > 0
+                                  ? <span className="text-red-400 font-bold">+{regra.markupPct}%</span>
+                                  : <span className="text-zinc-700">—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="text-zinc-600 text-xs mt-1.5">{descricaoDias(regra.daysOfWeek)}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+            return (
+              <>
+                <CardCarousel cards={cards} />
+                <div className="hidden md:block space-y-2">{cards}</div>
+              </>
+            )
+          })()}
+        </div>
+
+        {/* Preços dos cortes — duas colunas no mobile, lista no desktop; edição inline sincroniza com /api/servicos */}
+        <div className="order-2 md:order-1 w-full md:flex-1 md:min-w-0">
+          <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Preços dos cortes</div>
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
+              {[1,2,3,4].map(i => <div key={i} className="h-16 bg-zinc-900 rounded-xl animate-pulse" />)}
+            </div>
+          ) : servicos.length === 0 ? (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center text-zinc-600 text-sm">
+              Nenhum serviço ativo cadastrado
+            </div>
+          ) : (
+            <div>
+              <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
+                {servicos.map(s => (
+                  <div key={s.id} className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 md:px-4 md:py-3 md:flex md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-white text-sm font-medium truncate">{s.name}</div>
+                      <div className="text-zinc-500 text-xs mt-0.5 truncate">{s.durationMin}min{s.category ? ` · ${s.category}` : ""}</div>
+                    </div>
+                    <div className="text-right mt-1.5 md:mt-0">
+                      {editandoPrecoId === s.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={s.price}
+                          disabled={salvandoPrecoId === s.id}
+                          onBlur={(e) => salvarPreco(s, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+                            if (e.key === "Escape") setEditandoPrecoId(null)
+                          }}
+                          className="w-full md:w-24 bg-zinc-800 border border-amber-500 text-amber-400 font-bold font-mono text-sm rounded px-1.5 py-1 outline-none text-right"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditandoPrecoId(s.id)}
+                          className="text-amber-400 font-bold font-mono text-sm hover:underline"
+                          title="Clique para editar o preço"
+                        >
+                          {salvandoPrecoId === s.id ? "salvando..." : fmtMoeda(s.price)}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-purple-400 text-xs font-mono uppercase tracking-widest">⬡ Sugestão IA</span>
+                  <button onClick={consultarIA} disabled={iaLoading}
+                    className="bg-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50 text-purple-300 text-xs px-3 py-1.5 rounded-lg border border-purple-500/20 transition-colors">
+                    {iaLoading ? "Analisando..." : "Analisar preços"}
+                  </button>
+                </div>
+                {iaErro && <div className="text-red-400 text-xs">{iaErro}</div>}
+                {iaLoading && <div className="text-zinc-500 text-xs animate-pulse">IA analisando movimentos dos últimos 90 dias...</div>}
+                {iaSugestoes ? (
+                  <div className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{iaSugestoes}</div>
+                ) : !iaLoading && !iaErro ? (
+                  <div className="text-zinc-600 text-xs">Clique em "Analisar preços" para obter sugestões baseadas nos seus atendimentos reais.</div>
+                ) : null}
+              </div>
             </div>
           )}
         </div>

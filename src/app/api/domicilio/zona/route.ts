@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function PUT(request: Request) {
   try {
     const session = await auth()
     const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "domicilio")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
 
@@ -29,6 +32,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(user)
   } catch (error) {
     console.error("[PUT /api/domicilio/zona]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "domicilio")
+    if (bloqueio) return bloqueio
 
     const items = await prisma.kitItem.findMany({
       where: { userId },
@@ -14,7 +17,7 @@ export async function GET() {
     })
     return NextResponse.json(items)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -23,6 +26,8 @@ export async function POST(request: Request) {
     const session = await auth()
     const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "domicilio")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
     if (!body.name?.trim()) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 })
@@ -39,6 +44,6 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(item, { status: 201 })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

@@ -47,6 +47,7 @@ html.light img,
 html.light picture,
 html.light video,
 html.light canvas,
+html.light iframe,
 html.light [data-no-invert] {
   filter: invert(1) hue-rotate(180deg) !important;
 }
@@ -58,6 +59,18 @@ html.light img {
   opacity: 1 !important;
   mix-blend-mode: normal !important;
 }
+
+/*
+  Os tons de cinza intermediários (zinc-500/600/700) foram calibrados como
+  texto secundário sobre fundo escuro. Depois do invert(1) do tema claro eles
+  viram cinza claro sobre fundo quase branco — baixo contraste, "apagado".
+  Como o filtro inverte o pixel final, redefinimos a cor de origem (mais
+  clara) para que o resultado pós-inversão seja um cinza escuro legível.
+*/
+html.light .text-zinc-500 { color: #a1a1aa !important; }
+html.light .text-zinc-600 { color: #d4d4d8 !important; }
+html.light .text-zinc-700 { color: #e4e4e7 !important; }
+html.light .text-zinc-800 { color: #a1a1aa !important; }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {

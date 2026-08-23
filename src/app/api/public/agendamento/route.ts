@@ -11,17 +11,24 @@ export async function POST(req: Request) {
 
   const scheduledAt = new Date(`${data}T${hora}:00-03:00`)
 
-  // Verifica conflito antes de criar
+  // Serviço e profissional precisam pertencer ao MESMO estabelecimento
+  // informado (estabId) — antes eram buscados só por id, então um caller
+  // podia misturar profissional/serviço de uma barbearia com o estabId de
+  // outra, criando um agendamento cruzado entre organizações.
   const servico = await prisma.service.findUnique({
-    where: { id: servicoId },
+    where: { id: servicoId, establishmentId: estabId },
     select: { durationMin: true },
   })
   const prof = await prisma.user.findUnique({
-    where: { id: profId },
+    where: { id: profId, establishmentId: estabId },
     select: { breakBetweenAppts: true },
   })
 
-  const duracao = (servico?.durationMin ?? 30) + (prof?.breakBetweenAppts ?? 0)
+  if (!servico || !prof) {
+    return NextResponse.json({ error: "Serviço ou profissional inválido para este estabelecimento." }, { status: 400 })
+  }
+
+  const duracao = servico.durationMin + (prof.breakBetweenAppts ?? 0)
   const fimNovo = new Date(scheduledAt.getTime() + duracao * 60000)
 
   const conflito = await prisma.appointment.findFirst({

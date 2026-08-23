@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import DashboardLayout from "@/components/layout/DashboardLayout"
+import { fetchJsonSafe } from "@/lib/safe-fetch"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -21,7 +22,15 @@ type Unidade = {
   city: string | null
   state: string | null
   logoUrl: string | null
+  updatedAt: string
   _count: { users: number; clients: number; appointments: number }
+}
+
+// Imagem em cache por 1 ano (ver supabase-storage.ts) — ?v= usa updatedAt
+// como carimbo de versão, trocando a URL quando a foto é atualizada.
+function fotoComVersao(url: string | null | undefined, updatedAt: string | null | undefined) {
+  if (!url || !updatedAt) return url ?? null
+  return `${url}${url.includes("?") ? "&" : "?"}v=${new Date(updatedAt).getTime()}`
 }
 
 type ConfigFull = {
@@ -188,29 +197,25 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   }
 
   useEffect(() => {
-    fetch(`/api/unidades/${unidadeId}/servicos`)
-      .then(r => r.json())
-      .then(d => Array.isArray(d) ? setServicos(d) : null)
-      .catch(() => {})
+    fetchJsonSafe<any[]>(`/api/unidades/${unidadeId}/servicos`, `unidade:${unidadeId}:servicos`)
+      .then(d => { if (d) setServicos(d) })
 
-    fetch("/api/org/config")
-      .then(r => r.json())
+    fetchJsonSafe<{ playlists?: any[] }>("/api/org/config", "org:config")
       .then(d => {
         if (Array.isArray(d?.playlists)) setOrgPlaylists(d.playlists)
       })
-      .catch(() => {})
 
     // Logo da organização para exibir como fallback
-    fetch("/api/org/info")
-      .then(r => r.json())
+    fetchJsonSafe<{ logoUrl?: string }>("/api/org/info", "org:info")
       .then(d => { if (d?.logoUrl) setOrgLogoUrl(d.logoUrl) })
-      .catch(() => {})
   }, [unidadeId])
 
   useEffect(() => {
-    fetch(`/api/unidades/${unidadeId}`)
-      .then(r => r.json())
-      .then((d: ConfigFull) => {
+    // fetchJsonSafe mantém o último config bom em cache — sem isso, uma falha
+    // transitória limparia todo o formulário (nome, endereço, config etc.)
+    fetchJsonSafe<ConfigFull>(`/api/unidades/${unidadeId}`, `unidade:${unidadeId}:config`)
+      .then((d) => {
+        if (!d) return
         setNome(d.name ?? "")
         setSlug(d.slug ?? "")
         setTelefone(fmtTel(d.phone ?? ""))
@@ -598,10 +603,10 @@ export default function UnidadesPage() {
 
   const carregar = useCallback(() => {
     setLoading(true)
-    fetch("/api/unidades")
-      .then(r => r.json())
-      .then(d => Array.isArray(d) ? setUnidades(d) : setUnidades([]))
-      .catch(console.error)
+    // fetchJsonSafe mantém a última lista boa em cache se a busca falhar —
+    // nunca zera as unidades por causa de uma falha transitória.
+    fetchJsonSafe<any[]>("/api/unidades", "unidades:lista")
+      .then(d => { if (d) setUnidades(d) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -642,12 +647,22 @@ export default function UnidadesPage() {
             {loading ? "Carregando..." : `${unidades.length} unidade${unidades.length !== 1 ? "s" : ""} · Dashboard consolidado`}
           </p>
         </div>
-        <button
-          onClick={() => setModalNova(true)}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          + Nova unidade
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/dashboard/unidades/relatorio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
+          >
+            Gerar relatório executivo
+          </a>
+          <button
+            onClick={() => setModalNova(true)}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            + Nova unidade
+          </button>
+        </div>
       </div>
 
       {/* KPIs consolidados */}
@@ -709,7 +724,7 @@ export default function UnidadesPage() {
                 onClick={() => setExpandido(expandido === unidade.id ? null : unidade.id)}>
                 <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-amber-500 flex items-center justify-center">
                   {unidade.logoUrl
-                    ? <img src={unidade.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ? <img src={fotoComVersao(unidade.logoUrl, unidade.updatedAt) ?? undefined} alt="Logo" loading="lazy" className="w-full h-full object-cover" />
                     : <span className="text-black font-bold">{unidade.name.charAt(0)}</span>}
                 </div>
                 <div className="flex-1">

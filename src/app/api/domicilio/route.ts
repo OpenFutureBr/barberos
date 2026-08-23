@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, limitesDiaBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 const ROLES_GESTAO = ["ADMIN", "ORG_OWNER", "ORG_MANAGER", "UNIT_MANAGER", "RECEPTIONIST"]
 
@@ -11,11 +13,12 @@ export async function GET() {
     const estabId = session?.user?.establishmentId
     const role = session?.user?.role
     if (!userId || !estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "domicilio")
+    if (bloqueio) return bloqueio
 
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
-    const amanha = new Date(hoje)
-    amanha.setDate(amanha.getDate() + 1)
+    const hojeISO = hojeISOemBRT()
+    const { inicio: hoje } = limitesDiaBRT(hojeISO)
+    const { inicio: amanha } = limitesDiaBRT(somarDiasISO(hojeISO, 1))
 
     const isGestao = ROLES_GESTAO.includes(role ?? "")
 
@@ -43,7 +46,7 @@ export async function GET() {
     return NextResponse.json({ appointments, zone: user })
   } catch (error) {
     console.error("[GET /api/domicilio]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -54,6 +57,8 @@ export async function PUT(request: Request) {
     const estabId = session?.user?.establishmentId
     const role = session?.user?.role
     if (!userId || !estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "domicilio")
+    if (bloqueio) return bloqueio
 
     const body = await request.json()
     const { appointmentId, status } = body
@@ -87,6 +92,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(updated)
   } catch (error) {
     console.error("[PUT /api/domicilio]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

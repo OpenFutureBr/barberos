@@ -220,29 +220,32 @@ export default function ClientesPage() {
     <DashboardLayout>
 
       <div className="flex items-center justify-between mb-4">
-        <div>
+        <div className="hidden md:block">
           <h1 className="text-white text-xl font-bold">Clientes</h1>
           <p className="text-zinc-500 text-sm">{total} cadastrados</p>
         </div>
-        <button
-          onClick={() => setModalAberto(true)}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          + Novo cliente
-        </button>
+        <div className="flex flex-col items-end gap-1 ml-auto md:ml-0">
+          <button
+            onClick={() => setModalAberto(true)}
+            className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition-colors"
+          >
+            + Novo cliente
+          </button>
+          <p className="text-zinc-500 text-xs md:hidden">{total} cadastrados</p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 md:gap-3 mb-4">
         <input
           value={buscaInput}
           onChange={(e) => setBuscaInput(e.target.value)}
           placeholder="Buscar por nome ou telefone..."
-          className="flex-1 bg-zinc-900 border border-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
+          className="flex-1 min-w-0 max-w-[55%] md:max-w-none bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 md:px-4 py-2 md:py-2.5 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
         />
-        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 flex-shrink-0">
           {[10, 30, 50].map(n => (
             <button key={n} onClick={() => { setPerPage(n); setPage(1) }}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${perPage === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+              className={`px-2 md:px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${perPage === n ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
               {n}
             </button>
           ))}
@@ -264,7 +267,27 @@ export default function ClientesPage() {
             )}
           </div>
         ) : (
-          <table className="w-full">
+          <>
+          {/* Lista mobile — só nome, telefone e ícone */}
+          <div className="md:hidden divide-y divide-zinc-800">
+            {clientes.map(cliente => (
+              <div
+                key={cliente.id}
+                onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                className="flex items-center gap-3 px-4 py-3 active:bg-zinc-800/50 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                  {cliente.name?.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-white text-sm font-medium truncate">{cliente.name}</div>
+                  <div className="text-zinc-500 text-xs truncate">{cliente.phone}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <table className="hidden md:table w-full">
             <thead>
               <tr className="border-b border-zinc-800">
                 <th className="text-left px-4 py-3 text-zinc-500 text-xs uppercase tracking-widest font-mono">Cliente</th>
@@ -311,6 +334,7 @@ export default function ClientesPage() {
               ))}
             </tbody>
           </table>
+          </>
         )}
       </div>
 

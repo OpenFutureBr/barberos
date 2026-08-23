@@ -1,16 +1,20 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
+import { temPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    // Compartilhado por PIX, Fila de Espera e Painel TV.
+    if (!["pix", "fila", "painel_tv"].some(r => temPermissao(session?.user, r))) {
+      return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
 
-    const hoje = new Date()
-    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0)
-    const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    const { inicio, fim } = limitesHojeBRT()
 
     const appointments = await prisma.appointment.findMany({
       where: {
@@ -29,6 +33,6 @@ export async function GET() {
     return NextResponse.json(appointments)
   } catch (error) {
     console.error("[GET /api/pix/cobrancas]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
+
+async function assertAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== "ADMIN") return false
+  return true
+}
 
 function arredondar(v: number) {
   return Math.round(v * 100) / 100
 }
 
 export async function GET() {
+  if (!(await assertAdmin())) return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
+
   const [subscriptions, invoices] = await Promise.all([
     prisma.organizationSubscription.findMany({
       where: { status: { in: ["ACTIVE", "TRIAL"] as any } },
@@ -23,8 +33,7 @@ export async function GET() {
   const mrr = subscriptions.reduce((s, sub) => s + sub.price, 0)
   const arr = mrr * 12
 
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+  const { inicio: hoje } = limitesHojeBRT()
 
   const faturasPorStatus = {
     pendentes: invoices.filter(i => i.status === "PENDING" && new Date(i.dueDate) >= hoje),

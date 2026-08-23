@@ -1,12 +1,15 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "assinaturas")
+    if (bloqueio) return bloqueio
 
     const mesAtual = new Date().toISOString().slice(0, 7) // YYYY-MM
 
@@ -24,37 +27,60 @@ export async function GET() {
 
     const agora = new Date()
 
-    // Reseta cortesUsados se mudou o mês; marca OVERDUE se venceu sem renovação
-    for (const a of assinantes) {
-      const updates: Record<string, any> = {}
+    // Reseta cortesUsados se mudou o mês; marca OVERDUE se venceu sem renovação.
+    // Antes disparava um UPDATE por assinante (sequencial); agora agrupa os ids
+    // por tipo de mudança e faz no máximo 2 updateMany em paralelo.
+    const idsResetMes: string[] = []
+    const idsOverdue: string[] = []
 
+    for (const a of assinantes) {
       if (a.mesReferencia !== mesAtual) {
-        updates.cortesUsados = 0
-        updates.mesReferencia = mesAtual
+        idsResetMes.push(a.id)
         a.cortesUsados = 0
         a.mesReferencia = mesAtual
       }
 
       if (a.status === "ACTIVE" && new Date(a.nextBillingAt) <= agora) {
-        updates.status = "OVERDUE"
+        idsOverdue.push(a.id)
         ;(a as any).status = "OVERDUE"
       }
-
-      if (Object.keys(updates).length > 0) {
-        await prisma.subscription.update({ where: { id: a.id }, data: updates }).catch(() => {})
-      }
     }
+
+    await Promise.all([
+      idsResetMes.length
+        ? prisma.subscription.updateMany({
+            where: { id: { in: idsResetMes } },
+            data: { cortesUsados: 0, mesReferencia: mesAtual },
+          }).catch(() => {})
+        : null,
+      idsOverdue.length
+        ? prisma.subscription.updateMany({
+            where: { id: { in: idsOverdue } },
+            data: { status: "OVERDUE" },
+          }).catch(() => {})
+        : null,
+    ])
+
     return NextResponse.json(assinantes)
   } catch (error) {
     console.error("[GET /api/assinaturas/assinantes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "assinaturas")
+    if (bloqueio) return bloqueio
+
     const body = await request.json()
     const { clientId, planId, startedAt } = body
+
+    const clienteDoEstab = await prisma.client.findFirst({ where: { id: clientId, establishmentId: estabId }, select: { id: true } })
+    if (!clienteDoEstab) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
 
     // Verifica se cliente já tem assinatura ativa
     const existente = await prisma.subscription.findUnique({ where: { clientId } })
@@ -62,7 +88,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cliente já possui uma assinatura ativa" }, { status: 400 })
     }
 
-    const plano = await prisma.subscriptionPlan.findUnique({ where: { id: planId } })
+    // Escopo por estabelecimento — antes buscava só por id, permitindo
+    // assinar um cliente num plano de outra unidade.
+    const plano = await prisma.subscriptionPlan.findFirst({ where: { id: planId, establishmentId: estabId } })
     if (!plano) return NextResponse.json({ error: "Plano não encontrado" }, { status: 404 })
 
     const inicio = startedAt ? new Date(startedAt) : new Date()
@@ -97,6 +125,6 @@ export async function POST(request: Request) {
     return NextResponse.json(assinatura)
   } catch (error) {
     console.error("[POST /api/assinaturas/assinantes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

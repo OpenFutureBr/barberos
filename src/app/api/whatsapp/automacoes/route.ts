@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 const DEFAULTS: Record<string, { nome: string; descricao: string; tipo: string; defaultAtiva: boolean }> = {
   confirmacao: { nome: "Confirmação de agendamento", descricao: "Enviada 24h antes do horário", tipo: "confirmacao", defaultAtiva: true },
@@ -17,6 +18,8 @@ export async function GET() {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "whatsapp")
+    if (bloqueio) return bloqueio
 
     const estab = await prisma.establishment.findUnique({
       where: { id: estabId },
@@ -45,7 +48,7 @@ export async function GET() {
 
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -55,6 +58,8 @@ export async function PUT(request: Request) {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "whatsapp")
+    if (bloqueio) return bloqueio
 
     const { tipo, ativa } = await request.json()
     if (!tipo || ativa === undefined) return NextResponse.json({ error: "tipo e ativa são obrigatórios" }, { status: 400 })
@@ -71,6 +76,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

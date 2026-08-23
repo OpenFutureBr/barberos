@@ -17,7 +17,7 @@ export async function GET() {
     })
   } catch (error) {
     console.error("[GET /api/configuracoes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -50,6 +50,7 @@ export async function PUT(request: Request) {
         businessHours: body.businessHours ?? undefined,
         cashbackConfig: body.cashbackConfig ?? undefined,
         painelConfig: body.painelConfig ?? undefined,
+        categoriaCores: body.categoriaCores ?? undefined,
         ...(body.logoUrl ? { logoUrl: body.logoUrl } : {}),
       },
     })
@@ -71,6 +72,6 @@ export async function PUT(request: Request) {
     return NextResponse.json(estab)
   } catch (error) {
     console.error("[PUT /api/configuracoes]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

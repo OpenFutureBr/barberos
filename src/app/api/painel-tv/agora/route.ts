@@ -1,17 +1,20 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { limitesHojeBRT } from "@/lib/data-brt"
+import { bloqueioSemPermissao } from "@/lib/permissoes"
 
 export async function GET() {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "painel_tv")
+    if (bloqueio) return bloqueio
 
     const agora = new Date()
     const fim = new Date(agora.getTime() + 30 * 60 * 1000)
-    const inicioDia = new Date(agora)
-    inicioDia.setHours(0, 0, 0, 0)
+    const { inicio: inicioDia } = limitesHojeBRT()
 
     // Busca IN_PROGRESS sempre + agendamentos do dia dentro da janela
     const agendamentos = await prisma.appointment.findMany({
@@ -65,6 +68,6 @@ export async function GET() {
     return NextResponse.json(resultado)
   } catch (error) {
     console.error("[GET /api/painel-tv/agora]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

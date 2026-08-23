@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { hojeISOemBRT, somarDiasISO, limitesDiaBRT } from "@/lib/data-brt"
+import { temPermissao } from "@/lib/permissoes"
 
 const ROLES_PERMITIDOS = ["ADMIN", "ORG_OWNER", "ORG_MANAGER"]
 
@@ -9,14 +11,13 @@ export async function GET() {
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "")) {
+    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
-    const amanha = new Date(hoje)
-    amanha.setDate(amanha.getDate() + 1)
+    const hojeISO = hojeISOemBRT()
+    const { inicio: hoje } = limitesDiaBRT(hojeISO)
+    const { inicio: amanha } = limitesDiaBRT(somarDiasISO(hojeISO, 1))
 
     const establishments = await prisma.establishment.findMany({
       where: { organizationId: orgId },
@@ -40,7 +41,7 @@ export async function GET() {
     return NextResponse.json(establishments)
   } catch (error) {
     console.error("[GET /api/unidades]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     const session = await auth()
     const orgId = session?.user?.organizationId
     const role = session?.user?.role
-    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "")) {
+    if (!orgId || !ROLES_PERMITIDOS.includes(role ?? "") || !temPermissao(session?.user, "unidades")) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
@@ -116,6 +117,6 @@ export async function POST(request: Request) {
     return NextResponse.json(estab, { status: 201 })
   } catch (error) {
     console.error("[POST /api/unidades]", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }
