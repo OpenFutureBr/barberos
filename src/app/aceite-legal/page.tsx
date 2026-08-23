@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const DOCUMENT_VERSION = "1.0"
 
@@ -91,8 +91,14 @@ function Tbl({ head, rows }: { head: string[]; rows: (string | React.ReactNode)[
 }
 
 function AceiteLegalInner() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const orgId = searchParams.get("org")
+
+  function voltar() {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back()
+    else router.push("/login")
+  }
 
   const [empresaCnpj, setEmpresaCnpj] = useState("")
   const [empresaEndereco, setEmpresaEndereco] = useState("")
@@ -169,9 +175,16 @@ function AceiteLegalInner() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 pb-32">
       <div className="sticky top-0 z-20 h-12 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 flex items-center justify-between px-6">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-amber-500 text-black font-black text-sm flex items-center justify-center">B</div>
-          <span className="text-sm font-semibold text-white">BarberOS <span className="text-zinc-500 font-normal text-xs ml-1">DOCUMENTOS LEGAIS</span></span>
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={voltar}
+            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200 transition-colors">
+            ← Voltar
+          </button>
+          <div className="w-px h-5 bg-zinc-800" />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-amber-500 text-black font-black text-sm flex items-center justify-center">B</div>
+            <span className="text-sm font-semibold text-white">BarberOS <span className="text-zinc-500 font-normal text-xs ml-1">DOCUMENTOS LEGAIS</span></span>
+          </div>
         </div>
         {orgId && (
           <span className={`text-[10px] font-mono tracking-wide rounded-full border px-2.5 py-1 ${jaAceito || sucesso ? "text-green-400 border-green-500/20" : "text-amber-500 border-amber-500/20"}`}>
