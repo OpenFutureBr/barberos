@@ -153,6 +153,20 @@ export default function AjudaPage() {
           ))}
         </div>
 
+        {/* Documentos legais */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mt-6 flex items-start gap-3">
+          <div className="text-zinc-500 text-xl flex-shrink-0">📄</div>
+          <div>
+            <div className="text-zinc-300 font-medium text-sm">Termos de Uso e Política de Privacidade</div>
+            <p className="text-zinc-500 text-xs mt-1">Consulte a qualquer momento os documentos legais aceitos no cadastro (Termos de Uso, Privacidade, Cookies e Contrato SaaS).</p>
+            <a
+              href="/aceite-legal"
+              className="mt-2 inline-flex items-center gap-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors">
+              Ver documentos →
+            </a>
+          </div>
+        </div>
+
         <div className="mt-8 text-center text-zinc-700 text-xs">
           Barberos · v1.3 · Todos os direitos reservados
         </div>
