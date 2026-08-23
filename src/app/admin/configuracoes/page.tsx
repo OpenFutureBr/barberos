@@ -8,6 +8,9 @@ type Config = {
   gemini_api_key?: string
   ia_vision_provider?: string
   ia_text_provider?: string
+  empresa_cnpj?: string
+  empresa_endereco?: string
+  empresa_cep?: string
 }
 
 function Toggle({ ativo, onChange }: { ativo: boolean; onChange: (v: boolean) => void }) {
@@ -57,6 +60,9 @@ export default function AdminConfigPage() {
   const [textProvider, setTextProvider] = useState("groq")
   const [showGroq, setShowGroq] = useState(false)
   const [showGemini, setShowGemini] = useState(false)
+  const [empresaCnpj, setEmpresaCnpj] = useState("")
+  const [empresaEndereco, setEmpresaEndereco] = useState("")
+  const [empresaCep, setEmpresaCep] = useState("")
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
@@ -70,6 +76,9 @@ export default function AdminConfigPage() {
         setGeminiKey(d.gemini_api_key ?? "")
         setVisionProvider(d.ia_vision_provider ?? "gemini")
         setTextProvider(d.ia_text_provider ?? "groq")
+        setEmpresaCnpj(d.empresa_cnpj ?? "")
+        setEmpresaEndereco(d.empresa_endereco ?? "")
+        setEmpresaCep(d.empresa_cep ?? "")
       })
       .finally(() => setLoading(false))
   }, [])
@@ -85,6 +94,9 @@ export default function AdminConfigPage() {
         gemini_api_key: geminiKey,
         ia_vision_provider: visionProvider,
         ia_text_provider: textProvider,
+        empresa_cnpj: empresaCnpj,
+        empresa_endereco: empresaEndereco,
+        empresa_cep: empresaCep,
       }),
     })
     setSalvando(false)
@@ -194,6 +206,38 @@ export default function AdminConfigPage() {
                 </div>
                 {groqKey && !showGroq && <p className="text-zinc-600 text-xs font-mono">{maskKey(groqKey)}</p>}
                 <p className="text-zinc-600 text-[10px]">llama-3.3-70b + llama-4-scout-17b vision · free generoso</p>
+              </div>
+            </div>
+
+            {/* Dados da empresa (documentos legais) */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-md bg-zinc-700 flex items-center justify-center text-zinc-400 text-xs">📄</div>
+                <h2 className="text-white font-semibold text-sm">Dados da empresa (documentos legais)</h2>
+              </div>
+              <p className="text-zinc-600 text-xs -mt-2">
+                Preencha assim que a OpenFutureBr Tecnologia Ltda for aberta oficialmente. Esses dados alimentam automaticamente os Termos de Uso, Política de Privacidade e Contrato SaaS em <span className="font-mono text-zinc-500">/aceite-legal</span>.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-zinc-400 text-xs block">CNPJ</label>
+                <input value={empresaCnpj} onChange={e => setEmpresaCnpj(e.target.value)}
+                  placeholder="00.000.000/0001-00"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-zinc-400 text-xs block">Endereço da sede</label>
+                <input value={empresaEndereco} onChange={e => setEmpresaEndereco(e.target.value)}
+                  placeholder="Rua, número, bairro — São Paulo/SP"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-zinc-400 text-xs block">CEP</label>
+                <input value={empresaCep} onChange={e => setEmpresaCep(e.target.value)}
+                  placeholder="00000-000"
+                  className="w-full sm:w-48 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
               </div>
             </div>
 

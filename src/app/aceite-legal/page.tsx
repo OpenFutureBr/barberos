@@ -42,6 +42,10 @@ const NAV = [
   ]},
 ]
 
+function Val({ value, placeholder }: { value: string; placeholder: string }) {
+  return value ? <>{value}</> : <span className="italic text-zinc-600">[{placeholder}]</span>
+}
+
 function Sec({ id, num, title, children }: { id: string; num: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mb-12 scroll-mt-6">
@@ -90,6 +94,9 @@ function AceiteLegalInner() {
   const searchParams = useSearchParams()
   const orgId = searchParams.get("org")
 
+  const [empresaCnpj, setEmpresaCnpj] = useState("")
+  const [empresaEndereco, setEmpresaEndereco] = useState("")
+
   const [jaAceito, setJaAceito] = useState(false)
   const [aceiteInfo, setAceiteInfo] = useState<{ em: string; por: string | null } | null>(null)
   const [carregando, setCarregando] = useState(!!orgId)
@@ -106,6 +113,16 @@ function AceiteLegalInner() {
   const [enviando, setEnviando] = useState(false)
   const [erroEnvio, setErroEnvio] = useState("")
   const [sucesso, setSucesso] = useState<{ em: string } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/public/empresa-legal")
+      .then(r => r.json())
+      .then(d => {
+        setEmpresaCnpj(d.cnpj || "")
+        setEmpresaEndereco(d.endereco || "")
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!orgId) return
@@ -200,7 +217,7 @@ function AceiteLegalInner() {
           <div className="mt-2 text-xs text-zinc-600 uppercase tracking-widest font-mono text-center py-5 border-y border-zinc-800 my-10">Documento 01 · Termos de Uso</div>
 
           <Sec id="tu-aceite" num="01" title="Aceite dos Termos">
-            <p>Estes Termos constituem um contrato legal vinculante entre o <strong>Contratante</strong> e a <strong>OpenFutureBr Tecnologia Ltda</strong>, CNPJ n.º [CNPJ A INSERIR], com sede em [ENDEREÇO A INSERIR] — São Paulo/SP (&quot;BarberOS&quot;).</p>
+            <p>Estes Termos constituem um contrato legal vinculante entre o <strong>Contratante</strong> e a <strong>OpenFutureBr Tecnologia Ltda</strong>, CNPJ n.º <Val value={empresaCnpj} placeholder="CNPJ a definir" />, com sede em <Val value={empresaEndereco} placeholder="endereço a definir" /> — São Paulo/SP (&quot;BarberOS&quot;).</p>
             <p>O aceite ocorre por qualquer dos meios: (i) criação de conta; (ii) acesso ao sistema; (iii) confirmação digital neste documento; (iv) assinatura de proposta comercial. Ao aceitar, você também concorda com a Política de Privacidade, Política de Cookies e o Contrato SaaS + DPA descritos neste mesmo documento.</p>
           </Sec>
 
@@ -286,7 +303,7 @@ function AceiteLegalInner() {
           <div className="text-xs text-zinc-600 uppercase tracking-widest font-mono text-center py-5 border-y border-zinc-800 my-10">Documento 02 · Política de Privacidade · LGPD Lei 13.709/2018</div>
 
           <Sec id="pp-quem" num="01" title="Quem Somos — Controlador de Dados">
-            <p>A <strong>OpenFutureBr Tecnologia Ltda</strong>, CNPJ [CNPJ A INSERIR], é a Controladora de Dados da plataforma BarberOS. Na relação com os estabelecimentos clientes: o <strong>BarberOS é Controlador</strong> dos dados de cadastro dos estabelecimentos e <strong>Operador</strong> dos dados dos clientes finais das barbearias. Os <strong>estabelecimentos são Controladores</strong> dos dados de seus próprios clientes.</p>
+            <p>A <strong>OpenFutureBr Tecnologia Ltda</strong>, CNPJ <Val value={empresaCnpj} placeholder="CNPJ a definir" />, é a Controladora de Dados da plataforma BarberOS. Na relação com os estabelecimentos clientes: o <strong>BarberOS é Controlador</strong> dos dados de cadastro dos estabelecimentos e <strong>Operador</strong> dos dados dos clientes finais das barbearias. Os <strong>estabelecimentos são Controladores</strong> dos dados de seus próprios clientes.</p>
           </Sec>
 
           <Sec id="pp-dados" num="02" title="Dados que Coletamos">
@@ -379,7 +396,7 @@ function AceiteLegalInner() {
               <div className="text-[10px] font-mono text-amber-500 tracking-wide uppercase mb-2">Contratada</div>
               <p className="text-sm text-zinc-300 leading-7">
                 <strong>OpenFutureBr Tecnologia Ltda</strong><br />
-                CNPJ: [CNPJ A INSERIR] · Sede: [ENDEREÇO A INSERIR] — São Paulo/SP<br />
+                CNPJ: <Val value={empresaCnpj} placeholder="a definir" /> · Sede: <Val value={empresaEndereco} placeholder="a definir" /> — São Paulo/SP<br />
                 E-mail: juridico@barberos.com.br · DPO: dpo@barberos.com.br
               </p>
             </div>
