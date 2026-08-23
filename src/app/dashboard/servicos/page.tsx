@@ -24,6 +24,146 @@ function fotoComVersao(url: string | null | undefined, updatedAt: string | null 
   return `${url}${url.includes("?") ? "&" : "?"}v=${v}`
 }
 
+function InfoRow({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-zinc-600 text-[9px] uppercase tracking-wider">{label}</span>
+      <span className={`text-xs font-semibold ${accent ? "text-amber-400" : "text-zinc-200"}`}>{value}</span>
+    </div>
+  )
+}
+
+// Card estilo crachá: frente com foto circular, nome e dados essenciais;
+// verso (clique em "Ver verso") mostra a descrição complementar do serviço.
+// O flip é um estado local por card — por isso o componente precisa viver
+// fora de ServicosPage, senão cada re-render do pai recriaria a função e
+// resetaria o flip a cada tecla digitada na busca.
+function ServiceCard({ servico, dim = false, categoriaCores, onEditar, onExpandFoto }: {
+  servico: any
+  dim?: boolean
+  categoriaCores: Record<string, string>
+  onEditar: (s: any) => void
+  onExpandFoto: (url: string) => void
+}) {
+  const [flipped, setFlipped] = useState(false)
+  const cat = servico.category || "Geral"
+  const corCustom = categoriaCores[cat]
+  const gradient = categoriaGradient[servico.category] ?? "from-zinc-600 to-zinc-900"
+  const headerStyle = corCustom ? { backgroundImage: `linear-gradient(135deg, ${corCustom}, #09090b)` } : undefined
+
+  function toggleFlip(e: React.MouseEvent) {
+    e.stopPropagation()
+    setFlipped(v => !v)
+  }
+
+  return (
+    <div
+      className={`relative select-none ${dim ? "opacity-40 grayscale" : ""}`}
+      style={{ aspectRatio: "5 / 8", perspective: "1400px" }}
+    >
+      <div
+        className="relative w-full h-full transition-transform duration-500"
+        style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "none" }}
+      >
+        {/* ─── FRENTE ─── */}
+        <div
+          onClick={() => onEditar(servico)}
+          className="absolute inset-0 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-700/60 flex flex-col cursor-pointer group transition-colors hover:border-zinc-500"
+          style={{ backfaceVisibility: "hidden" }}
+        >
+          {/* Notch (furo de crachá) */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-9 h-2 rounded-full bg-black/40 z-10" />
+
+          {/* Cabeçalho colorido por categoria */}
+          <div className={`relative h-16 shrink-0 ${corCustom ? "" : `bg-gradient-to-br ${gradient}`} flex flex-col items-center justify-center pt-1`} style={headerStyle}>
+            <span className="text-white/80 text-[8px] tracking-[0.2em] uppercase font-semibold">Barberos</span>
+            <span className="text-white/55 text-[8px] tracking-wider uppercase mt-0.5">{cat}</span>
+          </div>
+
+          {/* Botão ver verso */}
+          <button
+            type="button"
+            onClick={toggleFlip}
+            className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-black/30 hover:bg-black/50 text-white/80 hover:text-white text-[9px] px-2 py-1 rounded-full backdrop-blur-sm transition-colors"
+            title="Ver verso do cartão"
+          >
+            ⟲ Verso
+          </button>
+
+          {/* Foto circular sobreposta */}
+          <div className="relative -mt-8 flex justify-center shrink-0 z-10">
+            <div
+              className={`w-16 h-16 rounded-full ring-4 ring-zinc-900 overflow-hidden bg-zinc-800 flex items-center justify-center ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
+              onClick={servico.photoUrl ? (e) => { e.stopPropagation(); onExpandFoto(fotoComVersao(servico.photoUrl, servico.updatedAt) ?? "") } : undefined}
+            >
+              {servico.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fotoComVersao(servico.photoUrl, servico.updatedAt)} alt={servico.name} loading="lazy" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl text-zinc-600">✂</span>
+              )}
+            </div>
+          </div>
+
+          {/* Nome + categoria */}
+          <div className="text-center px-3 mt-2 shrink-0">
+            <div className={`font-bold text-[13px] leading-tight break-words line-clamp-2 ${dim ? "text-zinc-400" : "text-white"}`}>
+              {servico.name}
+            </div>
+            <div className="text-amber-400 text-[9px] uppercase tracking-wider mt-0.5">{cat}</div>
+          </div>
+
+          <div className="mx-4 mt-2.5 border-t border-zinc-800" />
+
+          {/* Dados */}
+          <div className="flex-1 px-4 py-2.5 space-y-1.5 flex flex-col justify-center min-h-0">
+            <InfoRow label="Valor" value={`R$ ${Number(servico.price).toFixed(0)}`} accent />
+            <InfoRow label="Duração" value={`${servico.durationMin} min`} />
+            {servico.availableHome && <InfoRow label="Domicílio" value="✦ Disponível" />}
+          </div>
+
+          {/* Destaque dourado inferior */}
+          <div className="h-1.5 shrink-0 bg-gradient-to-r from-amber-700 via-amber-400 to-amber-700" />
+        </div>
+
+        {/* ─── VERSO ─── */}
+        <div
+          onClick={() => onEditar(servico)}
+          className="absolute inset-0 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-700/60 flex flex-col cursor-pointer"
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          <div className={`h-10 shrink-0 ${corCustom ? "" : `bg-gradient-to-br ${gradient}`} flex items-center pl-3 pr-16`} style={headerStyle}>
+            <span className="text-white/80 text-[8px] tracking-[0.15em] uppercase font-semibold leading-tight">Informações complementares</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleFlip}
+            className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-black/30 hover:bg-black/50 text-white/80 hover:text-white text-[9px] px-2 py-1 rounded-full backdrop-blur-sm transition-colors"
+            title="Ver frente do cartão"
+          >
+            ⟲ Frente
+          </button>
+
+          <div className="flex-1 px-4 py-3 overflow-y-auto">
+            {servico.description ? (
+              <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{servico.description}</p>
+            ) : (
+              <p className="text-zinc-600 text-xs italic leading-relaxed">Nenhuma informação complementar cadastrada. Edite o serviço para adicionar uma descrição aqui.</p>
+            )}
+          </div>
+
+          <div className="mx-4 mb-2.5 pt-2.5 border-t border-zinc-800 text-center shrink-0">
+            <span className="text-zinc-600 text-[9px]">{servico.name}</span>
+          </div>
+
+          <div className="h-1.5 shrink-0 bg-gradient-to-r from-amber-700 via-amber-400 to-amber-700" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,6 +175,7 @@ export default function ServicosPage() {
 
   const [nome, setNome] = useState("")
   const [categoria, setCategoria] = useState("Corte")
+  const [descricao, setDescricao] = useState("")
   const [preco, setPreco] = useState("")
   const [duracao, setDuracao] = useState("")
   const [domicilio, setDomicilio] = useState(false)
@@ -92,7 +233,7 @@ export default function ServicosPage() {
 
   function handleNovo() {
     setServicoEditando(null)
-    setNome(""); setCategoria("Corte"); setPreco(""); setDuracao("")
+    setNome(""); setCategoria("Corte"); setDescricao(""); setPreco(""); setDuracao("")
     setDomicilio(false); setIsAtivo(true); setErro("")
     setFotoPreview(null); setFotoFile(null)
     setModalAberto(true)
@@ -102,6 +243,7 @@ export default function ServicosPage() {
     setServicoEditando(servico)
     setNome(servico.name)
     setCategoria(servico.category || "Corte")
+    setDescricao(servico.description || "")
     setPreco(String(servico.price))
     setDuracao(String(servico.durationMin))
     setDomicilio(servico.availableHome)
@@ -130,7 +272,7 @@ export default function ServicosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: servicoEditando?.id,
-          name: nome, category: categoria,
+          name: nome, category: categoria, description: descricao,
           price: preco, durationMin: duracao,
           availableHome: domicilio, isActive: isAtivo,
         }),
@@ -158,99 +300,6 @@ export default function ServicosPage() {
       setSalvando(false)
       setUploadandoFoto(false)
     }
-  }
-
-  function ServiceCard({ servico, dim = false }: { servico: any; dim?: boolean }) {
-    const cat = servico.category || "Geral"
-    const corCustom = categoriaCores[cat]
-    const gradient = categoriaGradient[servico.category] ?? "from-zinc-600 to-zinc-900"
-    const stripeV = corCustom ? { backgroundImage: `linear-gradient(to bottom, ${corCustom}, #09090b)` } : undefined
-    const stripeH = corCustom ? { backgroundImage: `linear-gradient(to right, ${corCustom}, #09090b)` } : undefined
-
-    return (
-      <div
-        onClick={() => handleEditar(servico)}
-        className={`relative rounded-lg overflow-hidden border border-zinc-700/60 cursor-pointer group transition-all hover:border-zinc-500 hover:shadow-lg hover:shadow-black/40 select-none ${dim ? "opacity-40 grayscale" : ""}`}
-        style={{ aspectRatio: "2.8 / 1" }}
-      >
-        {/* Base */}
-        <div className="absolute inset-0 bg-zinc-900" />
-        {/* Diagonal texture */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "6px 6px" }} />
-
-        {/* Left accent stripe */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 ${corCustom ? "" : `bg-gradient-to-b ${gradient}`}`} style={stripeV} />
-
-        {/* Header strip */}
-        <div className={`absolute top-0 left-1 right-0 h-5 ${corCustom ? "" : `bg-gradient-to-r ${gradient}`} flex items-center px-2 justify-between`} style={stripeH}>
-          <span className="text-white/70 text-[8px] tracking-[0.15em] uppercase font-medium">Barberos</span>
-          <span className="text-white/50 text-[8px] tracking-wider uppercase">{servico.category || "Geral"}</span>
-        </div>
-
-        {/* Body */}
-        <div className="absolute top-5 left-1 right-0 bottom-0 flex">
-          {/* Photo */}
-          <div className="w-[22%] flex-shrink-0 p-1.5">
-            <div
-              className={`w-full h-full rounded overflow-hidden border border-zinc-700/60 bg-zinc-800 ${servico.photoUrl ? "cursor-zoom-in" : ""}`}
-              onClick={servico.photoUrl ? (e) => { e.stopPropagation(); setFotoExpandida(fotoComVersao(servico.photoUrl, servico.updatedAt) ?? null) } : undefined}
-            >
-              {servico.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={fotoComVersao(servico.photoUrl, servico.updatedAt)} alt={servico.name} loading="lazy" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-lg opacity-20">✂</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Vertical divider */}
-          <div className="w-px bg-zinc-800 my-1.5 flex-shrink-0" />
-
-          {/* Fields */}
-          <div className="flex-1 px-2.5 flex items-center gap-3 min-w-0">
-            {/* Nome */}
-            <div className="flex-1 min-w-0">
-              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Serviço</div>
-              <div className={`font-bold text-[11px] leading-tight break-words line-clamp-2 ${dim ? "text-zinc-400" : "text-white"}`}>
-                {servico.name}
-              </div>
-              {servico.availableHome && (
-                <span className="text-[7px] text-teal-500 mt-0.5 block">✦ Domicílio</span>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
-
-            {/* Valor */}
-            <div className="flex-shrink-0 text-center">
-              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Valor</div>
-              <div className={`font-bold text-sm leading-none ${dim ? "text-zinc-500" : "text-amber-400"}`}>
-                R$&nbsp;{Number(servico.price).toFixed(0)}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-zinc-800 flex-shrink-0" />
-
-            {/* Duração */}
-            <div className="flex-shrink-0 text-center">
-              <div className="text-zinc-600 text-[7px] uppercase tracking-wider mb-0.5">Duração</div>
-              <div className="text-white font-semibold text-xs leading-none">
-                {servico.durationMin}<span className="text-zinc-600 text-[10px]"> min</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom line */}
-        <div className="absolute bottom-0 left-1 right-0 h-px bg-zinc-800/60" />
-      </div>
-    )
   }
 
   const ativos = servicos.filter(s => s.isActive)
@@ -340,12 +389,16 @@ export default function ServicosPage() {
                       />
                     </label>
                   </div>
-                  {/* Desktop: grid 3 colunas */}
-                  <div className="hidden md:grid md:grid-cols-3 gap-3">
-                    {lista.map(s => <ServiceCard key={s.id} servico={s} />)}
+                  {/* Desktop: grid responsivo, cards mais estreitos e verticais */}
+                  <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {lista.map(s => (
+                      <ServiceCard key={s.id} servico={s} categoriaCores={categoriaCores} onEditar={handleEditar} onExpandFoto={setFotoExpandida} />
+                    ))}
                   </div>
                   {/* Mobile: carrossel horizontal, mesmo padrão do dashboard */}
-                  <CardCarousel cards={lista.map(s => <ServiceCard key={s.id} servico={s} />)} />
+                  <CardCarousel cards={lista.map(s => (
+                    <ServiceCard key={s.id} servico={s} categoriaCores={categoriaCores} onEditar={handleEditar} onExpandFoto={setFotoExpandida} />
+                  ))} />
                 </div>
               )
             })
@@ -353,10 +406,14 @@ export default function ServicosPage() {
           {inativos.length > 0 && filtrar(inativos).length > 0 && (
             <div>
               <p className="text-zinc-600 text-xs uppercase tracking-wider mb-2">Desabilitados</p>
-              <div className="hidden md:grid md:grid-cols-3 gap-3">
-                {filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)}
+              <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {filtrar(inativos).map(s => (
+                  <ServiceCard key={s.id} servico={s} dim categoriaCores={categoriaCores} onEditar={handleEditar} onExpandFoto={setFotoExpandida} />
+                ))}
               </div>
-              <CardCarousel cards={filtrar(inativos).map(s => <ServiceCard key={s.id} servico={s} dim />)} />
+              <CardCarousel cards={filtrar(inativos).map(s => (
+                <ServiceCard key={s.id} servico={s} dim categoriaCores={categoriaCores} onEditar={handleEditar} onExpandFoto={setFotoExpandida} />
+              ))} />
             </div>
           )}
         </div>
@@ -432,6 +489,13 @@ export default function ServicosPage() {
                   <input value={duracao} onChange={e => setDuracao(e.target.value)} required
                     type="number" min="0" placeholder="40" className={inputCls} />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 text-xs mb-1 block">Descrição / informações complementares</label>
+                <textarea value={descricao} onChange={e => setDescricao(e.target.value)}
+                  rows={3} placeholder="Aparece no verso do cartão do serviço (produtos usados, técnica, observações...)"
+                  className={`${inputCls} resize-none`} />
               </div>
 
               <div onClick={() => setDomicilio(!domicilio)}

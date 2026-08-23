@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       data: {
         name: body.name,
         category: body.category || null,
+        description: body.description?.trim() || null,
         price: parseFloat(body.price),
         durationMin: parseInt(body.durationMin),
         availableHome: body.availableHome ?? false,
@@ -65,6 +66,7 @@ export async function PUT(request: Request) {
       data: {
         name: body.name,
         category: body.category || null,
+        description: body.description?.trim() || null,
         price: parseFloat(body.price),
         durationMin: parseInt(body.durationMin),
         availableHome: body.availableHome ?? false,

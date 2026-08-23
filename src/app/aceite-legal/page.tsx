@@ -100,6 +100,14 @@ function AceiteLegalInner() {
     else router.push("/login")
   }
 
+  // Navegação interna (menu lateral, links dentro dos checkboxes) rola até a
+  // seção sem empilhar entrada de histórico — um <a href="#id"> normal criaria
+  // uma entrada por clique, fazendo o botão Voltar ter que desfazer cada
+  // seção visitada antes de sair da página de fato.
+  function irPara(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
   const [empresaCnpj, setEmpresaCnpj] = useState("")
   const [empresaEndereco, setEmpresaEndereco] = useState("")
 
@@ -199,7 +207,7 @@ function AceiteLegalInner() {
             <div key={g.group} className="mb-2">
               <div className="text-[9px] font-mono text-zinc-600 tracking-wider uppercase px-2 pt-4 pb-1.5">{g.group}</div>
               {g.links.map(([id, label]) => (
-                <a key={id} href={`#${id}`} className="block text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 rounded px-2 py-1 mb-0.5 transition-colors">{label}</a>
+                <a key={id} href={`#${id}`} onClick={e => { e.preventDefault(); irPara(id) }} className="block text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 rounded px-2 py-1 mb-0.5 transition-colors">{label}</a>
               ))}
             </div>
           ))}
@@ -500,11 +508,11 @@ function AceiteLegalInner() {
                   <div className="flex-1 flex flex-col gap-2">
                     <label className="flex items-start gap-2.5 cursor-pointer select-none">
                       <input type="checkbox" checked={chk1} onChange={e => setChk1(e.target.checked)} className="mt-0.5 accent-amber-500" />
-                      <span className="text-xs text-zinc-400 leading-relaxed">Li e aceito os <a href="#tu-aceite" className="text-amber-500 hover:underline">Termos de Uso</a> e a <a href="#pp-quem" className="text-amber-500 hover:underline">Política de Privacidade</a> do BarberOS, incluindo o tratamento dos meus dados conforme a LGPD.</span>
+                      <span className="text-xs text-zinc-400 leading-relaxed">Li e aceito os <a href="#tu-aceite" onClick={e => { e.preventDefault(); irPara("tu-aceite") }} className="text-amber-500 hover:underline">Termos de Uso</a> e a <a href="#pp-quem" onClick={e => { e.preventDefault(); irPara("pp-quem") }} className="text-amber-500 hover:underline">Política de Privacidade</a> do BarberOS, incluindo o tratamento dos meus dados conforme a LGPD.</span>
                     </label>
                     <label className="flex items-start gap-2.5 cursor-pointer select-none">
                       <input type="checkbox" checked={chk2} onChange={e => setChk2(e.target.checked)} className="mt-0.5 accent-amber-500" />
-                      <span className="text-xs text-zinc-400 leading-relaxed">Aceito a <a href="#ck-lista" className="text-amber-500 hover:underline">Política de Cookies</a> e o <a href="#cs-partes" className="text-amber-500 hover:underline">Contrato SaaS + DPA</a>, comprometendo-me a cumprir as obrigações neles descritas.</span>
+                      <span className="text-xs text-zinc-400 leading-relaxed">Aceito a <a href="#ck-lista" onClick={e => { e.preventDefault(); irPara("ck-lista") }} className="text-amber-500 hover:underline">Política de Cookies</a> e o <a href="#cs-partes" onClick={e => { e.preventDefault(); irPara("cs-partes") }} className="text-amber-500 hover:underline">Contrato SaaS + DPA</a>, comprometendo-me a cumprir as obrigações neles descritas.</span>
                     </label>
                     <label className="flex items-start gap-2.5 cursor-pointer select-none">
                       <input type="checkbox" checked={chk3} onChange={e => setChk3(e.target.checked)} className="mt-0.5 accent-amber-500" />
