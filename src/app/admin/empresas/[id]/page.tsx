@@ -212,6 +212,7 @@ export default function AdminEmpresaDetalhePage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [novoPlano, setNovoPlano] = useState("")
   const [planos, setPlanos] = useState<{ id: string; name: string; priceMonthly: number }[]>([])
+  const [linkCopiado, setLinkCopiado] = useState(false)
 
   useEffect(() => {
     fetch("/api/admin/planos")
@@ -302,6 +303,13 @@ export default function AdminEmpresaDetalhePage() {
     }
   }
 
+  async function copiarLinkAceiteLegal() {
+    const url = `${window.location.origin}/aceite-legal?org=${id}`
+    await navigator.clipboard.writeText(url)
+    setLinkCopiado(true)
+    setTimeout(() => setLinkCopiado(false), 2000)
+  }
+
   async function bloquearOuDesbloquear() {
     if (!empresa) return
 
@@ -353,6 +361,12 @@ export default function AdminEmpresaDetalhePage() {
               <span className={`text-xs px-3 py-1 rounded-full border ${statusClass(empresa.billingStatus, empresa.isBlocked)}`}>
                 {empresa.isBlocked ? "Bloqueada" : empresa.billingStatus}
               </span>
+            )}
+            {empresa && (
+              <button type="button" onClick={copiarLinkAceiteLegal}
+                className="px-4 py-2 rounded-lg text-sm border bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700 transition-colors">
+                {linkCopiado ? "Link copiado ✓" : "Copiar link de aceite legal"}
+              </button>
             )}
             {empresa && (
               <button type="button" onClick={bloquearOuDesbloquear} disabled={actionLoading}

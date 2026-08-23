@@ -746,11 +746,33 @@ model Organization {
   storageUsage            StorageUsage?
   rolePermissionTemplates RolePermissionTemplate[]
   orgCortes               OrgCorte[]
+  legalAcceptances        LegalAcceptance[]
 
   @@index([isActive, isBlocked], map: "idx_organizations_isActive_isBlocked")
   @@index([billingStatus], map: "idx_organizations_billingStatus")
   @@index([planId], map: "idx_organizations_planId")
   @@map("organizations")
+}
+
+model LegalAcceptance {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+
+  legalName       String? @map("legal_name")
+  cnpj            String?
+  email           String?
+  responsibleName String? @map("responsible_name")
+
+  documentVersion String @map("document_version")
+  ipAddress       String? @map("ip_address")
+  userAgent       String? @map("user_agent")
+
+  acceptedAt DateTime @default(now()) @map("accepted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "idx_legal_acceptances_organizationId")
+  @@map("legal_acceptances")
 }
 
 model PlanDefinition {
