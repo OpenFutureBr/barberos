@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
+import { SCRIPT_TEMA_BOOT } from "@/lib/tema"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -28,7 +29,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#c9a84c",
+  // Casa com --surface-1 do tema escuro (padrao) para a barra de status do PWA
+  // encostar no shell em vez de aparecer uma faixa dourada. O aplicarTema()
+  // reescreve esta meta quando o usuario troca de modo.
+  themeColor: "#18181b",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -48,8 +52,20 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        {/* runs before first paint — no FOUC */}
-        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("tema")==="light")document.documentElement.classList.add("light")}catch(e){}` }} />
+        {/*
+          Scripts que precisam rodar ANTES do primeiro paint (tema e fonte
+          salvos no localStorage), como <script> cru no <head> — o navegador
+          executa na hora em que faz o parse.
+
+          NAO troque por next/script com strategy="beforeInteractive": no build
+          de producao aquele componente nao emite um <script> executavel, e sim
+          um `(self.__next_s=self.__next_s||[]).push([...])`, uma fila que o
+          runtime do Next so processa depois da hidratacao. Em dev funciona
+          (o script sai inline), entao o estrago aparece so em producao: o
+          <html> fica sem os data-mode/data-accent/data-tone e a pagina pinta
+          no tema errado. Verificado em `next build && next start`.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_BOOT }} />
         <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('contextmenu',function(e){e.preventDefault()});document.addEventListener('keydown',function(e){if(e.key==='F12'){e.preventDefault();e.stopPropagation();}});` }} />
         <script dangerouslySetInnerHTML={{ __html: `try{var _f=localStorage.getItem("fonte");if(_f){var _fd=JSON.parse(_f);document.documentElement.style.setProperty("--font-override",_fd.family);if(_fd.url){var _fl=document.createElement("link");_fl.rel="stylesheet";_fl.href=_fd.url;document.head.appendChild(_fl);}}}catch(e){}` }} />
         <link rel="manifest" href="/manifest.json" />

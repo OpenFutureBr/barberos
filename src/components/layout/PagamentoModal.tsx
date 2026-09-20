@@ -455,7 +455,6 @@ export default function PagamentoModal({
                         alt="QR PIX"
                         width={160}
                         height={160}
-                        data-no-invert
                       />
                     </div>
                   </div>

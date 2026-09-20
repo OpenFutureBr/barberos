@@ -97,7 +97,7 @@ function LoginQR() {
           <>
             <div className="bg-white p-3 rounded-xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrUrl} alt="QR Code de login" width={200} height={200} data-no-invert />
+              <img src={qrUrl} alt="QR Code de login" width={200} height={200} />
             </div>
             <p className="text-zinc-400 text-xs text-center leading-relaxed">
               Abra a câmera do celular já conectado ao BarberOS<br />e aponte para o código.

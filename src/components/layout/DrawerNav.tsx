@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect } from "react"
-import { useSession, signOut } from "next-auth/react"
+import { signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
+import { usePermissoes } from "@/lib/usePermissoes"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -14,25 +15,8 @@ const ic = (path: string, fill = false) => (
 
 export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
   const pathname = usePathname()
-  const { data: session } = useSession()
 
-  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.allowedResources?.includes("*")
-  const allowedResources = session?.user?.allowedResources ?? []
-  const planFeatures = session?.user?.planFeatures ?? []
-
-  function podeVer(resource: string) {
-    if (!session) return true
-    if (isAdmin) return true
-    return allowedResources.includes(resource)
-  }
-
-  function planoPermite(feature?: string) {
-    if (!feature) return true
-    if (!session) return true
-    if (isAdmin) return true
-    if (planFeatures.includes("*")) return true
-    return planFeatures.includes(feature)
-  }
+  const { itensVisiveis } = usePermissoes()
 
   // Fechar ao navegar
   useEffect(() => { onFechar() }, [pathname])
@@ -63,7 +47,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-2">
           {MENU_GROUPS.map(group => {
-            const itens = group.items.filter(i => podeVer(i.resource) && planoPermite(i.feature))
+            const itens = itensVisiveis(group)
             if (itens.length === 0) return null
             return (
               <div key={group.label}>

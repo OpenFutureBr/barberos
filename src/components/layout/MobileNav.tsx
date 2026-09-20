@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
 import { MENU_GROUPS, type MenuGroup } from "@/lib/menu-items"
+import { usePermissoes } from "@/lib/usePermissoes"
 
 function Icon({ path, fill = false, size = 20 }: { path: string; fill?: boolean; size?: number }) {
   return (
@@ -25,28 +25,17 @@ function Icon({ path, fill = false, size = 20 }: { path: string; fill?: boolean;
 const BACK_ICON = "M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
 
 export default function MobileNav() {
-  const { data: session } = useSession()
   const pathname = usePathname()
   const [grupoAtivo, setGrupoAtivo] = useState<MenuGroup | null>(null)
 
-  const allowedResources = (session?.user as any)?.allowedResources ?? []
-  const planFeatures = (session?.user as any)?.planFeatures ?? []
-  const isAdmin = allowedResources.includes("*")
-
-  function temAcesso(resource: string, feature?: string): boolean {
-    if (isAdmin) return true
-    if (feature && !planFeatures.includes(feature)) return false
-    return allowedResources.includes(resource)
-  }
+  const { temAcesso, gruposVisiveis } = usePermissoes()
 
   // Fechar submenu ao navegar
   useEffect(() => {
     setGrupoAtivo(null)
   }, [pathname])
 
-  const gruposVisiveis = MENU_GROUPS.filter(g =>
-    g.items.some(item => temAcesso(item.resource, item.feature))
-  )
+  const grupos = gruposVisiveis(MENU_GROUPS)
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900 border-t border-zinc-800"
@@ -60,7 +49,7 @@ export default function MobileNav() {
           }`}
         >
           <div className="flex items-center w-full overflow-x-auto scrollbar-none px-1 gap-1">
-            {gruposVisiveis.map(grupo => {
+            {grupos.map(grupo => {
               const isActive = grupo.items.some(item => pathname === item.href || pathname.startsWith(item.href + "/"))
               return (
                 <button
@@ -104,7 +93,7 @@ export default function MobileNav() {
           {/* Itens do grupo */}
           <div className="flex items-center overflow-x-auto scrollbar-none px-1 gap-1 flex-1">
             {grupoAtivo?.items
-              .filter(item => temAcesso(item.resource, item.feature))
+              .filter(temAcesso)
               .map(item => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
                 return (

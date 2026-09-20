@@ -11,6 +11,7 @@ import PagamentoModal, { type DadosPagamento } from "./PagamentoModal"
 import GlobalFAB from "./GlobalFAB"
 import MobileNav from "./MobileNav"
 import NavigationProgress from "@/components/NavigationProgress"
+import AplicadorMarca from "./AplicadorMarca"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession()
@@ -103,6 +104,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-dvh bg-zinc-950">
       <NavigationProgress />
+      <AplicadorMarca />
       <Sidebar />
       <Topbar
         onAbrirModal={() => setModalAgendaAberto(true)}
