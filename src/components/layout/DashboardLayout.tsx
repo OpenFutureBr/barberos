@@ -12,6 +12,7 @@ import GlobalFAB from "./GlobalFAB"
 import MobileNav from "./MobileNav"
 import NavigationProgress from "@/components/NavigationProgress"
 import AplicadorMarca from "./AplicadorMarca"
+import PaletaComandos from "./PaletaComandos"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession()
@@ -105,6 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-dvh bg-zinc-950">
       <NavigationProgress />
       <AplicadorMarca />
+      <PaletaComandos />
       <Sidebar />
       <Topbar
         onAbrirModal={() => setModalAgendaAberto(true)}

@@ -79,6 +79,21 @@ export default function Topbar({
         )}
       </div>
       <div className="flex items-center gap-2">
+        {/* Gatilho da busca global. O atalho funciona sem ele; o botao existe
+            pra quem nao descobre Ctrl+K — e no mobile e o unico acesso. */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("abrirBusca"))}
+          aria-label="Buscar (Ctrl+K)"
+          title="Buscar (Ctrl+K)"
+          className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-400 hover:text-zinc-200 rounded-md px-2 py-1.5 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+          </svg>
+          <kbd className="hidden lg:inline text-[10px] text-zinc-500 font-sans">Ctrl+K</kbd>
+        </button>
+
         <button
           onClick={onAbrirVenda}
           title={cartCount > 0 ? `${cartCount} ${cartCount === 1 ? "item" : "itens"} no carrinho` : "Registrar venda"}
