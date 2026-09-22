@@ -15,6 +15,7 @@ type Plano = {
 type Assinante = {
   id: string; status: string; price: number
   startedAt: string; nextBillingAt: string
+  cortesUsados?: number
   client: { id: string; name: string; phone: string }
   plan: { id: string; name: string; price: number; cortesIncluidos: number; atendedomicilio: boolean }
 }
@@ -337,7 +338,7 @@ export default function AssinaturasPage() {
 
       {/* ASSINANTES */}
       {aba === "assinantes" && (
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           {/* Lista */}
           <div className="flex-1">
             {loading ? <div className="text-center py-12 text-zinc-600">Carregando...</div> :
@@ -345,7 +346,50 @@ export default function AssinaturasPage() {
               <div className="text-center py-16 text-zinc-600 text-sm">Nenhum assinante ainda</div>
             ) : (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                <table className="w-full">
+                {/* Lista mobile — o cartao mantem a barra de cortes usados,
+                    que e o dado que o dono olha antes de renovar. */}
+                <div className="md:hidden divide-y divide-zinc-800">
+                  {assinantes.map((a) => {
+                    const usados = a.cortesUsados ?? 0
+                    return (
+                      <div key={a.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-white text-sm font-medium truncate">{a.client.name}</div>
+                            <div className="text-zinc-500 text-xs">{a.client.phone}</div>
+                          </div>
+                          <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(a.price)}</div>
+                        </div>
+
+                        <div className="text-zinc-300 text-xs mt-2">{a.plan.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="text-zinc-600 text-xs">{usados}/{a.plan.cortesIncluidos} usados</div>
+                          <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden" style={{ maxWidth: 48 }}>
+                            <div className={`h-full rounded-full transition-all ${usados >= a.plan.cortesIncluidos ? "bg-red-500" : "bg-amber-500"}`}
+                              style={{ width: `${Math.min(100, usados / a.plan.cortesIncluidos * 100)}%` }} />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 mt-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[a.status] ?? statusStyle.ACTIVE}`}>
+                              {statusLabel[a.status] ?? a.status}
+                            </span>
+                            <span className="text-zinc-500 text-xs font-mono truncate">{fmtData(a.nextBillingAt)}</span>
+                          </div>
+                          <button
+                            onClick={() => abrirRenovacao(a)}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 transition-colors whitespace-nowrap flex-shrink-0"
+                          >
+                            Renovar
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <table className="hidden md:table w-full">
                   <thead>
                     <tr className="border-b border-zinc-800">
                       <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
@@ -366,10 +410,10 @@ export default function AssinaturasPage() {
                         <td className="px-4 py-3">
                           <div className="text-zinc-300 text-sm">{a.plan.name}</div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <div className="text-zinc-600 text-xs">{(a as any).cortesUsados ?? 0}/{a.plan.cortesIncluidos} usados</div>
+                            <div className="text-zinc-600 text-xs">{a.cortesUsados ?? 0}/{a.plan.cortesIncluidos} usados</div>
                             <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden" style={{ maxWidth: 48 }}>
-                              <div className={`h-full rounded-full transition-all ${(a as any).cortesUsados >= a.plan.cortesIncluidos ? "bg-red-500" : "bg-amber-500"}`}
-                                style={{ width: `${Math.min(100, ((a as any).cortesUsados ?? 0) / a.plan.cortesIncluidos * 100)}%` }} />
+                              <div className={`h-full rounded-full transition-all ${(a.cortesUsados ?? 0) >= a.plan.cortesIncluidos ? "bg-red-500" : "bg-amber-500"}`}
+                                style={{ width: `${Math.min(100, (a.cortesUsados ?? 0) / a.plan.cortesIncluidos * 100)}%` }} />
                             </div>
                           </div>
                         </td>
@@ -398,7 +442,7 @@ export default function AssinaturasPage() {
 
           {/* Painel lateral — adicionar assinante */}
           {painelAberto && (
-            <div className="w-80 flex-shrink-0">
+            <div className="w-full md:w-80 flex-shrink-0">
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-white font-bold text-sm">Novo assinante</h3>

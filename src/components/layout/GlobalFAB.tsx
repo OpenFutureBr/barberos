@@ -303,7 +303,7 @@ export default function GlobalFAB() {
   const ref = useRef<HTMLDivElement>(null)
 
   // Posição arrastável do botão — persistida por usuário/navegador. Null
-  // significa "usar a posição padrão" (bottom-20/right-4 via classe CSS).
+  // significa "usar a posição padrão" (acima da nav mobile, via classe CSS).
   const [posicao, setPosicao] = useState<{ x: number; y: number } | null>(null)
   const arrastoRef = useRef<{ inicioX: number; inicioY: number; offX: number; offY: number; moveu: boolean } | null>(null)
 

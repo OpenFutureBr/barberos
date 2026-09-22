@@ -8,6 +8,17 @@ import CardCarousel from "@/components/ui/CardCarousel"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
+/* Miniatura do produto — mesma peca na tabela do desktop e no cartao do
+   mobile, onde ela e maior porque e o que identifica o item de relance. */
+function FotoProduto({ url, nome, tamanho }: { url?: string | null; nome: string; tamanho: "sm" | "md" }) {
+  const cls = `${tamanho === "sm" ? "w-8 h-8" : "w-10 h-10"} rounded-lg flex-shrink-0 bg-zinc-800`
+  // <img> e nao next/image: as fotos vem de URL externa do catalogo, sem os
+  // dominios configurados no next.config.
+  return url
+    ? <img src={url} alt={nome} loading="lazy" className={`${cls} object-cover`} />
+    : <div className={`${cls} flex items-center justify-center text-zinc-600`}>📦</div>
+}
+
 function getStatus(stock: number, minStock: number) {
   if (stock === 0) return { label: "Sem estoque", style: "bg-red-500/10 text-red-400 border border-red-500/20" }
   if (stock <= minStock) return { label: "⚠ Crítico", style: "bg-red-500/10 text-red-400 border border-red-500/20" }
@@ -682,7 +693,46 @@ function EstoqueInner() {
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-              <table className="w-full">
+              {/* Lista mobile — a foto e a barra de estoque sao o que
+                  identifica o produto de relance na prateleira; grupo e
+                  codigo descem pra linha de apoio. */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {produtosFiltrados.map((p) => {
+                  const status = getStatus(p.stock, p.minStock)
+                  return (
+                    <div key={p.id} className="px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <FotoProduto url={p.photoUrl} nome={p.name} tamanho="md" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="text-white text-sm font-medium truncate">{p.name}</div>
+                            <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {p.salePrice?.toFixed(2)}</div>
+                          </div>
+                          <div className="text-zinc-600 text-xs truncate">
+                            {[p.category || null, p.barcode || p.subCategory || null].filter(Boolean).join(" · ") || "—"}
+                            {p.hasAlcohol && " 🔞"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className={`text-sm font-bold ${p.stock <= p.minStock ? "text-red-400" : "text-white"}`}>{p.stock}</span>
+                        <div className="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${p.stock <= p.minStock ? "bg-red-500" : "bg-green-500"}`}
+                            style={{ width: `${Math.min(100, (p.stock / Math.max(p.minStock * 2, 1)) * 100)}%` }} />
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${status.style}`}>{status.label}</span>
+                        <div className="flex gap-3 ml-auto">
+                          <button onClick={() => abrirEditar(p)} className="text-zinc-500 hover:text-amber-400 text-xs transition-colors">Editar</button>
+                          <button onClick={() => handleDesativar(p.id)} className="text-zinc-500 hover:text-red-400 text-xs transition-colors">Desativar</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <table className="hidden md:table w-full">
                 <thead>
                   <tr className="border-b border-zinc-800">
                     <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Produto</th>
@@ -700,11 +750,7 @@ function EstoqueInner() {
                       <tr key={p.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === produtosFiltrados.length - 1 ? "border-0" : ""}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            {p.photoUrl ? (
-                              <img src={p.photoUrl} alt={p.name} loading="lazy" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-zinc-800" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-600 flex-shrink-0">📦</div>
-                            )}
+                            <FotoProduto url={p.photoUrl} nome={p.name} tamanho="sm" />
                             <div>
                               <div className="text-white text-sm font-medium">{p.name}</div>
                               <div className="text-zinc-600 text-xs">{p.barcode || p.subCategory || "—"}</div>
@@ -1019,7 +1065,43 @@ function EstoqueInner() {
             return (
               <>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                  <table className="w-full">
+                  {/* Lista mobile — o total geral vem no rodape, como no
+                      <tfoot> da tabela. */}
+                  <div className="md:hidden divide-y divide-zinc-800">
+                    {vendasPag.map((v) => {
+                      const cliente = v.reason?.replace(/^Venda — /, "").replace(/^Venda balcão$/, "Balcão") || "Balcão"
+                      const preco = v.unitPrice ?? v.product?.salePrice ?? 0
+                      const totalLinha = preco * v.quantity
+                      const descPct = v.unitPrice && v.product?.salePrice && v.unitPrice < v.product.salePrice
+                        ? ((1 - v.unitPrice / v.product.salePrice) * 100).toFixed(0)
+                        : null
+                      return (
+                        <div key={v.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-white text-sm truncate">{v.product?.name || "—"}</div>
+                            <div className="text-zinc-500 text-xs truncate">
+                              {new Date(v.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {vendas.length > 1 && filtroDataVendas === "" && ` · ${new Date(v.createdAt).toLocaleDateString("pt-BR")}`}
+                              {" · "}{cliente}
+                            </div>
+                            <div className="text-zinc-600 text-xs">
+                              {v.quantity}× R$ {preco.toFixed(2)}
+                              {descPct && <span className="text-orange-400"> · {descPct}% desc</span>}
+                            </div>
+                          </div>
+                          <div className="text-green-400 font-bold font-mono text-sm flex-shrink-0">R$ {totalLinha.toFixed(2)}</div>
+                        </div>
+                      )
+                    })}
+                    <div className="px-4 py-2 flex items-center justify-between border-t border-zinc-700">
+                      <span className="text-zinc-500 text-xs">Total geral</span>
+                      <span className="text-green-400 font-bold font-mono">
+                        R$ {vendas.reduce((s, v) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <table className="hidden md:table w-full">
                     <thead>
                       <tr className="border-b border-zinc-800">
                         <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
@@ -1111,7 +1193,39 @@ function EstoqueInner() {
             return (
               <>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                  <table className="w-full">
+                  {/* Lista mobile */}
+                  <div className="md:hidden divide-y divide-zinc-800">
+                    {movPag.map((m) => (
+                      <div key={m.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-white text-sm truncate">{m.product?.name || "—"}</div>
+                            <div className="text-zinc-600 text-xs font-mono">
+                              {new Date(m.createdAt).toLocaleDateString("pt-BR")}{" "}
+                              {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          </div>
+                          <span className={`font-bold font-mono text-sm flex-shrink-0 ${m.type === "ENTRADA" ? "text-green-400" : "text-red-400"}`}>
+                            {m.type === "ENTRADA" ? "+" : "-"}{m.quantity}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${m.type === "ENTRADA" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+                            {m.type === "ENTRADA" ? "↑ Entrada" : "↓ Saída"}
+                          </span>
+                          <span className="text-zinc-500 text-xs truncate">{m.reason || "—"}</span>
+                        </div>
+                        {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
+                          <div className="text-orange-400 text-xs mt-1">
+                            {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
+                            · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <table className="hidden md:table w-full">
                     <thead>
                       <tr className="border-b border-zinc-800">
                         <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>

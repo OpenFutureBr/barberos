@@ -32,6 +32,10 @@ const statusStyle: Record<string, string> = {
   REJEITADA: "bg-red-500/10 text-red-400 border border-red-500/20",
 }
 
+function fmtHora(iso: string | null) {
+  return iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"
+}
+
 const MESES_NOME = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
@@ -141,38 +145,65 @@ export default function FiscalPage() {
       {/* Aba NF-e — atendimentos concluídos hoje, reais, aguardando emissão */}
       {aba === "nfe" && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Serviço</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Concluído</th>
-                <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
-                <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">Carregando...</td></tr>
-              ) : notas.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">Nenhum atendimento concluído hoje</td></tr>
-              ) : notas.map((nota, i) => (
-                <tr key={nota.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === notas.length - 1 ? "border-0" : ""}`}>
-                  <td className="px-4 py-3 text-white text-sm font-medium">{nota.cliente}</td>
-                  <td className="px-4 py-3 text-zinc-400 text-sm">{nota.servico}</td>
-                  <td className="px-4 py-3 text-zinc-500 text-xs font-mono">
-                    {nota.finalizadoEm ? new Date(nota.finalizadoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {nota.valor.toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[nota.status]}`}>
-                      {nota.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* Carregando/vazio saem de dentro do <tbody> pra servir aos dois
+              formatos — a tabela so existe no desktop. */}
+          {loading ? (
+            <div className="px-4 py-8 text-center text-zinc-600 text-sm">Carregando...</div>
+          ) : notas.length === 0 ? (
+            <div className="px-4 py-8 text-center text-zinc-600 text-sm">Nenhum atendimento concluído hoje</div>
+          ) : (
+            <>
+              {/* Lista mobile — cliente+serviço em cima, valor à direita, e a
+                  hora junto do status embaixo. Cinco colunas nao cabem em
+                  390px; empilhadas, nada e cortado. */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {notas.map((nota) => (
+                  <div key={nota.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-white text-sm font-medium truncate">{nota.cliente}</div>
+                        <div className="text-zinc-400 text-xs truncate">{nota.servico}</div>
+                      </div>
+                      <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {nota.valor.toFixed(2)}</div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[nota.status]}`}>
+                        {nota.status}
+                      </span>
+                      <span className="text-zinc-500 text-xs font-mono">{fmtHora(nota.finalizadoEm)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <table className="hidden md:table w-full">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Serviço</th>
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Concluído</th>
+                    <th className="text-right px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Valor</th>
+                    <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {notas.map((nota, i) => (
+                    <tr key={nota.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${i === notas.length - 1 ? "border-0" : ""}`}>
+                      <td className="px-4 py-3 text-white text-sm font-medium">{nota.cliente}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">{nota.servico}</td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(nota.finalizadoEm)}</td>
+                      <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {nota.valor.toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[nota.status]}`}>
+                          {nota.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       )}
 

@@ -106,6 +106,26 @@ function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
 
+/* Quebra de um lancamento agrupado (uma venda com varios produtos). Mesma
+   peca na tabela do desktop e no cartao do mobile. */
+function DetalhesLancamento({ l }: { l: Lancamento }) {
+  if (!l.detalhes) return null
+  return (
+    <div className="bg-zinc-800/60 rounded-lg overflow-hidden">
+      {l.detalhes.map((d, di) => (
+        <div key={di} className={`flex justify-between px-3 py-1.5 text-sm ${di < l.detalhes!.length - 1 ? "border-b border-zinc-700/50" : ""}`}>
+          <span className="text-zinc-400">{d.label}</span>
+          <span className="text-zinc-200 font-mono">R$ {d.valor.toFixed(2)}</span>
+        </div>
+      ))}
+      <div className="flex justify-between px-3 py-1.5 border-t border-zinc-700 bg-zinc-800/80">
+        <span className="text-zinc-400 text-sm font-medium">Total · {metodoLabel(l.method) || "—"}</span>
+        <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>R$ {l.valor.toFixed(2)}</span>
+      </div>
+    </div>
+  )
+}
+
 function metodoBadge(method: string | null): string {
   if (!method) return "bg-zinc-700 text-zinc-400"
   const m = method.toUpperCase()
@@ -474,7 +494,7 @@ export default function CaixaPage() {
       {abaCaixa === "hoje" && (
       <>
       {/* Cabeçalho fixo: status + KPIs, independente do scroll */}
-      <div className="sticky top-11 z-10 bg-zinc-950 pb-3">
+      <div className="sticky top-[var(--h-topbar)] z-10 bg-zinc-950 pb-3">
         {/* Status */}
         <div className={`rounded-xl p-4 mb-4 border ${caixaAberto ? "bg-green-500/5 border-green-500/20" : "bg-zinc-900 border-zinc-800"}`}>
           <div className="flex items-center justify-between">
@@ -548,7 +568,49 @@ export default function CaixaPage() {
         ) : lancamentos.length === 0 ? (
           <div className="p-8 text-center text-zinc-600 text-sm">Nenhum lançamento hoje</div>
         ) : (
-          <table className="w-full">
+          <>
+          {/* Lista mobile — a descricao manda, e hora/metodo descem pra
+              segunda linha. As quatro colunas nao cabem em 390px. */}
+          <div className="md:hidden divide-y divide-zinc-800">
+            {lancamentos.map((l) => {
+              const expandido = expandidoId === l.id
+              const clicavel = !!l.detalhes
+              return (
+                <div key={l.id} className={expandido ? "bg-zinc-800/30" : ""}>
+                  <button
+                    type="button"
+                    disabled={!clicavel}
+                    onClick={() => setExpandidoId(expandido ? null : l.id)}
+                    className="w-full text-left px-4 py-3 flex items-start gap-3 disabled:cursor-default"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-300 text-sm truncate">{l.descricao}</span>
+                        {clicavel && <span className={`text-zinc-600 text-xs flex-shrink-0 inline-block transition-transform ${expandido ? "rotate-90" : ""}`}>›</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-zinc-500 text-xs font-mono">{fmtHora(l.createdAt)}</span>
+                        {l.method && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${metodoBadge(l.method)}`}>
+                            {metodoLabel(l.method)}
+                          </span>
+                        )}
+                      </div>
+                      {l.detalhes && l.detalhes.length > 1 && !expandido && (
+                        <div className="text-zinc-600 text-xs mt-0.5">+ {l.detalhes.length - 1} produto{l.detalhes.length > 2 ? "s" : ""}</div>
+                      )}
+                    </div>
+                    <div className={`font-bold font-mono text-sm flex-shrink-0 ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
+                      {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                    </div>
+                  </button>
+                  {expandido && <div className="px-4 pb-3"><DetalhesLancamento l={l} /></div>}
+                </div>
+              )
+            })}
+          </div>
+
+          <table className="hidden md:table w-full">
             <thead>
               <tr className="border-b border-zinc-800">
                 <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Hora</th>
@@ -591,18 +653,7 @@ export default function CaixaPage() {
                       <tr className="border-b border-zinc-800">
                         <td />
                         <td colSpan={3} className="px-4 pb-3 pt-0">
-                          <div className="bg-zinc-800/60 rounded-lg overflow-hidden">
-                            {l.detalhes.map((d, di) => (
-                              <div key={di} className={`flex justify-between px-3 py-1.5 text-sm ${di < l.detalhes!.length - 1 ? "border-b border-zinc-700/50" : ""}`}>
-                                <span className="text-zinc-400">{d.label}</span>
-                                <span className="text-zinc-200 font-mono">R$ {d.valor.toFixed(2)}</span>
-                              </div>
-                            ))}
-                            <div className="flex justify-between px-3 py-1.5 border-t border-zinc-700 bg-zinc-800/80">
-                              <span className="text-zinc-400 text-sm font-medium">Total · {metodoLabel(l.method) || "—"}</span>
-                              <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>R$ {l.valor.toFixed(2)}</span>
-                            </div>
-                          </div>
+                          <DetalhesLancamento l={l} />
                         </td>
                       </tr>
                     )}
@@ -611,6 +662,7 @@ export default function CaixaPage() {
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
       </>
@@ -619,7 +671,7 @@ export default function CaixaPage() {
       {abaCaixa === "fluxo" && (
         <div className="space-y-3">
           {/* Cabeçalho fixo: cards + filtro, independente do scroll */}
-          <div className="sticky top-11 z-10 bg-zinc-950 pb-3 space-y-3">
+          <div className="sticky top-[var(--h-topbar)] z-10 bg-zinc-950 pb-3 space-y-3">
             {/* Resumo do período — reflete o bucket selecionado no drill-down, se houver — carrossel no mobile, grid no desktop */}
             {(() => {
               const kpisFluxo = [

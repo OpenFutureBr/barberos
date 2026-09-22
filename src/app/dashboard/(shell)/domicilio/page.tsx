@@ -412,7 +412,55 @@ export default function DomicilioPage() {
                 <div className="text-zinc-600 text-xs mt-1">Adicione os itens que você leva para os atendimentos</div>
               </div>
             ) : (
-              <table className="w-full">
+              <>
+              {/* Lista mobile — o controlador de quantidade e a acao principal
+                  desta tela (o profissional confere o kit antes de sair), entao
+                  ele ganha uma linha propria em vez de disputar 390px com as
+                  outras quatro colunas. */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {kitItems.map((item) => {
+                  const critico = item.quantity < item.minQuantity
+                  const carregando = salvandoQty === item.id
+                  return (
+                    <div key={item.id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-white text-sm">{item.name}</div>
+                          {item.notes && <div className="text-zinc-600 text-xs mt-0.5">{item.notes}</div>}
+                        </div>
+                        <button onClick={() => deletarItem(item.id)} disabled={deletando === item.id}
+                          aria-label={`Remover ${item.name}`}
+                          className="text-zinc-600 hover:text-red-400 disabled:opacity-30 text-sm transition-colors flex-shrink-0 w-8 h-8 -mr-2 -mt-1">
+                          {deletando === item.id ? "..." : "✕"}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => ajustarQty(item, -1)} disabled={carregando || item.quantity <= 0}
+                            aria-label="Diminuir" className="w-8 h-8 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-400 rounded text-sm font-bold transition-colors leading-none">
+                            −
+                          </button>
+                          <span className={`w-10 text-center text-sm font-bold ${critico ? "text-red-400" : "text-white"} ${carregando ? "opacity-50" : ""}`}>
+                            {item.quantity}
+                          </span>
+                          <button onClick={() => ajustarQty(item, +1)} disabled={carregando}
+                            aria-label="Aumentar" className="w-8 h-8 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-400 rounded text-sm font-bold transition-colors leading-none">
+                            +
+                          </button>
+                          <span className="text-zinc-600 text-xs ml-1">{item.unit}</span>
+                        </div>
+                        <span className="text-zinc-600 text-xs">mín. {item.minQuantity}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ml-auto ${critico ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-green-500/10 text-green-400 border-green-500/20"}`}>
+                          {critico ? "⚠ Repor" : "✓ OK"}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <table className="hidden md:table w-full">
                 <thead>
                   <tr className="border-b border-zinc-800">
                     <th className="text-left px-4 py-2.5 text-zinc-600 text-xs font-mono uppercase">Item</th>
@@ -465,6 +513,7 @@ export default function DomicilioPage() {
                   })}
                 </tbody>
               </table>
+              </>
             )}
 
             <div className="px-4 pb-4">

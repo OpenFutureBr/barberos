@@ -738,7 +738,54 @@ export default function FinanceiroPage() {
                 </div>
               </div>
             ) : (
-              <table className="w-full">
+              <>
+              {/* Lista mobile — mesmo formato da aba de repasses logo abaixo,
+                  que ja tinha cartoes. */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {pendentesOrdenados.map((p) => (
+                  <div key={p.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="text-white text-sm font-medium truncate">{p.client.name}</div>
+                          {p.tipo === "subscription" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 leading-none flex-shrink-0">assinatura</span>
+                          )}
+                        </div>
+                        <div className="text-zinc-600 text-xs">{p.client.phone}</div>
+                      </div>
+                      <div className="text-orange-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(p.amount)}</div>
+                    </div>
+
+                    <div className="text-zinc-300 text-xs mt-1 truncate">{p.service.name}</div>
+                    {p.tipo !== "subscription" && (
+                      <div className="text-zinc-600 text-xs truncate">
+                        {p.professional.name} · {fmtDataHora(p.scheduledAt)}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border ${
+                          p.status === "OVERDUE"
+                            ? "bg-red-500/10 text-red-400 border-red-500/20"
+                            : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                        }`}
+                      >
+                        {p.status === "OVERDUE" ? "Vencido" : "Pendente"} · {fmtData(p.dueDate)}
+                      </span>
+                      <button
+                        onClick={() => setPagamentoSelecionado(p)}
+                        className="bg-green-500/15 hover:bg-green-500/25 text-green-400 border border-green-500/20 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex-shrink-0"
+                      >
+                        Marcar pago
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <table className="hidden md:table w-full">
                 <thead>
                   <tr className="border-b border-zinc-800">
                     <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">
@@ -815,6 +862,7 @@ export default function FinanceiroPage() {
                   ))}
                 </tbody>
               </table>
+              </>
             )}
           </div>
         </div>

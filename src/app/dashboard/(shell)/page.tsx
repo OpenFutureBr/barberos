@@ -314,7 +314,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── STICKY: KPIs + FILTRO + CAIXA ── */}
-      <div className="sticky top-11 z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
+      <div className="sticky top-[var(--h-topbar)] z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
 
       {/* ── KPIs CAROUSEL MOBILE ── */}
       <div className="md:hidden mb-3">

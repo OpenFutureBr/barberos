@@ -210,7 +210,7 @@ export default function ClientePerfilPage() {
   )
 
   const idade = calcularIdade(cliente.birthDate)
-  const agendamentos = cliente.appointments || []
+  const agendamentos: any[] = cliente.appointments || []
   // Dados físicos — calculados e salvos no momento do pagamento
   const totalGasto = cliente.totalSpent ?? 0
   const ticketMedio = cliente.ticketMedio ?? 0
@@ -432,7 +432,24 @@ export default function ClientePerfilPage() {
           {agendamentos.length === 0 ? (
             <div className="p-8 text-center text-zinc-600 text-sm">Nenhum agendamento encontrado</div>
           ) : (
-            <table className="w-full">
+            <>
+            {/* Lista mobile — servico em destaque, data/profissional/duracao
+                na linha de apoio. */}
+            <div className="md:hidden divide-y divide-zinc-800">
+              {agendamentos.slice(0, historicoTake).map((a) => (
+                <div key={a.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-white text-sm font-medium truncate">{a.service?.name || "—"}</div>
+                    <div className="text-zinc-500 text-xs truncate">
+                      {new Date(a.scheduledAt).toLocaleDateString("pt-BR")} · {a.professional?.name?.split(" ")[0] || "—"} · {a.service?.durationMin || "—"} min
+                    </div>
+                  </div>
+                  <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {a.service?.price || "—"}</div>
+                </div>
+              ))}
+            </div>
+
+            <table className="hidden md:table w-full">
               <thead>
                 <tr className="border-b border-zinc-800">
                   <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Data</th>
@@ -443,7 +460,7 @@ export default function ClientePerfilPage() {
                 </tr>
               </thead>
               <tbody>
-                {agendamentos.slice(0, historicoTake).map((a: any, i: number) => (
+                {agendamentos.slice(0, historicoTake).map((a, i) => (
                   <tr key={a.id} className={`border-b border-zinc-800 hover:bg-zinc-800/40 ${i === Math.min(historicoTake, agendamentos.length) - 1 ? "border-0" : ""}`}>
                     <td className="px-4 py-3 text-zinc-400 text-sm font-mono">
                       {new Date(a.scheduledAt).toLocaleDateString("pt-BR")}
@@ -458,6 +475,7 @@ export default function ClientePerfilPage() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       )}

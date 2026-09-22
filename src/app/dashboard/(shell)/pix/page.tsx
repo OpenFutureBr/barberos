@@ -259,7 +259,36 @@ export default function PixPage() {
         ) : cobrancasFiltradas.length === 0 ? (
           <div className="p-8 text-center text-zinc-600 text-sm">Nenhum registro no filtro selecionado</div>
         ) : (
-          <table className="w-full">
+          <>
+          {/* Lista mobile — a linha inteira continua sendo o gatilho do
+              pagamento, como na tabela. */}
+          <div className="md:hidden divide-y divide-zinc-800">
+            {cobrancasFiltradas.map((c) => {
+              const st = resolverStatus(c)
+              const clicavel = !c.payment && !["CANCELLED","NO_SHOW"].includes(c.status)
+              return (
+                <div key={c.id}
+                  onClick={() => { if (clicavel) setDadosPagamento({ appointmentId: c.id, clientName: c.client.name, serviceName: c.service.name, professionalName: c.professional.name, scheduledAt: c.scheduledAt, amount: c.service.price }) }}
+                  className={`px-4 py-3 ${clicavel ? "cursor-pointer" : "opacity-70"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-white text-sm font-medium truncate">{c.client.name}</div>
+                      <div className="text-zinc-400 text-xs truncate">{c.service.name}</div>
+                    </div>
+                    <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(c.payment?.amount ?? c.service.price)}</div>
+                  </div>
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${st.cor}`}>{st.label}</span>
+                    {c.payment && <span className="text-zinc-600 text-xs font-mono">{c.payment.method}</span>}
+                    <span className="text-zinc-500 text-xs font-mono">{fmtHora(c.scheduledAt)}</span>
+                    <span className="text-zinc-500 text-xs truncate">{c.professional.name}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <table className="hidden md:table w-full">
             <thead>
               <tr className="border-b border-zinc-800">
                 <th className="text-left px-4 py-2 text-zinc-600 text-xs font-mono uppercase">Cliente</th>
@@ -294,6 +323,7 @@ export default function PixPage() {
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
 
@@ -342,7 +372,47 @@ export default function PixPage() {
 
             {/* Lista */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+              {/* Lista mobile — oito colunas e o caso mais apertado da tela;
+                  o botao "Marcar pago" fica no rodape do cartao, sempre
+                  alcancavel pelo polegar. */}
+              <div className="md:hidden divide-y divide-zinc-800">
+                {pendentes.map(p => {
+                  const isVenc = p.status === "OVERDUE"
+                  return (
+                    <div key={p.id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-white text-sm font-medium truncate">{p.client.name}</div>
+                          <div className="text-zinc-500 text-xs">{p.client.phone}</div>
+                        </div>
+                        <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(p.amount)}</div>
+                      </div>
+                      <div className="text-zinc-300 text-xs mt-1 truncate">{p.service.name} · {p.professional.name}</div>
+                      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${isVenc ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
+                          {isVenc ? "Vencido" : "Pendente"}
+                        </span>
+                        <span className="text-zinc-500 text-xs font-mono">
+                          agendado {new Date(p.scheduledAt).toLocaleDateString("pt-BR")}
+                        </span>
+                        {p.dueDate && (
+                          <span className={`text-xs font-mono ${isVenc ? "text-red-400" : "text-zinc-400"}`}>
+                            vence {new Date(p.dueDate).toLocaleDateString("pt-BR")}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setPendenciaSelecionada(p)}
+                        className="mt-3 w-full text-xs bg-amber-500 hover:bg-amber-400 text-black font-semibold px-3 py-2 rounded-lg transition-colors"
+                      >
+                        Marcar pago
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <table className="hidden md:table w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800 text-zinc-500 text-xs">
                     <th className="px-4 py-2.5 text-left font-medium">Cliente</th>
