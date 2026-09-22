@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useSyncExternalStore } from "react"
+import { hojeISOemBRT } from "@/lib/data-brt"
 
 type UnidadeRel = {
   id: string
@@ -27,31 +28,59 @@ function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+// O periodo padrao vai pelo fuso de Brasilia, igual ao que a API usa pra
+// fatiar os registros. toISOString() e os getters locais respondem em UTC /
+// no fuso da maquina: das 21h em diante o "ate" pulava pro dia seguinte.
 function hojeStr() {
-  return new Date().toISOString().split("T")[0]
+  return hojeISOemBRT()
 }
 
 function inicioMesStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+  return hojeISOemBRT().slice(0, 8) + "01"
+}
+
+/* ---------------------------------------------------------------------------
+   Esta pagina e pre-renderizada no build e fica FORA do route group (shell),
+   entao o HTML dela sai do servidor. Nada que dependa do relogio pode entrar
+   no primeiro render: "hoje" ficaria congelado na data da build e o cliente
+   renderizaria outra coisa. O desencontro de hidratacao subia ate o <html>,
+   o React recriava o elemento e levava embora os data-* que o script de boot
+   do tema poe la — o relatorio saia sempre no acento padrao.
+
+   O relogio e um store externo, como o tema: entra por useSyncExternalStore,
+   que devolve o snapshot do servidor na hidratacao e o do cliente logo depois,
+   sem setState em efeito (e sem render em cascata).
+   --------------------------------------------------------------------------- */
+function semInscricao() {
+  return () => {}
 }
 
 export default function RelatorioExecutivoPage() {
-  const [from, setFrom] = useState(inicioMesStr())
-  const [to, setTo] = useState(hojeStr())
-  const [dados, setDados] = useState<Relatorio | null>(null)
-  const [loading, setLoading] = useState(true)
+  const montado = useSyncExternalStore(semInscricao, () => true, () => false)
 
-  const buscar = useCallback(() => {
-    setLoading(true)
-    fetch(`/api/unidades/relatorio-executivo?from=${from}&to=${to}`)
+  // null = "ainda no padrao"; o usuario pode sobrescrever pelos campos de data.
+  const [fromEscolhido, setFromEscolhido] = useState<string | null>(null)
+  const [toEscolhido, setToEscolhido] = useState<string | null>(null)
+  const from = fromEscolhido ?? (montado ? inicioMesStr() : "")
+  const to = toEscolhido ?? (montado ? hojeStr() : "")
+
+  // Guardar o periodo junto com a resposta deixa "carregando" ser DERIVADO
+  // (resposta em maos != periodo pedido), em vez de um setLoading(true)
+  // sincrono dentro do efeito.
+  const [resposta, setResposta] = useState<{ periodo: string; dados: Relatorio | null } | null>(null)
+  const periodo = `${from}|${to}`
+  const dados = resposta?.periodo === periodo ? resposta.dados : null
+  const loading = !from || !to || resposta?.periodo !== periodo
+
+  useEffect(() => {
+    if (!from || !to) return
+    const ac = new AbortController()
+    fetch(`/api/unidades/relatorio-executivo?from=${from}&to=${to}`, { signal: ac.signal })
       .then(r => r.json())
-      .then(d => { if (!d.error) setDados(d) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .then(d => setResposta({ periodo: `${from}|${to}`, dados: d.error ? null : d }))
+      .catch(() => { if (!ac.signal.aborted) setResposta({ periodo: `${from}|${to}`, dados: null }) })
+    return () => ac.abort()
   }, [from, to])
-
-  useEffect(() => { buscar() }, [buscar])
 
   const melhorUnidade = dados?.unidades.length
     ? [...dados.unidades].sort((a, b) => b.faturamento - a.faturamento)[0]
@@ -70,10 +99,10 @@ export default function RelatorioExecutivoPage() {
       <div className="no-print sticky top-0 z-10 bg-zinc-900 text-white px-6 py-3 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold">Relatório Executivo</span>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+          <input type="date" value={from} onChange={e => setFromEscolhido(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2 py-1.5 rounded-lg outline-none [color-scheme:dark]" />
           <span className="text-zinc-500 text-xs">até</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+          <input type="date" value={to} onChange={e => setToEscolhido(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 text-white text-xs px-2 py-1.5 rounded-lg outline-none [color-scheme:dark]" />
         </div>
         <div className="flex items-center gap-2">
@@ -94,12 +123,14 @@ export default function RelatorioExecutivoPage() {
           <div>
             <h1 className="text-2xl font-bold">Relatório Executivo</h1>
             <p className="text-zinc-500 text-sm mt-1">
-              Período: {new Date(from + "T12:00:00").toLocaleDateString("pt-BR")} até {new Date(to + "T12:00:00").toLocaleDateString("pt-BR")}
+              {from && to && `Período: ${new Date(from + "T12:00:00").toLocaleDateString("pt-BR")} até ${new Date(to + "T12:00:00").toLocaleDateString("pt-BR")}`}
             </p>
           </div>
           <div className="text-right text-xs text-zinc-500">
             <div>BarberOS</div>
-            <div>Gerado em {new Date().toLocaleString("pt-BR")}</div>
+            {/* geradoEm vem da API: e o instante em que o relatorio foi
+                apurado, e nao muda entre servidor e cliente como new Date(). */}
+            {dados && <div>Gerado em {new Date(dados.geradoEm).toLocaleString("pt-BR")}</div>}
           </div>
         </div>
 
