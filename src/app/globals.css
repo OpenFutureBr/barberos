@@ -338,3 +338,47 @@ html.tema-trocando *::after {
 /* Esconde a scrollbar mantendo o scroll (carrosseis mobile) */
 .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* === AREA SEGURA E ALTURAS DO SHELL (PWA no celular) =======================
+   Com `viewportFit: "cover"` + barra de status translucida (ambos ja ligados
+   em src/app/layout.tsx), o conteudo passa POR BAIXO do notch, do canto
+   arredondado e da barra de gestos. Sem reservar esse espaco, o titulo da
+   topbar fica escondido atras do relogio do sistema.
+
+   Os quatro insets viram variaveis com fallback 0px — que e o que todo
+   navegador de desktop devolve —, e as duas barras fixas do shell embutem o
+   inset na PROPRIA altura. Assim elas continuam encostadas na moldura do
+   sistema (sem faixa vazia) e quem precisa reservar espaco (o <main>, o FAB)
+   usa a MESMA variavel, em vez de repetir o calculo com um numero magico.
+
+   --h-mobilenav vale 4rem mesmo no desktop, onde a nav inferior nao existe:
+   os dois consumidores ja desligam a reserva com um `md:`, e deixar a
+   variavel medindo so a nav a mantem honesta pra quem for usar depois.
+   ========================================================================= */
+:root {
+  --sa-top:    env(safe-area-inset-top, 0px);
+  --sa-right:  env(safe-area-inset-right, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left:   env(safe-area-inset-left, 0px);
+
+  --h-topbar:    calc(2.75rem + var(--sa-top));    /* h-11 + notch */
+  --h-mobilenav: calc(4rem + var(--sa-bottom));    /* h-16 + barra de gestos */
+
+  /* Recuo horizontal padrao (1rem) ja somado ao inset lateral — no celular
+     deitado o notch come a lateral. Evita repetir o calc em cada barra. */
+  --pad-left:  calc(1rem + var(--sa-left));
+  --pad-right: calc(1rem + var(--sa-right));
+}
+
+/* iOS Safari da zoom automatico ao focar um campo com fonte < 16px, e o jeito
+   antigo de evitar isso era `maximum-scale=1` — que tambem mata o pinch-zoom
+   do usuario (falha de acessibilidade, WCAG 1.4.4). A troca: o viewport
+   liberou o zoom e os campos passam a 16px so no toque, onde o problema
+   existe. Ponteiro fino (mouse) segue com a tipografia densa das telas. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}

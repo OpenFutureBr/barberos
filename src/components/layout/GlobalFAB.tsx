@@ -478,7 +478,7 @@ export default function GlobalFAB() {
 
       <div
         ref={ref}
-        className={`fixed z-40 flex flex-col ${abrirParaEsquerda ? "items-end" : "items-start"} gap-2 ${posicao ? "" : "bottom-20 right-4 md:bottom-6 md:right-6"}`}
+        className={`fixed z-40 flex flex-col ${abrirParaEsquerda ? "items-end" : "items-start"} gap-2 ${posicao ? "" : "bottom-[calc(var(--h-mobilenav)+1rem)] right-[var(--pad-right)] md:bottom-6 md:right-6"}`}
         style={estiloPosicao}
       >
         {/* A ordem no DOM decide o lado que "cresce": o botão fica sempre no

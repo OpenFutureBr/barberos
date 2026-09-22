@@ -20,9 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
   // Prefetch silencioso de dados frequentes ao carregar o dashboard.
-  // DashboardLayout remonta a cada navegação (não há app/dashboard/layout.tsx
-  // compartilhado), então sem checar o cache antes isso refazia os 4 fetches
-  // a cada troca de página mesmo com dado fresco de segundos atrás.
+  // Hoje este shell é montado uma vez só, pelo layout do route group (shell),
+  // então isto roda uma vez por sessão; a checagem do cache continua valendo
+  // para a troca de unidade, que é o que faz o efeito rodar de novo.
   //
   // O escopo do cache (organização+unidade) é fixado antes de qualquer
   // leitura/escrita abaixo, pra nunca servir dado de outra unidade.
@@ -113,8 +113,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onAbrirVenda={() => setModalVendaAberto(true)}
         cartCount={cartCount}
       />
-      <main className="md:ml-48 pt-11 min-h-dvh">
-        <div className="p-4 pb-24 md:pb-4">{children}</div>
+      <main className="md:ml-48 pt-[var(--h-topbar)] min-h-dvh">
+        {/* O respiro do rodape e a nav mobile + 2rem; no desktop a nav nao
+            existe e o md:pb-4 desliga a reserva. */}
+        <div className="p-4 pb-[calc(var(--h-mobilenav)+2rem)] md:pb-4">{children}</div>
       </main>
       <AgendaModal
         aberto={modalAgendaAberto}

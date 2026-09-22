@@ -61,7 +61,9 @@ export default function Topbar({
   return (
     <>
       <DrawerNav aberto={drawerAberto} onFechar={() => setDrawerAberto(false)} />
-      <header className="h-11 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-3 fixed top-0 left-0 md:left-48 right-0 z-20">
+      {/* A altura embute o inset do topo (ver --h-topbar no globals.css): a
+          barra encosta no notch em vez de ficar escondida atras dele. */}
+      <header className="h-[var(--h-topbar)] pt-[var(--sa-top)] pl-[var(--pad-left)] pr-[var(--pad-right)] bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 fixed top-0 left-0 md:left-48 right-0 z-20">
       {/* Hamburguer — apenas mobile */}
       <button
         onClick={() => setDrawerAberto(true)}

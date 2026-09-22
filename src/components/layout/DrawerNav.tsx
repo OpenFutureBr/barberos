@@ -36,7 +36,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
       />
 
       {/* Drawer */}
-      <div className={`md:hidden fixed top-0 left-0 bottom-0 w-72 bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col transition-transform duration-300 ease-in-out ${aberto ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`md:hidden fixed top-0 left-0 bottom-0 w-72 pt-[var(--sa-top)] pb-[var(--sa-bottom)] pl-[var(--sa-left)] bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col transition-transform duration-300 ease-in-out ${aberto ? "translate-x-0" : "-translate-x-full"}`}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">

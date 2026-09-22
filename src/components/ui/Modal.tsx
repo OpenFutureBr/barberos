@@ -82,7 +82,7 @@ export default function Modal({
         {(titulo || subtitulo) && (
           <div
             className="flex items-start justify-between gap-3 px-4 py-3 border-b border-line flex-shrink-0"
-            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+            style={{ paddingTop: "max(0.75rem, var(--sa-top))" }}
           >
             <div className="min-w-0">
               {titulo && <h2 className="text-fg text-sm font-semibold truncate">{titulo}</h2>}
@@ -106,7 +106,7 @@ export default function Modal({
         {rodape && (
           <div
             className="px-4 py-3 border-t border-line flex items-center justify-end gap-2 flex-shrink-0"
-            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "max(0.75rem, var(--sa-bottom))" }}
           >
             {rodape}
           </div>

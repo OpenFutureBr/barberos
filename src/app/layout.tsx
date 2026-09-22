@@ -35,7 +35,10 @@ export const viewport: Viewport = {
   themeColor: "#18181b",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // SEM maximumScale: travar em 1 mata o pinch-zoom (WCAG 1.4.4). Ele estava
+  // ali so pra evitar o zoom automatico do iOS ao focar um campo pequeno —
+  // problema que o globals.css resolve na origem, subindo os campos pra 16px
+  // em ponteiro grosso.
   viewportFit: "cover",
   // Faz o navegador redimensionar a área de conteúdo (viewport visual) quando
   // a barra de endereço/opções ou o teclado aparecem, em vez de sobrepor por

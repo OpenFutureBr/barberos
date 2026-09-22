@@ -38,9 +38,7 @@ export default function MobileNav() {
   const grupos = gruposVisiveis(MENU_GROUPS)
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900 border-t border-zinc-800"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900 border-t border-zinc-800 pb-[var(--sa-bottom)] pl-[var(--sa-left)] pr-[var(--sa-right)]">
       <div className="relative overflow-hidden h-16">
         {/* Level 1 — Grupos */}
         <div
