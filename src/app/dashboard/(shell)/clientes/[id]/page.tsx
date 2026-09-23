@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import CardCarousel from "@/components/ui/CardCarousel"
 
 const paises = [
   { codigo: "+55", sigla: "BR", mascara: "(XX) XXXXX-XXXX", digitos: 11 },
@@ -184,10 +185,10 @@ export default function ClientePerfilPage() {
           {[80, 72, 88].map((w, i) => <div key={i} className="h-8 bg-zinc-800 rounded-xl" style={{ width: w }} />)}
         </div>
         {/* Cards */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {[1,2,3].map(i => <div key={i} className="h-20 bg-zinc-900 border border-zinc-800 rounded-2xl" />)}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="h-40 bg-zinc-900 border border-zinc-800 rounded-2xl" />
           <div className="h-40 bg-zinc-900 border border-zinc-800 rounded-2xl" />
         </div>
@@ -230,13 +231,17 @@ export default function ClientePerfilPage() {
       </button>
 
       {/* Header do cliente */}
-      <div className="flex items-start gap-5 mb-6 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      {/* O cartao tinha tres colunas rigidas (avatar | dados | totais) e em
+          390px a terceira saia da tela. Com flex-wrap e o bloco de totais em
+          w-full, ele desce pra uma linha propria no celular e volta pro lado
+          no desktop — sem duplicar a marcacao. */}
+      <div className="flex items-start flex-wrap gap-4 md:gap-5 mb-6 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 md:p-5">
         <div className="w-16 h-16 rounded-2xl bg-zinc-700 flex items-center justify-center text-2xl font-bold text-white flex-shrink-0">
           {cliente.name?.charAt(0)}
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-white text-2xl font-bold">{cliente.name}</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center flex-wrap gap-2 mb-2">
+            <h1 className="text-white text-xl md:text-2xl font-bold">{cliente.name}</h1>
             <span className={`text-xs px-2 py-1 rounded-full border ${
               cliente.segment === "VIP" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
               cliente.segment === "REGULAR" ? "bg-green-500/10 text-green-400 border-green-500/20" :
@@ -261,9 +266,9 @@ export default function ClientePerfilPage() {
               </span>
             )}
             {cliente.email && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 min-w-0 max-w-full">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
-                {cliente.email}
+                <span className="truncate">{cliente.email}</span>
               </span>
             )}
             {idade && (
@@ -279,7 +284,7 @@ export default function ClientePerfilPage() {
               </span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("abrirModalAgenda", { detail: {} }))}
               className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-1.5 rounded-lg text-sm transition-colors"
@@ -313,7 +318,7 @@ export default function ClientePerfilPage() {
             </button>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
+        <div className="w-full md:w-auto text-left md:text-right flex-shrink-0 border-t border-zinc-800 pt-3 md:border-0 md:pt-0">
           <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
           <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
           <div className="text-zinc-600 text-xs mt-1">Ticket médio: R$ {ticketMedio}</div>
@@ -349,32 +354,32 @@ export default function ClientePerfilPage() {
 
       {/* Aba Perfil */}
       {aba === "perfil" && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Dados pessoais</div>
             <div className="space-y-0">
-              <div className="flex justify-between py-2 border-b border-zinc-800">
-                <span className="text-zinc-500 text-sm">Nome</span>
-                <span className="text-white text-sm font-medium">{cliente.name}</span>
+              <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm flex-shrink-0">Nome</span>
+                <span className="text-white text-sm font-medium text-right min-w-0 break-words">{cliente.name}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-zinc-800">
-                <span className="text-zinc-500 text-sm">Telefone</span>
-                <span className="text-white text-sm">{cliente.phone || "—"}</span>
+              <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm flex-shrink-0">Telefone</span>
+                <span className="text-white text-sm text-right min-w-0 break-words">{cliente.phone || "—"}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-zinc-800">
-                <span className="text-zinc-500 text-sm">Email</span>
-                <span className="text-white text-sm">{cliente.email || "—"}</span>
+              <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm flex-shrink-0">Email</span>
+                <span className="text-white text-sm text-right min-w-0 break-words">{cliente.email || "—"}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-zinc-800">
-                <span className="text-zinc-500 text-sm">Nascimento</span>
-                <span className="text-white text-sm">
+              <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                <span className="text-zinc-500 text-sm flex-shrink-0">Nascimento</span>
+                <span className="text-white text-sm text-right min-w-0 break-words">
                   {cliente.birthDate ? new Date(cliente.birthDate).toLocaleDateString("pt-BR") : "—"}
                   {idade ? ` (${idade} anos)` : ""}
                 </span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-zinc-500 text-sm">Cadastrado em</span>
-                <span className="text-zinc-400 text-sm">{new Date(cliente.createdAt).toLocaleDateString("pt-BR")}</span>
+              <div className="flex justify-between items-baseline gap-3 py-2">
+                <span className="text-zinc-500 text-sm flex-shrink-0">Cadastrado em</span>
+                <span className="text-zinc-400 text-sm text-right min-w-0">{new Date(cliente.createdAt).toLocaleDateString("pt-BR")}</span>
               </div>
             </div>
           </div>
@@ -384,27 +389,27 @@ export default function ClientePerfilPage() {
             {cliente.homeAddress || cliente.homeCity ? (
               <div className="space-y-0">
                 {cliente.homeAddress && (
-                  <div className="flex justify-between py-2 border-b border-zinc-800">
-                    <span className="text-zinc-500 text-sm">Rua</span>
-                    <span className="text-white text-sm">{cliente.homeAddress}{cliente.homeNumber ? `, ${cliente.homeNumber}` : ""}</span>
+                  <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm flex-shrink-0">Rua</span>
+                    <span className="text-white text-sm text-right min-w-0 break-words">{cliente.homeAddress}{cliente.homeNumber ? `, ${cliente.homeNumber}` : ""}</span>
                   </div>
                 )}
                 {cliente.homeNeighborhood && (
-                  <div className="flex justify-between py-2 border-b border-zinc-800">
-                    <span className="text-zinc-500 text-sm">Bairro</span>
-                    <span className="text-white text-sm">{cliente.homeNeighborhood}</span>
+                  <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm flex-shrink-0">Bairro</span>
+                    <span className="text-white text-sm text-right min-w-0 break-words">{cliente.homeNeighborhood}</span>
                   </div>
                 )}
                 {cliente.homeCity && (
-                  <div className="flex justify-between py-2 border-b border-zinc-800">
-                    <span className="text-zinc-500 text-sm">Cidade</span>
-                    <span className="text-white text-sm">{cliente.homeCity}</span>
+                  <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800">
+                    <span className="text-zinc-500 text-sm flex-shrink-0">Cidade</span>
+                    <span className="text-white text-sm text-right min-w-0 break-words">{cliente.homeCity}</span>
                   </div>
                 )}
                 {cliente.homeZipCode && (
-                  <div className="flex justify-between py-2">
-                    <span className="text-zinc-500 text-sm">CEP</span>
-                    <span className="text-white text-sm">{cliente.homeZipCode}</span>
+                  <div className="flex justify-between items-baseline gap-3 py-2">
+                    <span className="text-zinc-500 text-sm flex-shrink-0">CEP</span>
+                    <span className="text-white text-sm text-right min-w-0 break-words">{cliente.homeZipCode}</span>
                   </div>
                 )}
               </div>
@@ -483,23 +488,33 @@ export default function ClientePerfilPage() {
       {/* Aba Financeiro */}
       {aba === "financeiro" && (
         <div>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-amber-500">
-              <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
-              <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
-              <div className="text-zinc-600 text-xs mt-1">{agendamentos.length} visitas</div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-green-500">
-              <div className="text-zinc-500 text-xs mb-1">Cashback acumulado</div>
-              <div className="text-green-400 text-2xl font-bold">R$ {cliente.cashbackBalance || 0}</div>
-              <div className="text-zinc-600 text-xs mt-1">disponível para resgate</div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-blue-500">
-              <div className="text-zinc-500 text-xs mb-1">Ticket médio</div>
-              <div className="text-blue-400 text-2xl font-bold">R$ {ticketMedio}</div>
-              <div className="text-zinc-600 text-xs mt-1">por visita</div>
-            </div>
-          </div>
+          {/* Tres KPIs em 130px cada quebravam o rotulo em tres linhas. No
+              celular viram carrossel, como no caixa, PDV e fiscal. */}
+          {(() => {
+            const kpis = [
+              <div key="gasto" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-amber-500 h-full">
+                <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
+                <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
+                <div className="text-zinc-600 text-xs mt-1">{agendamentos.length} visitas</div>
+              </div>,
+              <div key="cashback" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-green-500 h-full">
+                <div className="text-zinc-500 text-xs mb-1">Cashback acumulado</div>
+                <div className="text-green-400 text-2xl font-bold">R$ {cliente.cashbackBalance || 0}</div>
+                <div className="text-zinc-600 text-xs mt-1">disponível para resgate</div>
+              </div>,
+              <div key="ticket" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-blue-500 h-full">
+                <div className="text-zinc-500 text-xs mb-1">Ticket médio</div>
+                <div className="text-blue-400 text-2xl font-bold">R$ {ticketMedio}</div>
+                <div className="text-zinc-600 text-xs mt-1">por visita</div>
+              </div>,
+            ]
+            return (
+              <div className="mb-4">
+                <CardCarousel cards={kpis} />
+                <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
+              </div>
+            )
+          })()}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Pagamentos</div>
@@ -612,15 +627,15 @@ export default function ClientePerfilPage() {
               </div>
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Telefone *</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 min-w-0">
                   <select value={paisIdx} onChange={(e) => { setPaisIdx(Number(e.target.value)); setTelefone("") }}
-                    className="bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
+                    className="flex-shrink-0 max-w-[40%] bg-zinc-800 border border-zinc-700 text-white rounded-lg px-2 py-2 text-sm outline-none focus:border-amber-500 transition-colors">
                     {paises.map((p, i) => <option key={i} value={i}>{p.sigla} {p.codigo}</option>)}
                   </select>
                   <input value={telefone}
                     onChange={(e) => setTelefone(formatarTelefone(e.target.value, pais.digitos))}
                     required placeholder={pais.mascara.replace(/X/g, "9")}
-                    className="flex-1 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
+                    className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
                 </div>
               </div>
               <div>
@@ -644,24 +659,24 @@ export default function ClientePerfilPage() {
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
+                <div className="col-span-2 min-w-0">
                   <label className="text-zinc-400 text-xs mb-1 block">Rua</label>
                   <input value={rua} onChange={(e) => setRua(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="text-zinc-400 text-xs mb-1 block">Número</label>
                   <input value={numero} onChange={(e) => setNumero(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="min-w-0">
                   <label className="text-zinc-400 text-xs mb-1 block">Bairro</label>
                   <input value={bairro} onChange={(e) => setBairro(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
                   <input value={cidade} onChange={(e) => setCidade(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors" />

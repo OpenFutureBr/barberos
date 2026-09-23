@@ -141,8 +141,10 @@ export default function ApiDocsPage() {
       {/* API Key */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
         <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-2">Sua API Key</div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 bg-zinc-800 rounded-lg px-3 py-2 font-mono text-sm text-zinc-300 border border-zinc-700">
+        {/* A chave e uma string longa e nao quebra sozinha: sem min-w-0 ela
+            empurrava os dois botoes pra fora da tela no celular. */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0 bg-zinc-800 rounded-lg px-3 py-2 font-mono text-sm text-zinc-300 border border-zinc-700 break-all">
             {apiKey}
           </div>
           <button
@@ -166,10 +168,10 @@ export default function ApiDocsPage() {
         <div className="font-mono text-sm text-amber-400">https://api.barberos.com/v1</div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         {/* Lista de endpoints */}
-        <div className="col-span-1">
+        <div className="md:col-span-1 min-w-0">
           <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Endpoints</div>
           <div className="space-y-1">
             {endpoints.map((ep) => (
@@ -194,15 +196,15 @@ export default function ApiDocsPage() {
         </div>
 
         {/* Detalhe do endpoint */}
-        <div className="col-span-2">
+        <div className="md:col-span-2 min-w-0">
           {endpoint && (
             <div className="space-y-3">
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={`text-sm px-3 py-1 rounded font-mono font-bold ${metodoStyle[endpoint.metodo]}`}>
+                <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-2">
+                  <span className={`text-sm px-3 py-1 rounded font-mono font-bold flex-shrink-0 ${metodoStyle[endpoint.metodo]}`}>
                     {endpoint.metodo}
                   </span>
-                  <span className="text-white font-mono text-sm">{endpoint.rota}</span>
+                  <span className="text-white font-mono text-sm break-all">{endpoint.rota}</span>
                 </div>
                 <p className="text-zinc-400 text-sm">{endpoint.descricao}</p>
               </div>
@@ -214,10 +216,10 @@ export default function ApiDocsPage() {
                   </div>
                   <div className="space-y-2">
                     {endpoint.params.map((p, i) => (
-                      <div key={i} className="flex items-start gap-3 py-2 border-b border-zinc-800 last:border-0">
-                        <span className="text-amber-400 font-mono text-sm w-32 flex-shrink-0">{p.nome}</span>
+                      <div key={i} className="flex items-start flex-wrap gap-x-3 py-2 border-b border-zinc-800 last:border-0">
+                        <span className="text-amber-400 font-mono text-sm w-28 sm:w-32 flex-shrink-0 break-all">{p.nome}</span>
                         <span className="text-blue-400 font-mono text-xs w-16 flex-shrink-0 mt-0.5">{p.tipo}</span>
-                        <span className="text-zinc-400 text-sm">{p.desc}</span>
+                        <span className="text-zinc-400 text-sm min-w-0 flex-1">{p.desc}</span>
                       </div>
                     ))}
                   </div>

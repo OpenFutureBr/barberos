@@ -1016,10 +1016,13 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 )}
               </div>
 
-              {/* Data + Horário lado a lado */}
-              <div className="flex gap-3 items-start">
+              {/* Data + Horário lado a lado no desktop, empilhados no celular.
+                  O MiniCalendar tem 190px fixos e as duas rodas do relogio
+                  somam ~190px: lado a lado sao ~400px, mais que a largura util
+                  de um celular de 390px, e o horario saia da tela. */}
+              <div className="flex flex-col sm:flex-row gap-3 items-center sm:items-start">
                 {/* Calendário */}
-                <div>
+                <div className="flex-shrink-0">
                   <label className="text-zinc-400 text-xs mb-1.5 block">Data *</label>
                   <MiniCalendar value={dataSelecionada} onChange={setDataSelecionada} min={hojeISO} max={maxDataISO} />
                   {profId && !profAtendeDia && (
@@ -1028,7 +1031,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                 </div>
 
                 {/* Horário */}
-                <div className="flex-1">
+                <div className="w-full sm:flex-1 min-w-0">
                   <label className="text-zinc-400 text-xs mb-1.5 block">Horário *</label>
                   {!profAtendeDia ? (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
