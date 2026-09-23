@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { usePermissoes } from "@/lib/usePermissoes"
+import { useSubstituirHistorico } from "@/lib/navegacao"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -17,6 +18,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
   const pathname = usePathname()
 
   const { itensVisiveis } = usePermissoes()
+  const substituirHistorico = useSubstituirHistorico()
 
   // Fechar ao navegar
   useEffect(() => { onFechar() }, [pathname])
@@ -56,6 +58,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
                   return (
                     <Link key={item.href} href={item.href}
+                      replace={substituirHistorico}
                       target={item.newTab ? "_blank" : undefined}
                       rel={item.newTab ? "noopener noreferrer" : undefined}
                       className={`flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${

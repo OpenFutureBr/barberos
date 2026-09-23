@@ -34,6 +34,7 @@ export async function GET() {
           select: { type: true, quantity: true, unitPrice: true, createdAt: true },
           orderBy: { createdAt: "desc" },
         },
+        _count: { select: { stockMovements: true, sales: true } },
       },
       orderBy: { createdAt: "desc" },
     })
@@ -86,6 +87,49 @@ export async function POST(request: Request) {
     return NextResponse.json(produto)
   } catch (error) {
     console.error("[POST /api/estoque]", error)
+    return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
+  }
+}
+
+/* Exclusao definitiva de produto.
+   So passa se o produto NAO tiver historico: um StockMovement (entrada/saida)
+   ou um ProductSale apagado junto levaria embora numeros que o financeiro ja
+   contabilizou — o relatorio do mes passado mudaria sozinho. Quando ha
+   historico, o caminho e desativar (PUT isActive:false), que tira da lista
+   sem mexer no passado.
+
+   A checagem e aqui, no servidor, e nao so no botao: a tela esconde a opcao,
+   mas quem chamar a rota direto tem que esbarrar na mesma regra. */
+export async function DELETE(request: Request) {
+  try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    const bloqueio = bloqueioSemPermissao(session?.user, "estoque")
+    if (bloqueio) return bloqueio
+
+    const id = new URL(request.url).searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "Produto não informado" }, { status: 400 })
+
+    const alvo = await prisma.product.findFirst({
+      where: { id, establishmentId: estabId },
+      select: { id: true, _count: { select: { stockMovements: true, sales: true } } },
+    })
+    if (!alvo) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 })
+
+    const { stockMovements, sales } = alvo._count
+    if (stockMovements > 0 || sales > 0) {
+      return NextResponse.json({
+        error: "Produto com movimentação não pode ser excluído, apenas desativado.",
+        movimentos: stockMovements,
+        vendas: sales,
+      }, { status: 409 })
+    }
+
+    await prisma.product.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error("[DELETE /api/estoque]", error)
     return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }
 }

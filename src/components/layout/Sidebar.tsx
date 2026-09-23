@@ -8,6 +8,7 @@ import { MENU_GROUPS } from "@/lib/menu-items"
 import { getCache, setCache } from "@/lib/prefetch-cache"
 import { ControleTema } from "@/components/ui/SeletorTema"
 import { usePermissoes } from "@/lib/usePermissoes"
+import { useSubstituirHistorico } from "@/lib/navegacao"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -47,6 +48,7 @@ export default function Sidebar() {
   )
 
   const { itensVisiveis } = usePermissoes()
+  const substituirHistorico = useSubstituirHistorico()
 
   // Restaura, antes do primeiro paint, os grupos expandidos e o scroll do menu.
   // Em duas passadas: aplicar os grupos muda a altura do <nav>, e o scroll só
@@ -187,6 +189,7 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    replace={substituirHistorico}
                     target={item.newTab ? "_blank" : undefined}
                     rel={item.newTab ? "noopener noreferrer" : undefined}
                     className={`flex items-center gap-2 mx-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${

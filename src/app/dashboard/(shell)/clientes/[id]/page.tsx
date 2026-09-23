@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import CardCarousel from "@/components/ui/CardCarousel"
 
 const paises = [
   { codigo: "+55", sigla: "BR", mascara: "(XX) XXXXX-XXXX", digitos: 11 },
@@ -488,33 +487,27 @@ export default function ClientePerfilPage() {
       {/* Aba Financeiro */}
       {aba === "financeiro" && (
         <div>
-          {/* Tres KPIs em 130px cada quebravam o rotulo em tres linhas. No
-              celular viram carrossel, como no caixa, PDV e fiscal. */}
-          {(() => {
-            const kpis = [
-              <div key="gasto" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-amber-500 h-full">
-                <div className="text-zinc-500 text-xs mb-1">Total gasto</div>
-                <div className="text-amber-400 text-2xl font-bold">R$ {totalGasto}</div>
-                <div className="text-zinc-600 text-xs mt-1">{agendamentos.length} visitas</div>
-              </div>,
-              <div key="cashback" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-green-500 h-full">
-                <div className="text-zinc-500 text-xs mb-1">Cashback acumulado</div>
-                <div className="text-green-400 text-2xl font-bold">R$ {cliente.cashbackBalance || 0}</div>
-                <div className="text-zinc-600 text-xs mt-1">disponível para resgate</div>
-              </div>,
-              <div key="ticket" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 border-t-2 border-t-blue-500 h-full">
-                <div className="text-zinc-500 text-xs mb-1">Ticket médio</div>
-                <div className="text-blue-400 text-2xl font-bold">R$ {ticketMedio}</div>
-                <div className="text-zinc-600 text-xs mt-1">por visita</div>
-              </div>,
-            ]
-            return (
-              <div className="mb-4">
-                <CardCarousel cards={kpis} />
-                <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-              </div>
-            )
-          })()}
+          {/* Um cartao so, dividido em tres. Sao tres numeros curtos: cabem
+              lado a lado em 390px se o rotulo encolher e o valor descer de
+              text-2xl pra text-lg no celular. Melhor que carrossel — o dono
+              ve os tres de uma vez, sem arrastar. */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4 grid grid-cols-3 divide-x divide-zinc-800">
+            <div className="px-2 py-3 md:px-4 md:py-4 text-center md:text-left border-t-2 border-t-amber-500 rounded-tl-xl">
+              <div className="text-zinc-500 text-[10px] md:text-xs mb-0.5 md:mb-1 leading-tight">Total gasto</div>
+              <div className="text-amber-400 text-lg md:text-2xl font-bold leading-tight">R$ {totalGasto}</div>
+              <div className="text-zinc-600 text-[10px] md:text-xs mt-0.5 md:mt-1 leading-tight">{agendamentos.length} visitas</div>
+            </div>
+            <div className="px-2 py-3 md:px-4 md:py-4 text-center md:text-left border-t-2 border-t-green-500">
+              <div className="text-zinc-500 text-[10px] md:text-xs mb-0.5 md:mb-1 leading-tight">Cashback</div>
+              <div className="text-green-400 text-lg md:text-2xl font-bold leading-tight">R$ {cliente.cashbackBalance || 0}</div>
+              <div className="text-zinc-600 text-[10px] md:text-xs mt-0.5 md:mt-1 leading-tight">p/ resgate</div>
+            </div>
+            <div className="px-2 py-3 md:px-4 md:py-4 text-center md:text-left border-t-2 border-t-blue-500 rounded-tr-xl">
+              <div className="text-zinc-500 text-[10px] md:text-xs mb-0.5 md:mb-1 leading-tight">Ticket médio</div>
+              <div className="text-blue-400 text-lg md:text-2xl font-bold leading-tight">R$ {ticketMedio}</div>
+              <div className="text-zinc-600 text-[10px] md:text-xs mt-0.5 md:mt-1 leading-tight">por visita</div>
+            </div>
+          </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
               <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Pagamentos</div>

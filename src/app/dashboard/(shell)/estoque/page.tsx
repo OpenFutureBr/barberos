@@ -19,6 +19,146 @@ function FotoProduto({ url, nome, tamanho }: { url?: string | null; nome: string
     : <div className={`${cls} flex items-center justify-center text-zinc-600`}>📦</div>
 }
 
+/* Forma do produto que o menu de acoes e o modal de detalhes consomem. A
+   lista chega da API como any[] (o resto desta pagina ainda trabalha assim);
+   declarar aqui so o que estas duas pecas leem evita espalhar mais `any`. */
+type ProdutoDetalhe = {
+  id: string
+  name: string
+  barcode?: string | null
+  category?: string | null
+  subCategory?: string | null
+  costPrice: number
+  salePrice: number
+  stock: number
+  minStock: number
+  unit?: string | null
+  supplier?: string | null
+  hasAlcohol?: boolean
+  photoUrl?: string | null
+  isActive: boolean
+  createdAt: string
+  stockMovements?: unknown[]
+  _count?: { stockMovements: number; sales: number }
+}
+
+/* Menu de 3 pontinhos por produto. Excluir so aparece quando o produto nao
+   tem historico (nenhum movimento e nenhuma venda): apagar um produto ja
+   movimentado levaria embora numeros que o financeiro contabilizou. Com
+   historico, a opcao vira "Desativar", que tira da lista sem mexer no
+   passado. O servidor repete a regra (DELETE /api/estoque). */
+function MenuProduto({ produto, onVer, onEditar, onDesativar, onExcluir }: {
+  produto: ProdutoDetalhe
+  onVer: () => void
+  onEditar: () => void
+  onDesativar: () => void
+  onExcluir: () => void
+}) {
+  // O painel e `fixed`, posicionado a partir do retangulo do botao, e nao
+  // `absolute`: as duas listas de produto vivem dentro de um card com
+  // `overflow-hidden` (que arredonda os cantos da tabela), e um dropdown
+  // absoluto seria recortado por ele.
+  const [pos, setPos] = useState<{ top: number; right: number; acima: boolean } | null>(null)
+  const aberto = pos !== null
+  const ref = useRef<HTMLDivElement>(null)
+
+  function alternar() {
+    if (aberto) { setPos(null); return }
+    const r = ref.current!.getBoundingClientRect()
+    const ALTURA = 210   // altura tipica do painel; so decide o lado
+    const acima = r.bottom + ALTURA > window.innerHeight && r.top > ALTURA
+    setPos({
+      top: acima ? r.top - 4 : r.bottom + 4,
+      right: window.innerWidth - r.right,
+      acima,
+    })
+  }
+
+  useEffect(() => {
+    if (!aberto) return
+    const fechar = () => setPos(null)
+    const aoClicar = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setPos(null)
+    }
+    const aoTeclar = (e: KeyboardEvent) => { if (e.key === "Escape") setPos(null) }
+    document.addEventListener("mousedown", aoClicar)
+    window.addEventListener("keydown", aoTeclar)
+    // Rolar com o menu aberto deixaria o painel solto no meio da tela.
+    window.addEventListener("scroll", fechar, true)
+    window.addEventListener("resize", fechar)
+    return () => {
+      document.removeEventListener("mousedown", aoClicar)
+      window.removeEventListener("keydown", aoTeclar)
+      window.removeEventListener("scroll", fechar, true)
+      window.removeEventListener("resize", fechar)
+    }
+  }, [aberto])
+
+  const temHistorico = (produto._count?.stockMovements ?? produto.stockMovements?.length ?? 0) > 0
+    || (produto._count?.sales ?? 0) > 0
+
+  const opcao = "w-full text-left px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors"
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={alternar}
+        aria-label={`Ações de ${produto.name}`}
+        aria-expanded={aberto}
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="5" r="1.75" /><circle cx="12" cy="12" r="1.75" /><circle cx="12" cy="19" r="1.75" />
+        </svg>
+      </button>
+
+      {aberto && (
+        <div
+          className="fixed z-50 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+          style={{ top: pos.top, right: pos.right, transform: pos.acima ? "translateY(-100%)" : undefined }}
+        >
+          <button onClick={() => { setPos(null); onVer() }} className={`${opcao} text-zinc-300 hover:bg-zinc-800`}>
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.04 12.32a1.01 1.01 0 010-.64C3.42 7.51 7.36 4.5 12 4.5c4.64 0 8.58 3.01 9.96 7.18.07.21.07.43 0 .64C20.58 16.49 16.64 19.5 12 19.5c-4.64 0-8.58-3.01-9.96-7.18z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Ver detalhes
+          </button>
+          <button onClick={() => { setPos(null); onEditar() }} className={`${opcao} text-zinc-300 hover:bg-zinc-800`}>
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+            </svg>
+            Editar
+          </button>
+
+          <div className="h-px bg-zinc-800" />
+
+          {temHistorico ? (
+            <>
+              <button onClick={() => { setPos(null); onDesativar() }} className={`${opcao} text-amber-400 hover:bg-amber-500/10`}>
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                Desativar
+              </button>
+              <p className="px-3 pb-2.5 pt-0.5 text-zinc-600 text-[11px] leading-snug">
+                Tem movimentação — excluir apagaria lançamentos já contabilizados.
+              </p>
+            </>
+          ) : (
+            <button onClick={() => { setPos(null); onExcluir() }} className={`${opcao} text-red-400 hover:bg-red-500/10`}>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+              Excluir
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function getStatus(stock: number, minStock: number) {
   if (stock === 0) return { label: "Sem estoque", style: "bg-red-500/10 text-red-400 border border-red-500/20" }
   if (stock <= minStock) return { label: "⚠ Crítico", style: "bg-red-500/10 text-red-400 border border-red-500/20" }
@@ -605,6 +745,21 @@ function EstoqueInner() {
     finally { setSalvandoEdicao(false) }
   }
 
+  const [produtoVendo, setProdutoVendo] = useState<ProdutoDetalhe | null>(null)
+
+  async function handleExcluir(prod: ProdutoDetalhe) {
+    if (!confirm(`Excluir "${prod.name}" definitivamente? Esta ação não pode ser desfeita.`)) return
+    const res = await fetch(`/api/estoque?id=${encodeURIComponent(prod.id)}`, { method: "DELETE" })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      // 409 = ganhou historico entre o carregamento da lista e o clique.
+      alert(d.error || "Não foi possível excluir o produto.")
+      await buscarProdutos()
+      return
+    }
+    await buscarProdutos()
+  }
+
   async function handleDesativar(id: string) {
     if (!confirm("Desativar este produto?")) return
     await fetch("/api/estoque", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, isActive: false }) })
@@ -722,9 +877,14 @@ function EstoqueInner() {
                             style={{ width: `${Math.min(100, (p.stock / Math.max(p.minStock * 2, 1)) * 100)}%` }} />
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${status.style}`}>{status.label}</span>
-                        <div className="flex gap-3 ml-auto">
-                          <button onClick={() => abrirEditar(p)} className="text-zinc-500 hover:text-amber-400 text-xs transition-colors">Editar</button>
-                          <button onClick={() => handleDesativar(p.id)} className="text-zinc-500 hover:text-red-400 text-xs transition-colors">Desativar</button>
+                        <div className="ml-auto -mr-2">
+                          <MenuProduto
+                            produto={p}
+                            onVer={() => setProdutoVendo(p)}
+                            onEditar={() => abrirEditar(p)}
+                            onDesativar={() => handleDesativar(p.id)}
+                            onExcluir={() => handleExcluir(p)}
+                          />
                         </div>
                       </div>
                     </div>
@@ -770,10 +930,15 @@ function EstoqueInner() {
                         </td>
                         <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {p.salePrice?.toFixed(2)}</td>
                         <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${status.style}`}>{status.label}</span></td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button onClick={() => abrirEditar(p)} className="text-zinc-600 hover:text-amber-400 text-xs transition-colors">Editar</button>
-                            <button onClick={() => handleDesativar(p.id)} className="text-zinc-600 hover:text-red-400 text-xs transition-colors">Desativar</button>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end">
+                            <MenuProduto
+                              produto={p}
+                              onVer={() => setProdutoVendo(p)}
+                              onEditar={() => abrirEditar(p)}
+                              onDesativar={() => handleDesativar(p.id)}
+                              onExcluir={() => handleExcluir(p)}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -1348,6 +1513,74 @@ function EstoqueInner() {
       )}
 
       {/* MODAL EDITAR PRODUTO */}
+      {/* Ver detalhes — leitura, sem risco de alterar nada sem querer */}
+      {produtoVendo && (() => {
+        const v = produtoVendo
+        const movimentos = v._count?.stockMovements ?? v.stockMovements?.length ?? 0
+        const vendas = v._count?.sales ?? 0
+        const margem = v.costPrice > 0 ? ((v.salePrice - v.costPrice) / v.costPrice) * 100 : null
+        const linha = (rotulo: string, valor: React.ReactNode) => (
+          <div className="flex justify-between items-baseline gap-3 py-2 border-b border-zinc-800 last:border-0">
+            <span className="text-zinc-500 text-sm flex-shrink-0">{rotulo}</span>
+            <span className="text-white text-sm text-right min-w-0 break-words">{valor}</span>
+          </div>
+        )
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setProdutoVendo(null)}>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+                <h2 className="text-white font-bold">Detalhes do produto</h2>
+                <button onClick={() => setProdutoVendo(null)} aria-label="Fechar" className="text-zinc-500 hover:text-white text-xl">✕</button>
+              </div>
+
+              <div className="p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <FotoProduto url={v.photoUrl} nome={v.name} tamanho="md" />
+                  <div className="min-w-0">
+                    <div className="text-white font-semibold break-words">{v.name}</div>
+                    <div className="text-zinc-500 text-xs">
+                      {[v.category, v.subCategory].filter(Boolean).join(" · ") || "Sem grupo"}
+                      {v.hasAlcohol && " · 🔞 alcoólico"}
+                    </div>
+                  </div>
+                </div>
+
+                {linha("Código de barras", v.barcode || "—")}
+                {linha("Preço de custo", `R$ ${Number(v.costPrice).toFixed(2)}`)}
+                {linha("Preço de venda", <span className="text-amber-400 font-bold font-mono">R$ {Number(v.salePrice).toFixed(2)}</span>)}
+                {margem !== null && linha("Margem", `${margem.toFixed(0)}%`)}
+                {linha("Em estoque", <span className={v.stock <= v.minStock ? "text-red-400 font-bold" : ""}>{v.stock} {v.unit || "un"}</span>)}
+                {linha("Estoque mínimo", `${v.minStock} ${v.unit || "un"}`)}
+                {v.supplier && linha("Fornecedor", v.supplier)}
+                {linha("Situação", v.isActive ? "Ativo" : "Inativo")}
+                {linha("Cadastrado em", new Date(v.createdAt).toLocaleDateString("pt-BR"))}
+                {linha("Histórico", movimentos === 0 && vendas === 0
+                  ? "Nenhuma movimentação"
+                  : `${movimentos} movimento${movimentos === 1 ? "" : "s"}${vendas ? ` · ${vendas} venda${vendas === 1 ? "" : "s"}` : ""}`)}
+
+                {(movimentos > 0 || vendas > 0) && (
+                  <p className="mt-4 text-zinc-600 text-xs leading-snug">
+                    Produto com movimentação não pode ser excluído — apenas desativado.
+                    Apagar levaria embora lançamentos já contabilizados no financeiro.
+                  </p>
+                )}
+
+                <div className="flex gap-2 mt-5">
+                  <button type="button" onClick={() => setProdutoVendo(null)}
+                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
+                    Fechar
+                  </button>
+                  <button type="button" onClick={() => { setProdutoVendo(null); abrirEditar(v) }}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+                    Editar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {modalEditar && produtoEditando && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">

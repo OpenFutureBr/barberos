@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { ITENS_PALETA, buscar, itemPorPath, type ItemPaleta } from "@/lib/paleta"
 import { usePermissoes } from "@/lib/usePermissoes"
 import { useFavoritos, usePropsFavoritar } from "@/lib/useFavoritos"
+import { ROTA_INICIAL } from "@/lib/navegacao"
 
 // Busca global (Ctrl+K). Monta no shell do dashboard.
 //
@@ -120,7 +121,9 @@ export default function PaletaComandos() {
 
     if (item.tipo === "navegacao" && item.path) {
       contarVisita(item.id)
-      router.push(item.path)
+      // Mesma regra dos menus: ver src/lib/navegacao.ts.
+      if (pathname !== ROTA_INICIAL) router.replace(item.path)
+      else router.push(item.path)
       return
     }
 
