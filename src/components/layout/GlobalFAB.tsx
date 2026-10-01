@@ -54,6 +54,9 @@ function ModalCaixa({
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
+  // Trava síncrona: Enter repetido ou duplo clique antes do re-render, e o
+  // intervalo de 1,2s depois do sucesso, não lançam de novo
+  const travaRef = useRef(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (etapa === "form") inputRef.current?.focus() }, [etapa])
@@ -85,6 +88,9 @@ function ModalCaixa({
     const profNome = profissionais.find(p => p.id === colaboradorId)?.name
     const descricaoFinal = profNome ? `${descricao.trim()} — ${profNome}` : descricao.trim()
 
+    if (travaRef.current) return
+    travaRef.current = true
+    let lancou = false
     setSalvando(true); setErro(null)
     try {
       const res = await fetch("/api/caixa", {
@@ -100,12 +106,14 @@ function ModalCaixa({
       })
       const data = await res.json()
       if (!res.ok) { setErro(data.error ?? "Erro ao lançar"); return }
+      lancou = true
       setOk(true)
       window.dispatchEvent(new CustomEvent("caixaAtualizado"))
       setTimeout(onClose, 1200)
     } catch (e) {
       setErro(String(e))
     } finally {
+      if (!lancou) travaRef.current = false
       setSalvando(false)
     }
   }

@@ -408,8 +408,12 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
-  const [agendamentos, setAgendamentos] = useState<any[]>([])
+  // Lista do dia + o dia a que ela pertence: até a do dia selecionado chegar,
+  // os horários não são calculados com a lista de outro dia.
+  const [agendaDoDia, setAgendaDoDia] = useState<{ data: string; lista: any[] }>({ data: "", lista: [] })
+  const agendamentos = agendaDoDia.lista
   const [salvando, setSalvando] = useState(false)
+  const salvandoRef = useRef(false)
   const [carregando, setCarregando] = useState(false)
 
   // Acompanhante
@@ -537,8 +541,11 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const servicoSelecionado = servicos.find((s) => s.id === servicoId)
   const duracaoTotal = (servicoSelecionado?.durationMin || 30) + descansoMin
 
+  const agendaCarregada = agendaDoDia.data === dataSelecionada
+
   const horariosDisponiveis = horasBase.filter((h) => {
     if (!profAtendeDia) return false
+    if (!agendaCarregada) return false
     const inicioNovo = new Date(`${dataSelecionada}T${h}:00-03:00`)
     const fimNovo = adicionarMinutos(inicioNovo, duracaoTotal)
     const agoraMais5 = adicionarMinutos(new Date(), 5)
@@ -605,18 +612,22 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   // para o dia de hoje) e revalida em segundo plano
   useEffect(() => {
     if (!aberto) return
-    const cacheKey = `agendamentos:${dataSelecionada}`
+    const data = dataSelecionada
+    const cacheKey = `agendamentos:${data}`
     const cached = getCache(cacheKey, 30_000)
-    if (cached) setAgendamentos(cached)
+    if (cached) setAgendaDoDia({ data, lista: cached })
 
-    fetch(`/api/agendamentos?data=${dataSelecionada}`)
+    // Ao trocar de data, a resposta do dia anterior é descartada
+    const ac = new AbortController()
+    fetch(`/api/agendamentos?data=${data}`, { signal: ac.signal })
       .then(r => r.json())
       .then(appts => {
         if (!Array.isArray(appts)) return
         setCache(cacheKey, appts)
-        setAgendamentos(appts)
+        setAgendaDoDia({ data, lista: appts })
       })
-      .catch(console.error)
+      .catch(e => { if (e?.name !== "AbortError") console.error(e) })
+    return () => ac.abort()
   }, [dataSelecionada, aberto])
 
   useEffect(() => {
@@ -745,6 +756,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   async function handleSalvar(e: { preventDefault: () => void }) {
     e.preventDefault()
+    // Duplo clique / Enter no mesmo quadro: o estado ainda não re-renderizou,
+    // então a trava é um ref
+    if (salvandoRef.current) return
+    salvandoRef.current = true
     setSalvando(true)
     try {
       const scheduledAt = new Date(`${dataSelecionada}T${hora}:00-03:00`)
@@ -802,6 +817,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       console.error(e)
       alert("Erro inesperado ao criar agendamento")
     } finally {
+      salvandoRef.current = false
       setSalvando(false)
     }
   }
@@ -1036,6 +1052,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   {!profAtendeDia ? (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
                       Prof. não atende neste dia.
+                    </div>
+                  ) : !agendaCarregada ? (
+                    <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2 py-2 text-zinc-400 text-xs">
+                      Carregando horários…
                     </div>
                   ) : horariosDisponiveis.length === 0 ? (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">

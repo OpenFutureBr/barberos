@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getCache, setCache } from "@/lib/prefetch-cache"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -43,10 +44,16 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
   useEffect(() => {
     if (!aberto) return
     const hoje = getHojeISO()
+    // Estoque sempre fresco (saldo muda a cada venda), mas só id/nome/preço/saldo.
+    // Agendamentos de hoje vêm do cache que o shell já pré-carregou.
+    const apptsCache = getCache(`agendamentos:${hoje}`)
     Promise.all([
-      fetch("/api/estoque").then(r => r.json()),
+      fetch("/api/estoque?modo=simples").then(r => r.json()),
       fetch("/api/clientes?modo=simples").then(r => r.json()),
-      fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()),
+      apptsCache ? Promise.resolve(apptsCache) : fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()).then(d => {
+        if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d)
+        return d
+      }),
     ]).then(([prods, cls, appts]) => {
       setProdutos(Array.isArray(prods) ? prods : [])
       setClientes(Array.isArray(cls) ? cls : [])

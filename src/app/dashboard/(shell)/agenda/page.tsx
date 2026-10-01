@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getCache, setCache } from "@/lib/prefetch-cache"
+import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
 
 const statusLabel: Record<string, string> = {
   SCHEDULED: "Pendente",
@@ -76,7 +76,10 @@ export default function AgendaPage() {
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [loadingProfs, setLoadingProfs] = useState(true)
   const [loadingAppts, setLoadingAppts] = useState(true)
-  const cacheAppts = useRef<Record<string, any[]>>({})
+  // O que está na tela agora. Uma resposta só é aplicada se ainda for da
+  // data/visão atual — ao trocar de dia rápido, a resposta do dia anterior
+  // podia chegar por último e sobrescrever a lista.
+  const vistaRef = useRef({ data: hojeISO, semanal: false })
 
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
@@ -181,6 +184,7 @@ export default function AgendaPage() {
   }, [])
 
   useEffect(() => {
+    vistaRef.current = { data: dataSelecionada, semanal: !!profFiltro }
     if (profFiltro) {
       // Visão semanal: busca os 6 dias
       janela6Dias.forEach(data => buscarAgendamentos(data))
@@ -193,11 +197,11 @@ export default function AgendaPage() {
     function handleSalvo() {
       if (profFiltro) {
         janela6Dias.forEach(data => {
-          delete cacheAppts.current[data]
+          invalidateCache(`agendamentos:${data}`)
           buscarAgendamentos(data)
         })
       } else {
-        delete cacheAppts.current[dataSelecionada]
+        invalidateCache(`agendamentos:${dataSelecionada}`)
         buscarAgendamentos(dataSelecionada)
       }
     }
@@ -205,29 +209,34 @@ export default function AgendaPage() {
     return () => window.removeEventListener("agendamentoSalvo", handleSalvo)
   }, [dataSelecionada, profFiltro, iniciJanela])
 
+  // Cache compartilhado (60s) — o mesmo que o shell pré-carrega para hoje
+  // e que o AgendaModal invalida ao salvar.
+  function aplicarAgendamentos(data: string, lista: any[]) {
+    const vista = vistaRef.current
+    if (vista.semanal) {
+      setAgendamentosSemana(prev => ({ ...prev, [data]: lista }))
+    } else if (data === vista.data) {
+      setAgendamentos(lista)
+    } else {
+      return false
+    }
+    return true
+  }
+
   async function buscarAgendamentos(data: string) {
-    if (cacheAppts.current[data]) {
-      if (profFiltro) {
-        setAgendamentosSemana(prev => ({ ...prev, [data]: cacheAppts.current[data] }))
-      } else {
-        setAgendamentos(cacheAppts.current[data])
-        setLoadingAppts(false)
-      }
+    const cache = getCache(`agendamentos:${data}`)
+    if (cache) {
+      if (aplicarAgendamentos(data, cache)) setLoadingAppts(false)
       return
     }
     setLoadingAppts(true)
     try {
       const appts = await fetch(`/api/agendamentos?data=${data}`).then(r => r.json())
       const lista = Array.isArray(appts) ? appts : []
-      cacheAppts.current[data] = lista
-      if (profFiltro) {
-        setAgendamentosSemana(prev => ({ ...prev, [data]: lista }))
-      } else {
-        setAgendamentos(lista)
-      }
+      if (Array.isArray(appts)) setCache(`agendamentos:${data}`, lista)
+      if (aplicarAgendamentos(data, lista)) setLoadingAppts(false)
     } catch (e) {
       console.error(e)
-    } finally {
       setLoadingAppts(false)
     }
   }
@@ -237,7 +246,7 @@ export default function AgendaPage() {
     setBuscaProduto("")
     setModalDetalhe(true)
     if (produtosEstoque.length === 0) {
-      fetch("/api/estoque").then(r => r.json()).then(d => setProdutosEstoque(Array.isArray(d) ? d.filter((p: any) => p.isActive && p.stock > 0) : [])).catch(() => {})
+      fetch("/api/estoque?modo=simples").then(r => r.json()).then(d => setProdutosEstoque(Array.isArray(d) ? d.filter((p: any) => p.isActive && p.stock > 0) : [])).catch(() => {})
     }
   }
 
@@ -275,7 +284,7 @@ export default function AgendaPage() {
     })
     if (!res.ok) { alert("Erro ao cancelar agendamento"); return }
     // Limpa todo o cache e recarrega
-    cacheAppts.current = {}
+    invalidateCache("agendamentos:")
     if (profFiltro) {
       janela6Dias.forEach(d => buscarAgendamentos(d))
     } else {
@@ -315,7 +324,7 @@ export default function AgendaPage() {
         }),
       })
       setStatusOverride(prev => ({ ...prev, [apptSelecionado.id]: "SCHEDULED" }))
-      cacheAppts.current = {}
+      invalidateCache("agendamentos:")
       if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
       else buscarAgendamentos(remarcarData)
       if (remarcarData !== dataSelecionada) buscarAgendamentos(dataSelecionada)
@@ -406,8 +415,8 @@ export default function AgendaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: dragAppt.id, professionalId: profId, scheduledAt: novaHora.toISOString() }),
       })
-      delete cacheAppts.current[dataOriginal]
-      delete cacheAppts.current[data]
+      invalidateCache(`agendamentos:${dataOriginal}`)
+      invalidateCache(`agendamentos:${data}`)
       await buscarAgendamentos(data)
       if (data !== dataOriginal) await buscarAgendamentos(dataOriginal)
     } catch (e) { console.error(e) }
@@ -872,7 +881,7 @@ export default function AgendaPage() {
             body: JSON.stringify({ id: apptId, status: novoStatus }),
           }).then(() => {
             // Recarrega em background para sincronizar (auto-complete de barbeiro, etc)
-            cacheAppts.current = {}
+            invalidateCache("agendamentos:")
             if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
             else buscarAgendamentos(dataSelecionada)
           })
