@@ -202,6 +202,19 @@ export default function PaletaComandos() {
           <kbd className="hidden md:block text-fg-4 text-[10px] border border-line rounded px-1.5 py-0.5 flex-shrink-0">
             esc
           </kbd>
+          {/* Esc resolve no teclado; o X e pra quem usa mouse ou toque. */}
+          <button
+            type="button"
+            onClick={() => setAberta(false)}
+            aria-label="Fechar busca"
+            title="Fechar"
+            className="-mr-2 w-8 h-8 flex items-center justify-center rounded-md text-fg-4 hover:text-fg hover:bg-surface-2 transition-colors flex-shrink-0"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
 
         <div ref={listaRef} className="max-h-[55vh] overflow-y-auto py-1.5">

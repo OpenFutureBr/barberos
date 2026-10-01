@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { usePermissoes } from "@/lib/usePermissoes"
 import { useSubstituirHistorico } from "@/lib/navegacao"
+import { useInstalarApp } from "@/lib/useInstalarApp"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -19,6 +20,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
 
   const { itensVisiveis } = usePermissoes()
   const substituirHistorico = useSubstituirHistorico()
+  const { podeInstalar, instalar } = useInstalarApp()
 
   // Fechar ao navegar
   useEffect(() => { onFechar() }, [pathname])
@@ -76,8 +78,16 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
           })}
         </nav>
 
-        {/* Sair */}
-        <div className="p-3 border-t border-zinc-800">
+        {/* Instalar app + Sair */}
+        <div className="p-3 border-t border-zinc-800 space-y-1">
+          {/* So aparece quando o Chrome oferece a instalacao; ja instalado, some. */}
+          {podeInstalar && (
+            <button onClick={() => { onFechar(); instalar() }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/15 text-sm font-medium transition-colors">
+              {ic("M12 3v12m0 0l-4-4m4 4l4-4M5 21h14")}
+              <span>Instalar app</span>
+            </button>
+          )}
           <button onClick={() => signOut({ callbackUrl: "/login" })}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-red-400 text-sm transition-colors">
             <span>↩</span>
