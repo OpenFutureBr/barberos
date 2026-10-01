@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { XMLParser } from "fast-xml-parser"
+import { auth } from "@/lib/auth"
 
 const UF: Record<string, string> = {
   "11":"RO","12":"AC","13":"AM","14":"RR","15":"PA","16":"AP","17":"TO",
@@ -18,6 +19,9 @@ const parser = new XMLParser({
 
 export async function POST(request: Request) {
   try {
+    const session = await auth()
+    if (!session?.user?.establishmentId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const formData = await request.formData()
     const arquivo = formData.get("xml") as File | null
 

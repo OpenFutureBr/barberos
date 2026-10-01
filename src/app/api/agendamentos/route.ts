@@ -104,13 +104,21 @@ export async function POST(request: Request) {
     }
 
     // Busca profissional — valida domicílio e pega intervalo
-    const profissional = await prisma.user.findUnique({
-      where: { id: professionalId },
+    const profissional = await prisma.user.findFirst({
+      where: { id: professionalId, establishmentId: estabId },
       select: { attendsHome: true, breakBetweenAppts: true },
     })
 
     if (!profissional) {
       return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
+    }
+
+    const cliente = await prisma.client.findFirst({
+      where: { id: clientId, establishmentId: estabId },
+      select: { id: true },
+    })
+    if (!cliente) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
     }
 
     // Valida domicílio pelo profissional, não pelo serviço
@@ -185,10 +193,30 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     if (!body.id) {
       return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 })
+    }
+
+    // Só altera agendamento da própria unidade
+    const current = await prisma.appointment.findFirst({
+      where: { id: body.id, establishmentId: estabId },
+      select: { professionalId: true },
+    })
+    if (!current) return NextResponse.json({ error: "Agendamento não encontrado" }, { status: 404 })
+
+    // Troca de profissional só para alguém da mesma unidade
+    if (body.professionalId !== undefined && body.professionalId !== current.professionalId) {
+      const prof = await prisma.user.findFirst({
+        where: { id: body.professionalId, establishmentId: estabId },
+        select: { id: true },
+      })
+      if (!prof) return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
     }
 
     const data: Record<string, unknown> = {}
@@ -201,20 +229,15 @@ export async function PUT(request: Request) {
 
     // Quando entra em andamento, conclui automaticamente o anterior do mesmo barbeiro
     if (body.status === "IN_PROGRESS") {
-      const current = await prisma.appointment.findUnique({
-        where: { id: body.id },
-        select: { professionalId: true },
+      await prisma.appointment.updateMany({
+        where: {
+          establishmentId: estabId,
+          professionalId: current.professionalId,
+          status: AppointmentStatus.IN_PROGRESS,
+          id: { not: body.id },
+        },
+        data: { status: AppointmentStatus.DONE, finishedAt: new Date() },
       })
-      if (current) {
-        await prisma.appointment.updateMany({
-          where: {
-            professionalId: current.professionalId,
-            status: AppointmentStatus.IN_PROGRESS,
-            id: { not: body.id },
-          },
-          data: { status: AppointmentStatus.DONE, finishedAt: new Date() },
-        })
-      }
     }
 
     const agendamento = await prisma.appointment.update({

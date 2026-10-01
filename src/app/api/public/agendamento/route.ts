@@ -28,6 +28,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Serviço ou profissional inválido para este estabelecimento." }, { status: 400 })
   }
 
+  const cliente = await prisma.client.findFirst({
+    where: { id: clienteId, establishmentId: estabId },
+    select: { id: true },
+  })
+  if (!cliente) {
+    return NextResponse.json({ error: "Cliente inválido para este estabelecimento." }, { status: 400 })
+  }
+
   const duracao = servico.durationMin + (prof.breakBetweenAppts ?? 0)
   const fimNovo = new Date(scheduledAt.getTime() + duracao * 60000)
 

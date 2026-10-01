@@ -2,7 +2,8 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth, gerarUsername } from "@/lib/auth"
 import bcrypt from "bcryptjs"
-import { bloqueioSemPermissao } from "@/lib/permissoes"
+import { bloqueioSemPermissao, temPermissao } from "@/lib/permissoes"
+import { CAMPOS_PUBLICOS, CAMPOS_GESTAO } from "@/lib/campos-equipe"
 
 export async function GET() {
   try {
@@ -10,9 +11,16 @@ export async function GET() {
     const estabId = session?.user?.establishmentId
     if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
+    // Agenda, bancada e modais só precisam dos dados operacionais. Dados
+    // pessoais e de remuneração vão apenas para quem gerencia a equipe.
+    // passwordHash nunca sai daqui.
+    const gerenciaEquipe = temPermissao(session.user, "equipe")
+
     const profissionais = await prisma.user.findMany({
       where: { establishmentId: estabId },
-      include: {
+      select: {
+        ...CAMPOS_PUBLICOS,
+        ...(gerenciaEquipe ? CAMPOS_GESTAO : {}),
         schedules: true,
         // Só id/nome do serviço são usados na tela de equipe — evita trazer
         // preço, duração, foto etc. de cada serviço vinculado ao profissional.
@@ -66,6 +74,7 @@ export async function POST(request: Request) {
         passwordHash,
         isFirstLogin: true,
       },
+      select: { ...CAMPOS_PUBLICOS, ...CAMPOS_GESTAO },
     })
 
     if (body.serviceIds?.length) {

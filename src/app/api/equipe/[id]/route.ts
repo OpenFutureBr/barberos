@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { bloqueioSemPermissao } from "@/lib/permissoes"
+import { CAMPOS_PUBLICOS, CAMPOS_GESTAO } from "@/lib/campos-equipe"
 
 
 
@@ -41,6 +42,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         isActive: body.isActive ?? true,
         role: body.role || "BARBER_CLT",
       },
+      select: { ...CAMPOS_PUBLICOS, ...CAMPOS_GESTAO },
     })
 
     // Atualiza serviços — apaga e recria

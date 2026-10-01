@@ -805,8 +805,8 @@ export async function POST(request: Request) {
     const methodFinal = method
 
     // ── Tenta como Payment primeiro ──────────────────────────────────────────
-    const pagamento = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    const pagamento = await prisma.payment.findFirst({
+      where: { id: paymentId, appointment: { establishmentId: ESTAB_ID } },
       include: {
         appointment: {
           include: {
@@ -819,8 +819,8 @@ export async function POST(request: Request) {
 
     // ── Se não é Payment, verifica se é Subscription ─────────────────────────
     if (!pagamento) {
-      const assinatura = await prisma.subscription.findUnique({
-        where: { id: paymentId },
+      const assinatura = await prisma.subscription.findFirst({
+        where: { id: paymentId, client: { establishmentId: ESTAB_ID } },
         include: {
           client: { select: { id: true, name: true } },
           plan: { select: { name: true } },

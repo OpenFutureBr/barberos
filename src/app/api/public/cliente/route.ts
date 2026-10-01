@@ -6,14 +6,17 @@ export async function GET(req: Request) {
   const phone = searchParams.get("phone")?.replace(/\D/g, "") ?? ""
   const estabId = searchParams.get("estabId") ?? ""
 
-  if (!phone || !estabId) return NextResponse.json(null)
+  // Rota pública: exige o telefone completo (com DDD) e devolve só o mínimo
+  // que a tela de agendamento usa. Com busca parcial dava para listar os
+  // clientes de qualquer barbearia mandando um dígito só.
+  if (phone.length < 10 || !estabId) return NextResponse.json(null)
 
   const cliente = await prisma.client.findFirst({
     where: {
       establishmentId: estabId,
       phone: { contains: phone },
     },
-    select: { id: true, name: true, phone: true, email: true },
+    select: { id: true, name: true },
   })
 
   return NextResponse.json(cliente)
@@ -26,10 +29,13 @@ export async function POST(req: Request) {
   if (!name?.trim() || !phone?.trim() || !estabId) {
     return NextResponse.json({ error: "Nome, telefone e estabelecimento são obrigatórios" }, { status: 400 })
   }
+  if (phone.replace(/\D/g, "").length < 10) {
+    return NextResponse.json({ error: "Telefone inválido" }, { status: 400 })
+  }
 
   const existente = await prisma.client.findFirst({
     where: { establishmentId: estabId, phone: { contains: phone.replace(/\D/g, "") } },
-    select: { id: true, name: true, phone: true },
+    select: { id: true, name: true },
   })
 
   if (existente) return NextResponse.json(existente)
