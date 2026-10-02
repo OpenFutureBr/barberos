@@ -1,4 +1,5 @@
-import { auth } from "@/lib/auth"
+import NextAuth from "next-auth"
+import { authConfig } from "@/lib/auth.config"
 import { NextResponse } from "next/server"
 import { pathToSlug } from "@/lib/resources"
 import { temPermissao } from "@/lib/permissoes"
@@ -16,6 +17,11 @@ function redirectTo(
 
   return NextResponse.redirect(`${proto}://${host}${pathname}`)
 }
+
+// Só valida o JWT: authConfig não tem adapter nem providers, então o proxy não
+// carrega Prisma, pg e bcrypt nem abre pool de conexões a cada navegação
+// (importar "@/lib/auth" puxava tudo isso).
+const { auth } = NextAuth(authConfig)
 
 export const proxy = auth((req) => {
   const { pathname } = req.nextUrl

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL } from "@/lib/categorias-caixa"
@@ -354,8 +354,12 @@ export default function FinanceiroPage() {
   )
   const periodo = opcoes[periodoIdx]
 
+  // Trocando de período rápido, só a última busca atualiza a tela
+  const ultimaBusca = useRef(0)
+
   const fetchDados = useCallback(() => {
     if (!periodo) return
+    const id = ++ultimaBusca.current
 
     setLoading(true)
 
@@ -375,6 +379,7 @@ export default function FinanceiroPage() {
       fetchJsonSafe(`/api/financeiro/evolucao?ano=${periodo.ano}`, `financeiro:evolucao:${periodo.ano}`),
     ])
       .then(([resumo, pendentesData, repassesData, evolucaoData]) => {
+        if (id !== ultimaBusca.current) return
         if (resumo) setDre(normalizarDre(resumo))
 
         if (pendentesData) {
@@ -394,7 +399,7 @@ export default function FinanceiroPage() {
           setEvolucao(Array.isArray(evolucaoData) ? evolucaoData : [])
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (id === ultimaBusca.current) setLoading(false) })
   }, [periodo?.mes, periodo?.ano])
 
   useEffect(() => {

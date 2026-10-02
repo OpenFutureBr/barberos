@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { fetchCached } from "@/lib/prefetch-cache"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL, type Categoria, type TipoCaixa } from "@/lib/categorias-caixa"
 
 const CHAVE_POSICAO_FAB = "fab:posicao"
@@ -63,8 +64,7 @@ function ModalCaixa({
 
   useEffect(() => {
     if (modoInicial === "SAIDA" && profissionais.length === 0) {
-      fetch("/api/equipe")
-        .then(r => r.json())
+      fetchCached("equipe", "/api/equipe")
         .then((data: Profissional[]) => { if (Array.isArray(data)) setProfissionais(data) })
         .catch(() => {})
     }
@@ -380,12 +380,17 @@ export default function GlobalFAB() {
     }
   }, [moverArrasto, finalizarArrasto])
 
+  // Categorias só são usadas no modal de lançamento: busca na primeira vez que
+  // o menu abre (antes do modal), não a cada montagem do painel.
+  const categoriasCarregadas = useRef(false)
   useEffect(() => {
+    if (!aberto || categoriasCarregadas.current) return
+    categoriasCarregadas.current = true
     fetch("/api/caixa/categorias")
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.categorias)) setCategoriasCustom(d.categorias) })
-      .catch(() => {})
-  }, [])
+      .catch(() => { categoriasCarregadas.current = false })
+  }, [aberto])
 
   useEffect(() => {
     function handler(e: MouseEvent) {

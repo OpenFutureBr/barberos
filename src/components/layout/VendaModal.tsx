@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getCache, setCache } from "@/lib/prefetch-cache"
+import { getCache, setCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
@@ -50,7 +50,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
     const apptsCache = getCache(`agendamentos:${hoje}`)
     Promise.all([
       fetch("/api/estoque?modo=simples").then(r => r.json()),
-      fetch("/api/clientes?modo=simples").then(r => r.json()),
+      fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000),
       apptsCache ? Promise.resolve(apptsCache) : fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()).then(d => {
         if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d)
         return d

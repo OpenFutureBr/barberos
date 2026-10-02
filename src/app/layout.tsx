@@ -78,7 +78,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BarberOS" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SessionProvider>{children}</SessionProvider>
+        {/* A sessão é um JWT de 7 dias: rebuscar /api/auth/session a cada volta
+            à aba não traz nada novo (o padrão do next-auth é refazer). */}
+        <SessionProvider refetchOnWindowFocus={false}>{children}</SessionProvider>
         <RegistrarSW />
       </body>
     </html>

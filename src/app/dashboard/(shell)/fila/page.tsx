@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { usePolling } from "@/lib/usePolling"
 
 type Appt = {
   id: string
@@ -144,10 +145,7 @@ export default function FilaPage() {
 
   useEffect(() => { fetchAppts() }, [fetchAppts])
 
-  useEffect(() => {
-    const t = setInterval(fetchAppts, 30000)
-    return () => clearInterval(t)
-  }, [fetchAppts])
+  usePolling(fetchAppts, 30000)
 
   useEffect(() => {
     window.addEventListener("pagamentoConfirmado", fetchAppts)

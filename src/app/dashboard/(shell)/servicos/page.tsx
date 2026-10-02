@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { invalidateCache } from "@/lib/prefetch-cache"
 
 const categoriaGradient: Record<string, string> = {
   Corte: "from-blue-700 to-blue-950",
@@ -207,6 +208,8 @@ export default function ServicosPage() {
     const nova = { ...categoriaCores, [cat]: cor }
     setCategoriaCores(nova)
     if (!configEstab) return
+    // Modais e menu leem configurações do cache compartilhado
+    invalidateCache("configuracoes")
     await fetch("/api/configuracoes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

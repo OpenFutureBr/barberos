@@ -86,8 +86,16 @@ export default function ClientesPage() {
 
   useEffect(() => { buscarClientes() }, [page, perPage, busca])
 
+  // Só a busca mais recente pode atualizar a lista: digitando rápido, a
+  // resposta de "jo" podia chegar depois da de "joão" e sobrescrevê-la.
+  const ultimaBusca = useRef(0)
+
   async function buscarClientes() {
+    const id = ++ultimaBusca.current
+    const atual = () => id === ultimaBusca.current
     const cacheKey = `clientes:${page}:${perPage}:${busca}`
+    const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
+    if (busca) params.set("busca", busca)
 
     // Stale-while-revalidate: mostra cache imediatamente se existir
     const cached = getCache(cacheKey)
@@ -97,27 +105,26 @@ export default function ClientesPage() {
       setTotalPages(cached.totalPages ?? 1)
       setLoading(false)
       // Atualiza em background silenciosamente
-      fetch(`/api/clientes?page=${page}&perPage=${perPage}${busca ? `&busca=${busca}` : ""}`)
+      fetch(`/api/clientes?${params}`)
         .then(r => r.json())
-        .then(d => { if (!d.error) { setCache(cacheKey, d); setClientes(d.clientes ?? []); setTotal(d.total ?? 0) } })
+        .then(d => { if (!d.error) { setCache(cacheKey, d); if (atual()) { setClientes(d.clientes ?? []); setTotal(d.total ?? 0) } } })
         .catch(() => {})
       return
     }
 
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
-      if (busca) params.set("busca", busca)
       const res = await fetch(`/api/clientes?${params}`)
       const data = await res.json()
       if (!data.error) setCache(cacheKey, data)
+      if (!atual()) return
       setClientes(Array.isArray(data.clientes) ? data.clientes : [])
       setTotal(data.total ?? 0)
       setTotalPages(data.totalPages ?? 1)
     } catch {
-      setErro("Erro ao carregar clientes")
+      if (atual()) setErro("Erro ao carregar clientes")
     } finally {
-      setLoading(false)
+      if (atual()) setLoading(false)
     }
   }
 

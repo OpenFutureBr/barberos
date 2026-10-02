@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { enviarWhatsApp } from "@/lib/whatsapp"
 import Image from "next/image"
+import { usePolling } from "@/lib/usePolling"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,18 +165,12 @@ function QrModal({ onClose, onConnected }: { onClose: () => void; onConnected: (
     conectar()
   }, [onConnected])
 
-  // Poll connection state while showing QR
-  useEffect(() => {
-    if (!qr) return
-    const interval = setInterval(async () => {
-      const res = await fetch("/api/whatsapp/status")
-      const data = await res.json()
-      if (data.state === "open") {
-        onConnected()
-      }
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [qr, onConnected])
+  // Confere a conexão enquanto o QR está na tela (sem empilhar em rede lenta)
+  usePolling(async () => {
+    const res = await fetch("/api/whatsapp/status")
+    const data = await res.json()
+    if (data.state === "open") onConnected()
+  }, 3000, { ativo: !!qr })
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -471,11 +466,7 @@ export default function WhatsAppPage() {
     }
   }, [])
 
-  useEffect(() => {
-    checkStatus()
-    const id = setInterval(checkStatus, 30_000)
-    return () => clearInterval(id)
-  }, [checkStatus])
+  usePolling(checkStatus, 30_000, { imediato: true })
 
   const connected = connState === "open"
 

@@ -33,6 +33,36 @@ export function setCache(key: string, data: any): void {
   store.set(chaveComEscopo(key), { data, timestamp: Date.now() })
 }
 
+// Buscas em andamento, por chave. Sidebar, shell e modais pedem os mesmos
+// dados (configurações, equipe, clientes) ao mesmo tempo ao abrir o painel —
+// sem isto, cada um disparava a sua requisição antes de o cache existir.
+const emVoo = new Map<string, Promise<unknown>>()
+
+/**
+ * fetch + JSON com cache (TTL) e deduplicação: quem pedir a mesma chave
+ * enquanto a primeira busca não voltou recebe a mesma Promise. Respostas com
+ * { error } não entram no cache.
+ */
+// T padrão any: mesmo contrato do getCache, os chamadores leem campos da resposta
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function fetchCached<T = any>(key: string, url: string, ttlMs = 60_000): Promise<T> {
+  const hit = getCache(key, ttlMs)
+  if (hit) return Promise.resolve(hit as T)
+  const chave = chaveComEscopo(key)
+  const pendente = emVoo.get(chave)
+  if (pendente) return pendente as Promise<T>
+  const p = fetch(url)
+    .then(r => r.json())
+    .then(d => {
+      // Só grava se o escopo não mudou no meio do caminho
+      if (d && !d.error && chaveComEscopo(key) === chave) setCache(key, d)
+      return d
+    })
+    .finally(() => emVoo.delete(chave))
+  emVoo.set(chave, p)
+  return p as Promise<T>
+}
+
 export function invalidateCache(prefix: string): void {
   const prefixoComEscopo = chaveComEscopo(prefix)
   for (const key of store.keys()) {

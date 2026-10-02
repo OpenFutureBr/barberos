@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
-import { getCache, setCache } from "@/lib/prefetch-cache"
+import { fetchCached } from "@/lib/prefetch-cache"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, pilulaStatus } from "@/lib/status"
@@ -126,16 +126,14 @@ export default function PixPage() {
 
   const fetchDados = useCallback(() => {
     setLoading(true)
-    const cfgCache = getCache("configuracoes")
     Promise.all([
       fetch("/api/pix/cobrancas").then(r => r.json()),
-      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
+      fetchCached("configuracoes", "/api/configuracoes"),
       fetch("/api/financeiro/pendentes").then(r => r.json()),
     ]).then(([lista, cfg, pends]) => {
       if (Array.isArray(lista)) setCobrancas(lista)
       if (cfg && !cfg.error) {
         setConfig({ pixKey: cfg.pixKey ?? null, name: cfg.name ?? "", city: cfg.city ?? null, whatsapp: cfg.whatsapp ?? null })
-        if (!cfgCache) setCache("configuracoes", cfg)
       }
       if (Array.isArray(pends)) setPendentes(pends)
     }).catch(console.error).finally(() => setLoading(false))

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
-import { getCache, setCache } from "@/lib/prefetch-cache"
+import { fetchCached, setCacheScope } from "@/lib/prefetch-cache"
 import { ControleTema } from "@/components/ui/SeletorTema"
 import { usePermissoes } from "@/lib/usePermissoes"
 import { useSubstituirHistorico, rotaAtiva } from "@/lib/navegacao"
@@ -30,7 +30,7 @@ function fotoComVersao(url: string | null | undefined, updatedAt: string | null 
 export default function Sidebar() {
   const pathname = usePathname()
   const navRef = useRef<HTMLElement>(null)
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [estabNome, setEstabNome] = useState("BarberOS")
   // Todos os grupos carregam condensados por padrão — só expande quando o
@@ -122,22 +122,6 @@ export default function Sidebar() {
   }
 
   useEffect(() => {
-    const aplicar = (d: any) => {
-      // Prefer unit logo, fall back to org logo
-      setLogoUrl(fotoComVersao(d?.logoUrl ?? d?.orgLogoUrl ?? null, d?.updatedAt))
-      if (d?.name) setEstabNome(d.name)
-    }
-
-    const cfgCache = getCache("configuracoes")
-    if (cfgCache) {
-      aplicar(cfgCache)
-    } else {
-      fetch("/api/configuracoes")
-        .then(r => r.json())
-        .then(d => { if (!d.error) setCache("configuracoes", d); aplicar(d) })
-        .catch(() => {})
-    }
-
     function onLogo(e: Event) { setLogoUrl((e as CustomEvent).detail) }
     function onEstab(e: Event) {
       const d = (e as CustomEvent).detail
@@ -151,6 +135,21 @@ export default function Sidebar() {
       window.removeEventListener("estabelecimentoAtualizado", onEstab)
     }
   }, [])
+
+  // Configurações (logo e nome). Espera a sessão e fixa o escopo do cache antes
+  // de buscar: o efeito do filho roda antes do do DashboardLayout, e buscar com o
+  // escopo "sem-sessao" fazia o shell limpar o cache e pedir tudo de novo.
+  // setCacheScope não faz nada se o escopo já for o mesmo.
+  useEffect(() => {
+    if (status !== "authenticated") return
+    setCacheScope(session?.user?.establishmentId, session?.user?.organizationId)
+    fetchCached("configuracoes", "/api/configuracoes")
+      .then(d => {
+        setLogoUrl(fotoComVersao(d?.logoUrl ?? d?.orgLogoUrl ?? null, d?.updatedAt))
+        if (d?.name) setEstabNome(d.name)
+      })
+      .catch(() => {})
+  }, [status, session?.user?.establishmentId, session?.user?.organizationId])
 
   const usernameUsuario = session?.user?.username ?? ""
 

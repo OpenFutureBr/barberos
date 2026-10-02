@@ -11,9 +11,10 @@ const _cache: {
   appts: Appt[]
   caixaData: CaixaData | null
   evolucao: { mes: number; label: string; valor: number }[]
+  evolucaoAno: number
   periodKey: string
   ts: number
-} = { dashData: null, appts: [], caixaData: null, evolucao: [], periodKey: "", ts: 0 }
+} = { dashData: null, appts: [], caixaData: null, evolucao: [], evolucaoAno: 0, periodKey: "", ts: 0 }
 const CACHE_TTL = 3 * 60 * 1000 // 3 minutos
 
 // Alias: o componente principal define o próprio fmtMoeda (com ocultar valores)
@@ -148,7 +149,11 @@ export default function DashboardPage() {
 
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
 
+  // Trocando de período rápido, só a última busca atualiza a tela
+  const ultimaBusca = useRef(0)
+
   const fetchDados = useCallback(async (forceRefresh = false) => {
+    const id = ++ultimaBusca.current
     const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
     const key = `${from}|${to}`
 
@@ -164,11 +169,18 @@ export default function DashboardPage() {
 
     setLoading(true)
     try {
+      // A evolução é do ano inteiro: não muda com o período escolhido, só
+      // precisa ser buscada de novo se o ano virar ou num refresh forçado.
+      const ano = new Date().getFullYear()
+      const evoValida = !forceRefresh && _cache.evolucaoAno === ano && _cache.evolucao.length > 0
       const [dashRes, caixaRes, evoRes] = await Promise.all([
         fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()).catch(() => ({})),
         fetch("/api/caixa?resumo=true").then(r => r.json()).catch(() => ({})),
-        fetch(`/api/financeiro/evolucao?ano=${new Date().getFullYear()}`).then(r => r.json()).catch(() => []),
+        evoValida
+          ? Promise.resolve(_cache.evolucao)
+          : fetch(`/api/financeiro/evolucao?ano=${ano}`).then(r => r.json()).catch(() => []),
       ])
+      if (id !== ultimaBusca.current) return
 
       const apptsList = Array.isArray(dashRes?.agendamentosHoje) ? dashRes.agendamentosHoje : []
       const evo = Array.isArray(evoRes) ? evoRes : []
@@ -182,10 +194,11 @@ export default function DashboardPage() {
       _cache.appts = apptsList
       _cache.caixaData = caixaRes && !caixaRes.error ? caixaRes : _cache.caixaData
       _cache.evolucao = evo.length ? evo : _cache.evolucao
+      if (evo.length) _cache.evolucaoAno = ano
       _cache.periodKey = key
       _cache.ts = Date.now()
     } catch (e) { console.error("[dashboard]", e) }
-    finally { setLoading(false) }
+    finally { if (id === ultimaBusca.current) setLoading(false) }
   }, [periodo, customFrom, customTo])
 
   useEffect(() => { fetchDados() }, [fetchDados])

@@ -342,13 +342,16 @@ export default function CaixaPage() {
   // Fluxo de caixa — busca só quando a aba é aberta ou o período muda
   useEffect(() => {
     if (abaCaixa !== "fluxo" || !fluxoFrom || !fluxoTo) return
+    // Período trocado antes de a resposta voltar: a antiga é descartada
+    let vigente = true
     setLoadingFluxo(true)
     fetchJsonSafe<typeof fluxo>(
       `/api/financeiro/fluxo?from=${fluxoFrom}&to=${fluxoTo}`,
       `financeiro:fluxo:${fluxoFrom}:${fluxoTo}`,
     )
-      .then(d => { if (d?.days) setFluxo(d) })
-      .finally(() => setLoadingFluxo(false))
+      .then(d => { if (vigente && d?.days) setFluxo(d) })
+      .finally(() => { if (vigente) setLoadingFluxo(false) })
+    return () => { vigente = false }
   }, [abaCaixa, fluxoFrom, fluxoTo])
 
   const receitas = lancamentos.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)

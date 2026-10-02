@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, lazy, Suspense } from "react"
 import { useSession } from "next-auth/react"
-import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 import { mascaraTelefone } from "@/lib/mascaras"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
@@ -564,15 +564,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     if (!aberto) return
 
     // businessHours — usa cache preenchido pelo DashboardLayout se ainda válido
-    const cfgCache = getCache("configuracoes")
-    if (cfgCache && Array.isArray(cfgCache.businessHours)) {
-      setBusinessHours(cfgCache.businessHours)
-    } else {
-      fetch("/api/configuracoes").then(r => r.json()).then(d => {
-        if (!d.error) setCache("configuracoes", d)
-        if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
-      }).catch(() => {})
-    }
+    fetchCached("configuracoes", "/api/configuracoes").then(d => {
+      if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
+    }).catch(() => {})
 
     // regras de precificação — idem
     const precCache = getCache("precificacao")
@@ -592,8 +586,8 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     } else {
       setCarregando(true)
       Promise.all([
-        fetch("/api/equipe").then(r => r.json()),
-        fetch("/api/clientes?modo=simples").then(r => r.json()),
+        fetchCached("equipe", "/api/equipe"),
+        fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000),
         fetch("/api/servicos").then(r => r.json()),
       ]).then(([profs, cls, svcs]) => {
         setProfissionais(Array.isArray(profs) ? profs : [])
@@ -709,6 +703,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   }
 
   function handleClienteCadastrado(novoCliente: any) {
+    invalidateCache("clientes:")
     setClientes(prev => [novoCliente, ...prev])
     setClienteId(novoCliente.id)
     setClienteNome(novoCliente.name)

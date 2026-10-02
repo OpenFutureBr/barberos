@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, corTextoStatus, ORDEM_STATUS } from "@/lib/status"
 
@@ -147,18 +147,12 @@ export default function AgendaPage() {
   const [businessHours, setBusinessHours] = useState<any[]>([])
 
   useEffect(() => {
-    const cfgCache = getCache("configuracoes")
-    if (cfgCache && Array.isArray(cfgCache.businessHours)) setBusinessHours(cfgCache.businessHours)
-
     Promise.all([
-      fetch("/api/equipe").then(r => r.json()),
-      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
+      fetchCached("equipe", "/api/equipe"),
+      fetchCached("configuracoes", "/api/configuracoes"),
     ]).then(([profs, cfg]) => {
       setProfissionais(Array.isArray(profs) ? profs : [])
-      if (!cfgCache && Array.isArray(cfg?.businessHours)) {
-        setBusinessHours(cfg.businessHours)
-        setCache("configuracoes", cfg)
-      }
+      if (Array.isArray(cfg?.businessHours)) setBusinessHours(cfg.businessHours)
       setLoadingProfs(false)
     }).catch(console.error)
   }, [])

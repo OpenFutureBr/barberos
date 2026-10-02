@@ -6,6 +6,7 @@ import { roleLabel, roleBadge } from "@/lib/role-labels"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { hojeISOemBRT } from "@/lib/data-brt"
 import { mascaraTelefone } from "@/lib/mascaras"
+import { invalidateCache } from "@/lib/prefetch-cache"
 
 // Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
 function ic(path: string, cls = "w-3.5 h-3.5") {
@@ -586,7 +587,7 @@ export default function EquipePage() {
     try {
       const res = await fetch("/api/equipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) })
       if (!res.ok) { setErroModal("Erro ao salvar."); return }
-      cacheEquipe.current = null; await buscarEquipe(true); setModalNovo(false)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalNovo(false)
     } catch { setErroModal("Erro inesperado.") } finally { setSalvando(false) }
   }
 
@@ -596,7 +597,7 @@ export default function EquipePage() {
     try {
       const res = await fetch(`/api/equipe/${profSelecionado.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) })
       if (!res.ok) { setErroModal("Erro ao salvar."); return }
-      cacheEquipe.current = null; await buscarEquipe(true); setModalEditar(false); setProfSelecionado(null)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalEditar(false); setProfSelecionado(null)
     } catch { setErroModal("Erro inesperado.") } finally { setSalvando(false) }
   }
 
@@ -605,7 +606,7 @@ export default function EquipePage() {
     setExcluindo(true)
     try {
       await fetch(`/api/equipe/${profSelecionado.id}`, { method: "DELETE" })
-      cacheEquipe.current = null; await buscarEquipe(true); setModalExcluir(false); setProfSelecionado(null)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalExcluir(false); setProfSelecionado(null)
     } catch {} finally { setExcluindo(false) }
   }
 

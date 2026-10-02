@@ -6,6 +6,7 @@ import { PainelAparencia } from "@/components/ui/SeletorTema"
 import PageSkeleton from "@/components/PageSkeleton"
 import { clearPwaCache } from "@/lib/clearPwaCache"
 import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
+import { invalidateCache } from "@/lib/prefetch-cache"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -279,6 +280,8 @@ export default function ConfiguracoesPage() {
   async function salvarPainelConfig(config: { playlists: { label: string; url: string }[]; playlistAtivaIdx: number; slots: any[] }) {
     setSalvandoPlaylists(true)
     try {
+      // Modais e menu leem configurações do cache compartilhado
+      invalidateCache("configuracoes")
       await fetch("/api/configuracoes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -415,6 +418,8 @@ export default function ConfiguracoesPage() {
     e.preventDefault()
     setSalvando(true); setErroMsg("")
     try {
+      // Modais e menu leem configurações do cache compartilhado
+      invalidateCache("configuracoes")
       const res = await fetch("/api/configuracoes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

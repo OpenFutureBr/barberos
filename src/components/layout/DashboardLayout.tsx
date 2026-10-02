@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { getCache, setCache, setCacheScope } from "@/lib/prefetch-cache"
+import { getCache, setCache, setCacheScope, fetchCached } from "@/lib/prefetch-cache"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -40,12 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .catch(() => {})
     }
     // Configurações (usada em muitos modais)
-    if (!getCache("configuracoes")) {
-      fetch("/api/configuracoes")
-        .then(r => r.json())
-        .then(d => { if (!d.error) setCache("configuracoes", d) })
-        .catch(() => {})
-    }
+    fetchCached("configuracoes", "/api/configuracoes").catch(() => {})
     // Precificação (usada no modal de agendamento)
     if (!getCache("precificacao")) {
       fetch("/api/precificacao")
@@ -79,8 +74,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (carregadoRef.current) return
     carregadoRef.current = true
     Promise.all([
-      fetch("/api/equipe").then(r => r.json()),
-      fetch("/api/clientes?modo=simples").then(r => r.json()), // só id, name, phone
+      fetchCached("equipe", "/api/equipe"),
+      fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000), // só id, name, phone
       fetch("/api/servicos").then(r => r.json()),
     ]).then(([profs, cls, svcs]) => {
       setDadosModal({
