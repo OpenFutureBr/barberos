@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { enviarWhatsApp } from "@/lib/whatsapp"
-import Image from "next/image"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,63 +136,48 @@ function ClienteCombobox({ onSelect }: { onSelect: (c: Cliente | null) => void }
 // ─── QR Code Modal ────────────────────────────────────────────────────────────
 
 function QrModal({ onClose, onConnected }: { onClose: () => void; onConnected: () => void }) {
-  const [qr, setQr] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [erro, setErro] = useState<string | null>(null)
+  const [manageUrl, setManageUrl] = useState<string | null>(null)
+  const [verificando, setVerificando] = useState(false)
 
   useEffect(() => {
-    async function conectar() {
-      setLoading(true)
-      try {
-        const res = await fetch("/api/whatsapp/status", { method: "POST" })
-        const data = await res.json()
-        if (data.qrcode) {
-          setQr(data.qrcode)
-        } else if (data.state === "open") {
-          onConnected()
-          return
-        } else {
-          setErro("Não foi possível obter o QR Code.")
-        }
-      } catch {
-        setErro("Erro ao conectar.")
-      } finally {
-        setLoading(false)
-      }
-    }
-    conectar()
+    fetch("/api/whatsapp/status").then(r => r.json()).then(data => {
+      if (data.state === "open") { onConnected(); return }
+      setManageUrl(data.manageUrl ?? null)
+    }).catch(() => {})
   }, [onConnected])
 
-  // Poll connection state while showing QR
-  useEffect(() => {
-    if (!qr) return
-    const interval = setInterval(async () => {
+  async function verificarAgora() {
+    setVerificando(true)
+    try {
       const res = await fetch("/api/whatsapp/status")
       const data = await res.json()
-      if (data.state === "open") {
-        onConnected()
-      }
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [qr, onConnected])
+      if (data.state === "open") onConnected()
+    } finally {
+      setVerificando(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm text-center">
         <h2 className="text-white font-bold text-lg mb-1">Conectar WhatsApp</h2>
-        <p className="text-zinc-500 text-sm mb-5">Abra o WhatsApp no celular → Dispositivos conectados → Conectar dispositivo</p>
+        <p className="text-zinc-500 text-sm mb-5">
+          A sessão é criada e o QR Code é escaneado direto no painel do OpenWA, não aqui no sistema.
+        </p>
 
-        {loading && <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">Gerando QR Code...</div>}
-        {erro && <div className="h-48 flex items-center justify-center text-red-400 text-sm">{erro}</div>}
-        {qr && !loading && (
-          <div className="relative w-48 h-48 mx-auto bg-white rounded-xl overflow-hidden">
-            <Image src={qr} alt="QR Code WhatsApp" fill className="object-contain" unoptimized />
-          </div>
+        {manageUrl ? (
+          <a href={manageUrl} target="_blank" rel="noopener noreferrer"
+            className="block w-full font-semibold px-4 py-2.5 rounded-lg text-sm border transition-colors bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/20">
+            Abrir painel do OpenWA →
+          </a>
+        ) : (
+          <p className="text-zinc-600 text-sm">Painel do OpenWA não configurado.</p>
         )}
 
-        {qr && (
-          <p className="text-zinc-600 text-xs mt-3 animate-pulse">Aguardando leitura do QR Code...</p>
-        )}
+        <button onClick={verificarAgora} disabled={verificando}
+          className="w-full mt-3 text-xs px-3 py-2 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 transition-colors disabled:opacity-50">
+          {verificando ? "Verificando..." : "Já conectei, verificar novamente"}
+        </button>
 
         <button onClick={onClose} className="mt-5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
           Fechar
@@ -511,7 +495,7 @@ export default function WhatsAppPage() {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 className="text-white text-xl font-bold">WhatsApp</h1>
-          <p className="text-zinc-500 text-sm">Evolution API</p>
+          <p className="text-zinc-500 text-sm">OpenWA</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
