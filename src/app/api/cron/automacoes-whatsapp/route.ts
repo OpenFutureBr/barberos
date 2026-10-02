@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { processarConfirmacoes, processarLembretes } from "@/lib/automacoes-whatsapp"
 
+// Vercel: duração máxima dessa function (precisa de plano Pro+ pra valer acima de 10-15s;
+// no Hobby é limitado e esse valor é ignorado/capado). Envios não esperam confirmação de
+// entrega (ver confirmarEntrega:false em automacoes-whatsapp.ts) justamente pra não depender disso.
+export const maxDuration = 60
+
 // Chamada pelo cron da VPS a cada ~10-15min. Protegida por CRON_SECRET
 // (header "Authorization: Bearer <CRON_SECRET>"), não pela sessão do usuário.
 async function executar(request: Request) {

@@ -13,7 +13,7 @@ const POLL_INTERVAL_MS = 1_500
 const DEFAULT_STATUS_TIMEOUT_MS = 30_000
 
 export type WhatsAppDeliveryResult =
-  | { ok: true; status: "DELIVERED"; messageId: string; chatId: string }
+  | { ok: true; status: "DELIVERED" | "SENT"; messageId: string; chatId: string }
   | {
       ok: false
       status: "SESSION_NOT_READY" | "CONTACT_NOT_FOUND" | "PROVIDER_ERROR" | "FAILED" | "UNCONFIRMED" | "TIMEOUT"
@@ -215,8 +215,19 @@ async function pollDeliveryStatus(
   return { ok: false, status: "TIMEOUT", error: "Não foi possível confirmar o status da mensagem a tempo.", messageId, chatId }
 }
 
-/** Envia texto a um contato individual, validando o número e confirmando a entrega. */
-export async function sendToContactViaOpenWa({ phone, text }: { phone: string; text: string }): Promise<WhatsAppDeliveryResult> {
+/**
+ * Envia texto a um contato individual, validando o número.
+ *
+ * Por padrão confirma a entrega (polling até "delivered"/"failed", pode levar
+ * até OPENWA_STATUS_TIMEOUT_MS). Em contexto serverless com limite de duração
+ * (ex.: cron da Vercel processando vários contatos na mesma execução), passe
+ * `confirmarEntrega: false` para só validar o aceite do envio (mesmo padrão
+ * "fire-and-forget" usado pra broadcast de grupo) e manter a execução rápida.
+ */
+export async function sendToContactViaOpenWa(
+  { phone, text }: { phone: string; text: string },
+  opts: { confirmarEntrega?: boolean } = {}
+): Promise<WhatsAppDeliveryResult> {
   const cfg = getConfig()
   if (!cfg) {
     return { ok: false, status: "PROVIDER_ERROR", error: "Integração de WhatsApp (OpenWA) não configurada." }
@@ -231,6 +242,10 @@ export async function sendToContactViaOpenWa({ phone, text }: { phone: string; t
 
   const sent = await postSendText(cfg, sessionResult.session.id, contact.whatsappId, text)
   if (!sent.ok) return { ok: false, status: "PROVIDER_ERROR", error: sent.error, chatId: contact.whatsappId }
+
+  if (opts.confirmarEntrega === false) {
+    return { ok: true, status: "SENT", messageId: sent.messageId, chatId: contact.whatsappId }
+  }
 
   return pollDeliveryStatus(cfg, sessionResult.session.id, sent.messageId, contact.whatsappId)
 }

@@ -27,8 +27,11 @@ function sleep(ms: number) {
 }
 
 // Pausa entre envios dentro do mesmo tick do cron, pra não disparar mensagens
-// em rajada (risco de o WhatsApp tratar como comportamento de spam/bot).
-const PAUSA_ENTRE_ENVIOS_MS = 3_000
+// em rajada (risco de o WhatsApp tratar como comportamento de spam/bot). Curta
+// porque o envio não espera confirmação de entrega (ver confirmarEntrega:false
+// abaixo) — importante pra rodar dentro do limite de duração de uma function
+// serverless (Vercel) processando vários contatos na mesma execução do cron.
+const PAUSA_ENTRE_ENVIOS_MS = 1_500
 
 type ContextoMensagem = { nomeCliente: string; nomeServico: string; nomeEstabelecimento: string; horario: Date }
 
@@ -93,7 +96,7 @@ async function processarJanela(opts: {
         horario: appt.scheduledAt,
       })
 
-      const resultado = await sendToContactViaOpenWa({ phone: appt.client.phone, text: mensagem })
+      const resultado = await sendToContactViaOpenWa({ phone: appt.client.phone, text: mensagem }, { confirmarEntrega: false })
       const status = resultado.ok || resultado.status === "UNCONFIRMED" ? "ok" : "erro"
 
       await prisma.whatsAppLog.create({
