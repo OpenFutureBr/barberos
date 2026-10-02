@@ -3,28 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
-
-const statusLabel: Record<string, string> = {
-  SCHEDULED: "Pendente",
-  CONFIRMED: "Confirmado",
-  IN_QUEUE: "Aguardando",
-  IN_PROGRESS: "Em andamento",
-  DONE: "Concluído",
-  CANCELLED: "Cancelado",
-  NO_SHOW: "Não compareceu",
-  WITHDRAWN: "Desistência",
-}
-
-const statusCor: Record<string, string> = {
-  SCHEDULED: "text-amber-400",
-  CONFIRMED: "text-green-400",
-  IN_QUEUE: "text-purple-400",
-  IN_PROGRESS: "text-blue-400",
-  DONE: "text-zinc-400",
-  CANCELLED: "text-red-400",
-  NO_SHOW: "text-zinc-500",
-  WITHDRAWN: "text-orange-400",
-}
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, corTextoStatus, ORDEM_STATUS } from "@/lib/status"
 
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
@@ -702,8 +682,8 @@ export default function AgendaPage() {
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <span className="text-zinc-300 text-sm font-mono">{inicio}</span>
                           <span className="text-zinc-600 text-xs">{fim}</span>
-                          <span className={`text-[10px] font-medium ${statusCor[status] ?? "text-zinc-500"}`}>
-                            {statusLabel[status] ?? status}
+                          <span className={`text-[10px] font-medium ${corTextoStatus(status)}`}>
+                            {rotuloStatus(status)}
                           </span>
                         </div>
                       </div>
@@ -943,20 +923,15 @@ export default function AgendaPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Valor do corte</div>
-                    <div className="text-amber-400 font-bold">R$ {Number(precoCorte).toFixed(2)}</div>
+                    <div className="text-amber-400 font-bold">{fmtMoeda(Number(precoCorte))}</div>
                   </div>
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Status</div>
                     <select value={statusAtual} onChange={(e) => mudarStatus(e.target.value)}
-                      className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${statusCor[statusAtual] ?? "text-zinc-400"}`}>
-                      <option value="SCHEDULED" className="bg-zinc-800 text-white">Pendente</option>
-                      <option value="CONFIRMED" className="bg-zinc-800 text-white">Confirmado</option>
-                      <option value="IN_QUEUE" className="bg-zinc-800 text-white">Aguardando</option>
-                      <option value="IN_PROGRESS" className="bg-zinc-800 text-white">Em andamento</option>
-                      <option value="DONE" className="bg-zinc-800 text-white">Concluído</option>
-                      <option value="CANCELLED" className="bg-zinc-800 text-white">Cancelado</option>
-                      <option value="NO_SHOW" className="bg-zinc-800 text-white">Não compareceu</option>
-                      <option value="WITHDRAWN" className="bg-zinc-800 text-orange-300">Desistência</option>
+                      className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${corTextoStatus(statusAtual)}`}>
+                      {ORDEM_STATUS.map(s => (
+                        <option key={s} value={s} className={`bg-zinc-800 ${s === "WITHDRAWN" ? "text-orange-300" : "text-white"}`}>{rotuloStatus(s)}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -981,7 +956,7 @@ export default function AgendaPage() {
                                 className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
                                 <div className="flex justify-between">
                                   <span className="text-white text-sm">{p.name}</span>
-                                  <span className="text-amber-400 text-sm font-mono">R$ {p.salePrice?.toFixed(2)}</span>
+                                  <span className="text-amber-400 text-sm font-mono">{fmtMoeda(p.salePrice)}</span>
                                 </div>
                                 <div className="text-zinc-500 text-xs">Estoque: {p.stock}</div>
                               </button>
@@ -1004,7 +979,7 @@ export default function AgendaPage() {
                       <div key={idx} className="bg-zinc-800 rounded-lg p-3 flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="text-white text-sm font-medium truncate">{item.produto.name}</div>
-                          <div className="text-zinc-500 text-xs">R$ {item.produto.salePrice?.toFixed(2)}</div>
+                          <div className="text-zinc-500 text-xs">{fmtMoeda(item.produto.salePrice)}</div>
                         </div>
                         {/* Wheel scroll de quantidade */}
                         <div className="flex items-center gap-2">
@@ -1015,7 +990,7 @@ export default function AgendaPage() {
                             className="w-7 h-7 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white text-sm flex items-center justify-center transition-colors">+</button>
                         </div>
                         <div className="text-amber-400 text-sm font-bold w-16 text-right">
-                          R$ {(item.produto.salePrice * item.qty).toFixed(2)}
+                          {fmtMoeda((item.produto.salePrice * item.qty))}
                         </div>
                         <button type="button" onClick={() => removeItem(idx)}
                           className="text-zinc-600 hover:text-red-400 transition-colors">✕</button>
@@ -1029,17 +1004,17 @@ export default function AgendaPage() {
                   <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">Comanda</div>
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-400">✂️ {apptSelecionado.service?.name}</span>
-                    <span className="text-white font-medium">R$ {Number(precoCorte).toFixed(2)}</span>
+                    <span className="text-white font-medium">{fmtMoeda(Number(precoCorte))}</span>
                   </div>
                   {itensComanda.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span className="text-zinc-400">{item.qty}× {item.produto.name}</span>
-                      <span className="text-white font-medium">R$ {(item.produto.salePrice * item.qty).toFixed(2)}</span>
+                      <span className="text-white font-medium">{fmtMoeda((item.produto.salePrice * item.qty))}</span>
                     </div>
                   ))}
                   <div className="border-t border-zinc-700 pt-2 flex justify-between">
                     <span className="text-white font-bold">Total</span>
-                    <span className="text-amber-400 font-bold text-lg">R$ {totalComanda.toFixed(2)}</span>
+                    <span className="text-amber-400 font-bold text-lg">{fmtMoeda(totalComanda)}</span>
                   </div>
                 </div>
 
@@ -1060,7 +1035,7 @@ export default function AgendaPage() {
                     </button>
                     <button onClick={handleFinalizarComanda} disabled={finalizando}
                       className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
-                      {finalizando ? "Aguarde..." : `Finalizar cobrança · R$ ${totalComanda.toFixed(2)}`}
+                      {finalizando ? "Aguarde..." : `Finalizar cobrança · ${fmtMoeda(totalComanda)}`}
                     </button>
                   </div>
                 )}

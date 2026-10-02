@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { getCache, setCache } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -179,7 +180,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                       <div className="text-zinc-500 text-xs">{c.service?.name} · {c.professional?.name?.split(" ")[0]}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-amber-400 text-sm font-mono">R$ {(totalServico + totalProdutos).toFixed(2)}</div>
+                      <div className="text-amber-400 text-sm font-mono">{fmtMoeda((totalServico + totalProdutos))}</div>
                       {c.vencida && <div className="text-red-400 text-xs">+24h</div>}
                     </div>
                     <span className={`text-zinc-600 text-xs flex-shrink-0 transition-transform ${expandido ? "rotate-90" : ""}`}
@@ -189,12 +190,12 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                     <div className="border-t border-zinc-700 px-4 pb-3 pt-2 space-y-1.5">
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-400">{c.service?.name}</span>
-                        <span className="text-zinc-200 font-mono">R$ {totalServico.toFixed(2)}</span>
+                        <span className="text-zinc-200 font-mono">{fmtMoeda(totalServico)}</span>
                       </div>
                       {(c.produtos ?? []).map((m: any, i: number) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-zinc-400">{m.product?.name} ×{m.quantity}</span>
-                          <span className="text-zinc-200 font-mono">R$ {(m.quantity * (m.unitPrice ?? 0)).toFixed(2)}</span>
+                          <span className="text-zinc-200 font-mono">{fmtMoeda((m.quantity * (m.unitPrice ?? 0)))}</span>
                         </div>
                       ))}
                       <button type="button"
@@ -218,7 +219,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                           onFechar()
                         }}
                         className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2 rounded-lg text-sm transition-colors">
-                        Finalizar cobrança · R$ {(totalServico + totalProdutos).toFixed(2)}
+                        Finalizar cobrança · {fmtMoeda((totalServico + totalProdutos))}
                       </button>
                     </div>
                   )}
@@ -290,7 +291,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                         className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
                         <div className="flex justify-between">
                           <span className="text-white text-sm">{p.name}</span>
-                          <span className="text-amber-400 text-sm font-mono">R$ {p.salePrice?.toFixed(2)}</span>
+                          <span className="text-amber-400 text-sm font-mono">{fmtMoeda(p.salePrice)}</span>
                         </div>
                         <div className="text-zinc-500 text-xs">
                           Estoque disponível: <span className={disp <= 3 ? "text-red-400" : "text-zinc-400"}>{disp}</span>
@@ -342,7 +343,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                   <div className="text-zinc-400 text-sm">Total</div>
                   <div className="text-zinc-600 text-xs">{totalItens} {totalItens === 1 ? "item" : "itens"}</div>
                 </div>
-                <span className="text-green-400 font-bold text-xl">R$ {total.toFixed(2)}</span>
+                <span className="text-green-400 font-bold text-xl">{fmtMoeda(total)}</span>
               </div>
             </div>
           )}
@@ -360,7 +361,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
             </button>
             <button type="submit" disabled={!itens.length}
               className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {itens.length ? `Finalizar cobrança · R$ ${itens.reduce((s, i) => s + i.qty * i.unitPrice, 0).toFixed(2)}` : "Adicione produtos"}
+              {itens.length ? `Finalizar cobrança · ${fmtMoeda(itens.reduce((s, i) => s + i.qty * i.unitPrice, 0))}` : "Adicione produtos"}
             </button>
           </div>
         </form>

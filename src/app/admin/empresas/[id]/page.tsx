@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type EmpresaDetalhe = {
   empresa: {
@@ -148,12 +149,6 @@ type EmpresaDetalhe = {
   }[]
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-}
 
 function fmtNumero(v: number) {
   return v.toLocaleString("pt-BR")

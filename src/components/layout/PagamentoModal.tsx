@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { getCache, setCache } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
 
 // ── PIX payload (EMV / BACEN) ──────────────────────────────────────────────
 
@@ -83,12 +84,6 @@ const METODOS: { key: MetodoPag; label: string; icon: string }[] = [
   { key: "PAY_LATER", label: "Pagar depois", icon: "◷" },
 ]
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-}
 
 function hojeInputDate() {
   const hoje = new Date()

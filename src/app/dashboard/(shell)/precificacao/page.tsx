@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
@@ -39,9 +40,6 @@ const regraVazia: Omit<Regra, "id"> = {
   endTime: "",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtHorario(start: string | null, end: string | null) {
   if (!start || !end) return "Dia todo"

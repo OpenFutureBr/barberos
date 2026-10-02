@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda as fmtMoedaBase } from "@/lib/formatadores"
 
 // Cache de módulo — persiste entre navegações na mesma sessão do browser
 const _cache: {
@@ -14,13 +16,12 @@ const _cache: {
 } = { dashData: null, appts: [], caixaData: null, evolucao: [], periodKey: "", ts: 0 }
 const CACHE_TTL = 3 * 60 * 1000 // 3 minutos
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
+// Alias: o componente principal define o próprio fmtMoeda (com ocultar valores)
+const fmtMoeda = (v: number) => fmtMoedaBase(v)
 function fmtPct(v: number) {
   return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"
 }
-function hojeStr() { return new Date().toISOString().split("T")[0] }
+function hojeStr() { return hojeISOemBRT() }
 
 function navDia(iso: string, delta: number) {
   const d = new Date(iso + "T12:00:00")
@@ -32,7 +33,7 @@ type Periodo = "hoje" | "ontem" | "semana" | "mes" | "custom"
 
 function calcRange(p: Periodo): { from: string; to: string } {
   const n = new Date()
-  const hoje = n.toISOString().split("T")[0]
+  const hoje = hojeISOemBRT()
   if (p === "hoje") return { from: hoje, to: hoje }
   if (p === "ontem") { const d = navDia(hoje, -1); return { from: d, to: d } }
   if (p === "semana") {
@@ -142,8 +143,7 @@ export default function DashboardPage() {
   // Sombreia o fmtMoeda do módulo — todas as chamadas neste componente usam
   // esta versão, que mostra •••• em vez do valor quando ocultarValores.
   function fmtMoeda(v: number) {
-    if (ocultarValores) return "R$ ••••"
-    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    return fmtMoedaBase(v, { ocultar: ocultarValores })
   }
 
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)

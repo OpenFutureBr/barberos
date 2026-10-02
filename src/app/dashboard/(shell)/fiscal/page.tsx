@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type NotaPendente = {
   id: string
@@ -106,7 +107,7 @@ export default function FiscalPage() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Pendentes</div>
           <div className="text-amber-400 text-2xl font-bold">{loading ? "…" : pendentes}</div>
-          <div className="text-zinc-600 text-xs mt-1">R$ {totalPendente.toFixed(2)} aguardando emissão</div>
+          <div className="text-zinc-600 text-xs mt-1">{fmtMoeda(totalPendente)} aguardando emissão</div>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500">
           <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Relatórios MEI</div>
@@ -164,7 +165,7 @@ export default function FiscalPage() {
                         <div className="text-white text-sm font-medium truncate">{nota.cliente}</div>
                         <div className="text-zinc-400 text-xs truncate">{nota.servico}</div>
                       </div>
-                      <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {nota.valor.toFixed(2)}</div>
+                      <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(nota.valor)}</div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[nota.status]}`}>
@@ -192,7 +193,7 @@ export default function FiscalPage() {
                       <td className="px-4 py-3 text-white text-sm font-medium">{nota.cliente}</td>
                       <td className="px-4 py-3 text-zinc-400 text-sm">{nota.servico}</td>
                       <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{fmtHora(nota.finalizadoEm)}</td>
-                      <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {nota.valor.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">{fmtMoeda(nota.valor)}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[nota.status]}`}>
                           {nota.status}
@@ -231,15 +232,15 @@ export default function FiscalPage() {
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Faturamento bruto</div>
-                    <div className="text-white font-bold">R$ {rel.bruto.toFixed(2)}</div>
+                    <div className="text-white font-bold">{fmtMoeda(rel.bruto)}</div>
                   </div>
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Taxa de bancada</div>
-                    <div className="text-red-400 font-bold">- R$ {bancada.toFixed(2)}</div>
+                    <div className="text-red-400 font-bold">- {fmtMoeda(bancada)}</div>
                   </div>
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Líquido para NF</div>
-                    <div className="text-green-400 font-bold">R$ {liquido.toFixed(2)}</div>
+                    <div className="text-green-400 font-bold">{fmtMoeda(liquido)}</div>
                   </div>
                 </div>
               </div>

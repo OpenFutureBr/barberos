@@ -7,9 +7,12 @@ import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/cai
 import PeriodoGrid from "@/components/caixa/PeriodoGrid"
 import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { diaISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda } from "@/lib/formatadores"
 
+// Dia no fuso de Brasília (toISOString é UTC: depois das 21h virava amanhã)
 function fmtDataISO(d: Date) {
-  return d.toISOString().slice(0, 10)
+  return diaISOemBRT(d)
 }
 
 // Visão máxima permitida: M-3 em relação à data atual
@@ -98,9 +101,6 @@ const tipoSinal: Record<string, string> = {
   SANGRIA: "−",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
@@ -115,12 +115,12 @@ function DetalhesLancamento({ l }: { l: Lancamento }) {
       {l.detalhes.map((d, di) => (
         <div key={di} className={`flex justify-between px-3 py-1.5 text-sm ${di < l.detalhes!.length - 1 ? "border-b border-zinc-700/50" : ""}`}>
           <span className="text-zinc-400">{d.label}</span>
-          <span className="text-zinc-200 font-mono">R$ {d.valor.toFixed(2)}</span>
+          <span className="text-zinc-200 font-mono">{fmtMoeda(d.valor)}</span>
         </div>
       ))}
       <div className="flex justify-between px-3 py-1.5 border-t border-zinc-700 bg-zinc-800/80">
         <span className="text-zinc-400 text-sm font-medium">Total · {metodoLabel(l.method) || "—"}</span>
-        <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>R$ {l.valor.toFixed(2)}</span>
+        <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>{fmtMoeda(l.valor)}</span>
       </div>
     </div>
   )
@@ -601,7 +601,7 @@ export default function CaixaPage() {
                       )}
                     </div>
                     <div className={`font-bold font-mono text-sm flex-shrink-0 ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
-                      {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                      {tipoSinal[l.tipo] ?? ""}{fmtMoeda(l.valor)}
                     </div>
                   </button>
                   {expandido && <div className="px-4 pb-3"><DetalhesLancamento l={l} /></div>}
@@ -646,7 +646,7 @@ export default function CaixaPage() {
                         )}
                       </td>
                       <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
-                        {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                        {tipoSinal[l.tipo] ?? ""}{fmtMoeda(l.valor)}
                       </td>
                     </tr>
                     {expandido && l.detalhes && (

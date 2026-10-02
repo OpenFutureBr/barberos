@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import PageSkeleton from "@/components/PageSkeleton"
+import { fmtMoeda } from "@/lib/formatadores"
 
 const metodos = [
   { id: "PIX", label: "PIX", icon: "📱" },
@@ -214,7 +215,7 @@ export default function ComandaPage() {
           </div>
 
           <span className={`font-medium font-mono ${corteGratis ? "text-zinc-500 line-through" : "text-white"}`}>
-            R$ {Number(appt.service?.price ?? 0).toFixed(2)}
+            {fmtMoeda(Number(appt.service?.price ?? 0))}
           </span>
         </div>
 
@@ -236,13 +237,13 @@ export default function ComandaPage() {
                 <div className="text-white text-sm">{item.produto.name}</div>
 
                 <div className="text-zinc-500 text-xs">
-                  {item.qty}× R$ {Number(item.produto.salePrice ?? 0).toFixed(2)}
+                  {item.qty}× {fmtMoeda(Number(item.produto.salePrice ?? 0))}
                 </div>
               </div>
             </div>
 
             <span className="text-white font-medium font-mono">
-              R$ {(item.qty * Number(item.produto.salePrice ?? 0)).toFixed(2)}
+              {fmtMoeda((item.qty * Number(item.produto.salePrice ?? 0)))}
             </span>
           </div>
         ))}
@@ -251,7 +252,7 @@ export default function ComandaPage() {
           <span className="text-white font-bold text-lg">Total</span>
 
           <span className="text-amber-400 font-bold text-2xl">
-            R$ {total.toFixed(2)}
+            {fmtMoeda(total)}
           </span>
         </div>
       </div>
@@ -323,8 +324,8 @@ export default function ComandaPage() {
         {confirmando
           ? "Confirmando..."
           : isPagarDepois
-            ? `Registrar pendência · R$ ${total.toFixed(2)}`
-            : `Confirmar · R$ ${total.toFixed(2)}`}
+            ? `Registrar pendência · ${fmtMoeda(total)}`
+            : `Confirmar · ${fmtMoeda(total)}`}
       </button>
     </div>
   )

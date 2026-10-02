@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type Fatura = {
   id: string
@@ -36,9 +37,6 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   REFUNDED:  { label: "Reembolsada", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtData(d: string | null) {
   if (!d) return "—"

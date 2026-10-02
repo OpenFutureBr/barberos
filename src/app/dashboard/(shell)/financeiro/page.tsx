@@ -5,10 +5,8 @@ import PagamentoModal from "@/components/layout/PagamentoModal"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL } from "@/lib/categorias-caixa"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtData(iso?: string | null) {
   if (!iso) return "Sem vencimento"

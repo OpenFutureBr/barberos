@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { PainelAparencia } from "@/components/ui/SeletorTema"
 import PageSkeleton from "@/components/PageSkeleton"
 import { clearPwaCache } from "@/lib/clearPwaCache"
+import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -16,38 +17,6 @@ const defaultHours = DIAS.map((label, i) => ({
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
-function fmtCnpj(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 14)
-  if (!d) return ""
-  if (d.length <= 2) return d
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
-}
-function fmtTelefone(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 11)
-  if (!d) return ""
-  if (d.length <= 2) return `(${d}`
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-}
-function fmtWhatsapp(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 13)
-  if (!d) return ""
-  if (d.length <= 2) return `+${d}`
-  if (d.length <= 4) return `+${d.slice(0, 2)} (${d.slice(2)}`
-  if (d.length <= 9) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`
-  if (d.length <= 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`
-  return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
-}
-function fmtCep(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 8)
-  if (!d) return ""
-  if (d.length <= 5) return d
-  return `${d.slice(0, 5)}-${d.slice(5)}`
-}
 function toDateInput(iso: string | null | undefined): string {
   if (!iso) return ""
   return new Date(iso).toISOString().split("T")[0]
@@ -365,17 +334,17 @@ export default function ConfiguracoesPage() {
         if (!d || d.error) return
         setNome(d.name ?? "")
         setSlug(d.slug ?? "")
-        setTelefone(fmtTelefone(d.phone ?? ""))
+        setTelefone(mascaraTelefone(d.phone ?? ""))
         setEmail(d.email ?? "")
         setEndereco(d.address ?? "")
         setCidade(d.city ?? "")
         setEstado(d.state ?? "")
-        setCep(fmtCep(d.zipCode ?? ""))
+        setCep(mascaraCep(d.zipCode ?? ""))
         setInauguratedAt(toDateInput(d.inauguratedAt))
         setPixKey(d.pixKey ?? "")
-        setWhatsapp(fmtWhatsapp(d.whatsapp ?? ""))
+        setWhatsapp(mascaraWhatsapp(d.whatsapp ?? ""))
         setInstagram(d.instagram ?? "")
-        setCnpj(fmtCnpj(d.cnpj ?? ""))
+        setCnpj(mascaraCnpj(d.cnpj ?? ""))
         setRazaoSocial(d.razaoSocial ?? "")
         setInscricaoMunicipal(d.inscricaoMunicipal ?? "")
         setRegimeTributario(d.regimeTributario ?? "Simples Nacional")
@@ -568,7 +537,7 @@ export default function ConfiguracoesPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
-              <input value={telefone} onChange={e => setTelefone(fmtTelefone(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
+              <input value={telefone} onChange={e => setTelefone(mascaraTelefone(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
             </div>
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Email</label>
@@ -588,7 +557,7 @@ export default function ConfiguracoesPage() {
               <label className="text-zinc-400 text-xs mb-1 block">WhatsApp</label>
               <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500">
                 <span className="text-zinc-600 text-xs px-2 py-2">💬</span>
-                <input value={whatsapp} onChange={e => setWhatsapp(fmtWhatsapp(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
+                <input value={whatsapp} onChange={e => setWhatsapp(mascaraWhatsapp(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
               </div>
               <p className="text-zinc-600 text-xs mt-0.5">Com código do país (+55)</p>
             </div>
@@ -615,7 +584,7 @@ export default function ConfiguracoesPage() {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">CEP</label>
-              <input value={cep} onChange={e => setCep(fmtCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
+              <input value={cep} onChange={e => setCep(mascaraCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
             </div>
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
@@ -633,7 +602,7 @@ export default function ConfiguracoesPage() {
           <div className="grid grid-cols-2 gap-3 pt-3">
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">CNPJ</label>
-              <input value={cnpj} onChange={e => setCnpj(fmtCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
+              <input value={cnpj} onChange={e => setCnpj(mascaraCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
             </div>
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Inscrição Municipal</label>

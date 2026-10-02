@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type Plano = {
   id: string
@@ -31,9 +32,6 @@ const FEATURES_DISPONIVEIS = [
   { key: "api",          label: "API externa" },
 ]
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function limiteStr(v: number | null) {
   return v === null ? "Ilimitado" : v.toLocaleString("pt-BR")

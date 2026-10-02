@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
 
 
 const nivelStyle: Record<string, string> = {
@@ -27,9 +28,6 @@ const tipoLabel: Record<string, string> = {
   EXPIRED: "- Expirou",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { RESOURCES } from "@/lib/resources"
 import { roleLabel, roleBadge } from "@/lib/role-labels"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { mascaraTelefone } from "@/lib/mascaras"
 
 // Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
 function ic(path: string, cls = "w-3.5 h-3.5") {
@@ -182,15 +184,9 @@ const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 const horasOpcoes = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`)
 
 function hojeISO() {
-  return new Date().toISOString().split("T")[0]
+  return hojeISOemBRT()
 }
 
-function formatarTelefone(valor: string): string {
-  const nums = valor.replace(/\D/g, "").slice(0, 11)
-  if (nums.length <= 2) return nums.length ? `(${nums}` : ""
-  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
-  return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
-}
 
 function calcularIdade(birthDate: string | null) {
   if (!birthDate) return null
@@ -354,7 +350,7 @@ function FormularioProfissional({
             </div>
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
-              <input value={telefone} onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+              <input value={telefone} onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
                 placeholder="(11) 99999-9999"
                 className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
             </div>

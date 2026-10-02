@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { fmtMoeda } from "@/lib/formatadores"
 
 const paises = [
   { codigo: "+55", sigla: "BR", mascara: "(XX) XXXXX-XXXX", digitos: 11 },
@@ -551,7 +552,7 @@ export default function ClientePerfilPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <div className="text-amber-400 font-bold font-mono">R$ {totalAppt.toFixed(2)}</div>
+                          <div className="text-amber-400 font-bold font-mono">{fmtMoeda(totalAppt)}</div>
                           <span className={`text-zinc-600 text-xs transition-transform ${expandido ? "rotate-90" : ""}`} style={{ display: "inline-block", transition: "transform 0.15s" }}>›</span>
                         </div>
                       </button>
@@ -562,19 +563,19 @@ export default function ClientePerfilPage() {
                           {/* Serviço */}
                           <div className="flex justify-between text-sm">
                             <span className="text-zinc-400">{a.service?.name}</span>
-                            <span className="text-white font-mono">R$ {(a.service?.price ?? 0).toFixed(2)}</span>
+                            <span className="text-white font-mono">{fmtMoeda((a.service?.price ?? 0))}</span>
                           </div>
                           {/* Produtos */}
                           {produtos.map((m: any) => (
                             <div key={m.id} className="flex justify-between text-sm">
                               <span className="text-zinc-400">{m.product?.name} <span className="text-zinc-600 text-xs">×{m.quantity}</span></span>
-                              <span className="text-white font-mono">R$ {(m.quantity * (m.unitPrice ?? m.product?.salePrice ?? 0)).toFixed(2)}</span>
+                              <span className="text-white font-mono">{fmtMoeda((m.quantity * (m.unitPrice ?? m.product?.salePrice ?? 0)))}</span>
                             </div>
                           ))}
                           {/* Total e cashback */}
                           <div className="flex justify-between text-sm pt-1 border-t border-zinc-700">
                             <span className="text-white font-semibold">Total</span>
-                            <span className="text-amber-400 font-bold font-mono">R$ {totalAppt.toFixed(2)}</span>
+                            <span className="text-amber-400 font-bold font-mono">{fmtMoeda(totalAppt)}</span>
                           </div>
                           {/* Cashback da transação */}
                           {cliente.loyaltyAccount?.transactions?.find((t: any) =>
@@ -586,7 +587,7 @@ export default function ClientePerfilPage() {
                             return (
                               <div className="flex justify-between text-xs text-green-400">
                                 <span>Cashback gerado</span>
-                                <span className="font-mono">+ R$ {tx.amount.toFixed(2)}</span>
+                                <span className="font-mono">+ {fmtMoeda(tx.amount)}</span>
                               </div>
                             )
                           })()}

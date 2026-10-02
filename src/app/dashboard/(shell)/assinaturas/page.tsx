@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -32,9 +34,6 @@ const statusLabel: Record<string, string> = {
   ACTIVE: "Ativo", PAUSED: "Pausado", CANCELLED: "Cancelado", OVERDUE: "Em atraso",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR")
@@ -59,7 +58,7 @@ export default function AssinaturasPage() {
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteSimples | null>(null)
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const [planoSelecionado, setPlanoSelecionado] = useState("")
-  const [dataInicio, setDataInicio] = useState(new Date().toISOString().split("T")[0])
+  const [dataInicio, setDataInicio] = useState(hojeISOemBRT())
   const [erroAssinante, setErroAssinante] = useState("")
   const dropRef = useRef<HTMLDivElement>(null)
 
@@ -197,7 +196,7 @@ export default function AssinaturasPage() {
       if (!res.ok) { setErroAssinante(data.error || "Erro ao adicionar"); return }
       setAssinantes(prev => [data, ...prev])
       setPainelAberto(false)
-      setBuscaCliente(""); setClienteSelecionado(null); setPlanoSelecionado(""); setDataInicio(new Date().toISOString().split("T")[0])
+      setBuscaCliente(""); setClienteSelecionado(null); setPlanoSelecionado(""); setDataInicio(hojeISOemBRT())
       setAba("assinantes")
     } catch (err) { setErroAssinante(String(err)) }
     finally { setSalvando(false) }

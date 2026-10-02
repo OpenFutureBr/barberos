@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, pilulaStatus } from "@/lib/status"
 
 // ---- types ----
 type ApptStatus = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "NO_SHOW"
@@ -37,20 +39,6 @@ type KitItem = {
 }
 
 // ---- helpers ----
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: "Agendado",
-  CONFIRMED: "Confirmado",
-  IN_PROGRESS: "Em rota",
-  DONE: "Concluído",
-}
-
-const STATUS_CLS: Record<string, string> = {
-  SCHEDULED: "bg-zinc-700 text-zinc-400 border-zinc-600",
-  CONFIRMED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  IN_PROGRESS: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  DONE: "bg-green-500/10 text-green-400 border-green-500/20",
-}
-
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
@@ -346,8 +334,8 @@ export default function DomicilioPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-white text-sm font-medium">{appt.client.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_CLS[appt.status] ?? STATUS_CLS.SCHEDULED}`}>
-                      {STATUS_LABEL[appt.status] ?? appt.status}
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${pilulaStatus(appt.status)}`}>
+                      {rotuloStatus(appt.status, "domicilio")}
                     </span>
                     {appt.professional && (
                       <span className="text-zinc-600 text-xs">{appt.professional.name}</span>
@@ -357,7 +345,7 @@ export default function DomicilioPage() {
                   <div className="text-teal-400 text-xs truncate">{enderecoCompleto(appt)}</div>
                   {appt.distanceKm != null && (
                     <div className="text-zinc-600 text-xs mt-0.5">{appt.distanceKm.toFixed(1)} km
-                      {appt.travelFee != null && appt.travelFee > 0 && ` · taxa R$ ${appt.travelFee.toFixed(2)}`}
+                      {appt.travelFee != null && appt.travelFee > 0 && ` · taxa ${fmtMoeda(appt.travelFee)}`}
                     </div>
                   )}
                 </div>

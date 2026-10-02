@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type Empresa = {
   id: string
@@ -66,12 +67,6 @@ type NovaEmpresaForm = {
   ownerPassword: string
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-}
 
 function fmtData(iso?: string | null) {
   if (!iso) return "—"

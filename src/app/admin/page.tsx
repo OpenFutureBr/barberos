@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type AdminDashboardData = {
   totalEmpresas: number
@@ -18,12 +19,6 @@ type AdminDashboardData = {
   totalStorageMb: number
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-}
 
 function fmtNumero(v: number) {
   return v.toLocaleString("pt-BR")

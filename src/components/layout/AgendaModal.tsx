@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
+import { mascaraTelefone } from "@/lib/mascaras"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
@@ -41,12 +43,6 @@ function getDataHoraInicial() {
   return { data: getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60)), hora: slots[0] }
 }
 
-function formatarTelefone(valor: string): string {
-  const nums = valor.replace(/\D/g, "").slice(0, 11)
-  if (nums.length <= 2) return nums.length ? `(${nums}` : ""
-  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
-  return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
-}
 
 type Props = {
   aberto: boolean
@@ -670,7 +666,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   // Busca cliente por telefone
   async function handleTelefone(valor: string) {
-    const fmt = formatarTelefone(valor)
+    const fmt = mascaraTelefone(valor)
     setTelefone(fmt)
     setClienteId("")
     setClienteNome("")
@@ -914,7 +910,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   <option value="">{profId ? "Selecionar serviço..." : "Selecione um profissional primeiro"}</option>
                   {servicosFiltrados.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — R$ {precoAjustado(s.price).toFixed(2)} · {s.durationMin}min
+                      {s.name} — {fmtMoeda(precoAjustado(s.price))} · {s.durationMin}min
                     </option>
                   ))}
                 </select>
@@ -1024,7 +1020,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                         className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors disabled:opacity-50">
                         <option value="">{acompProfId ? "Selecionar serviço..." : "Selecione o barbeiro primeiro"}</option>
                         {acompServicosDisponiveis.map(s => (
-                          <option key={s.id} value={s.id}>{s.name} — R$ {Number(s.price).toFixed(2)} · {s.durationMin}min</option>
+                          <option key={s.id} value={s.id}>{s.name} — {fmtMoeda(Number(s.price))} · {s.durationMin}min</option>
                         ))}
                       </select>
                     </div>

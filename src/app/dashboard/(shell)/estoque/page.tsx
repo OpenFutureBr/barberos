@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -273,7 +274,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
         </div>
         <div className="p-2">
           <div className="text-white text-xs font-medium leading-tight truncate">{nome}</div>
-          <div className="text-amber-400 text-xs font-bold mt-0.5">R$ {preco.toFixed(2)}</div>
+          <div className="text-amber-400 text-xs font-bold mt-0.5">{fmtMoeda(preco)}</div>
           <div className="text-zinc-600 text-xs">{subcat}</div>
         </div>
       </button>
@@ -794,7 +795,7 @@ function EstoqueInner() {
         const kpis = [
           <div key="valor" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
             <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
-            <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
+            <div className="text-blue-400 text-xl font-bold">{fmtMoeda(totalEstoque)}</div>
             <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
           </div>,
           <div key="criticos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
@@ -861,7 +862,7 @@ function EstoqueInner() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="text-white text-sm font-medium truncate">{p.name}</div>
-                            <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {p.salePrice?.toFixed(2)}</div>
+                            <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(p.salePrice)}</div>
                           </div>
                           <div className="text-zinc-600 text-xs truncate">
                             {[p.category || null, p.barcode || p.subCategory || null].filter(Boolean).join(" · ") || "—"}
@@ -928,7 +929,7 @@ function EstoqueInner() {
                               style={{ width: `${Math.min(100, (p.stock / Math.max(p.minStock * 2, 1)) * 100)}%` }} />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {p.salePrice?.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">{fmtMoeda(p.salePrice)}</td>
                         <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${status.style}`}>{status.label}</span></td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end">
@@ -1199,7 +1200,7 @@ function EstoqueInner() {
               <div className="flex gap-4 text-sm ml-auto">
                 <span className="text-zinc-500">{vendas.length} venda{vendas.length !== 1 ? "s" : ""}</span>
                 <span className="text-green-400 font-bold">
-                  R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                  {fmtMoeda(vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                 </span>
               </div>
             )}
@@ -1250,18 +1251,18 @@ function EstoqueInner() {
                               {" · "}{cliente}
                             </div>
                             <div className="text-zinc-600 text-xs">
-                              {v.quantity}× R$ {preco.toFixed(2)}
+                              {v.quantity}× {fmtMoeda(preco)}
                               {descPct && <span className="text-orange-400"> · {descPct}% desc</span>}
                             </div>
                           </div>
-                          <div className="text-green-400 font-bold font-mono text-sm flex-shrink-0">R$ {totalLinha.toFixed(2)}</div>
+                          <div className="text-green-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(totalLinha)}</div>
                         </div>
                       )
                     })}
                     <div className="px-4 py-2 flex items-center justify-between border-t border-zinc-700">
                       <span className="text-zinc-500 text-xs">Total geral</span>
                       <span className="text-green-400 font-bold font-mono">
-                        R$ {vendas.reduce((s, v) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                        {fmtMoeda(vendas.reduce((s, v) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                       </span>
                     </div>
                   </div>
@@ -1297,11 +1298,11 @@ function EstoqueInner() {
                             <td className="px-4 py-3 text-zinc-400 text-sm">{cliente}</td>
                             <td className="px-4 py-3 text-center text-zinc-300 text-sm">{v.quantity}</td>
                             <td className="px-4 py-3 text-right">
-                              <div className="text-amber-400 text-sm font-mono">R$ {preco.toFixed(2)}</div>
+                              <div className="text-amber-400 text-sm font-mono">{fmtMoeda(preco)}</div>
                               {descPct && <div className="text-orange-400 text-xs">{descPct}% desc</div>}
                             </td>
                             <td className="px-4 py-3 text-right text-green-400 font-bold font-mono">
-                              R$ {totalLinha.toFixed(2)}
+                              {fmtMoeda(totalLinha)}
                             </td>
                           </tr>
                         )
@@ -1311,7 +1312,7 @@ function EstoqueInner() {
                       <tr>
                         <td colSpan={5} className="px-4 py-2 text-zinc-500 text-xs text-right">Total geral</td>
                         <td className="px-4 py-2 text-right text-green-400 font-bold font-mono">
-                          R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                          {fmtMoeda(vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                         </td>
                       </tr>
                     </tfoot>
@@ -1383,7 +1384,7 @@ function EstoqueInner() {
                         {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
                           <div className="text-orange-400 text-xs mt-1">
                             {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
-                            · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                            · {fmtMoeda(m.unitPrice)} (tabela {fmtMoeda(m.product.salePrice)})
                           </div>
                         )}
                       </div>
@@ -1423,7 +1424,7 @@ function EstoqueInner() {
                             {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
                               <div className="text-orange-400 text-xs mt-0.5">
                                 {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
-                                · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                                · {fmtMoeda(m.unitPrice)} (tabela {fmtMoeda(m.product.salePrice)})
                               </div>
                             )}
                           </td>
@@ -1546,8 +1547,8 @@ function EstoqueInner() {
                 </div>
 
                 {linha("Código de barras", v.barcode || "—")}
-                {linha("Preço de custo", `R$ ${Number(v.costPrice).toFixed(2)}`)}
-                {linha("Preço de venda", <span className="text-amber-400 font-bold font-mono">R$ {Number(v.salePrice).toFixed(2)}</span>)}
+                {linha("Preço de custo", `${fmtMoeda(Number(v.costPrice))}`)}
+                {linha("Preço de venda", <span className="text-amber-400 font-bold font-mono">{fmtMoeda(Number(v.salePrice))}</span>)}
                 {margem !== null && linha("Margem", `${margem.toFixed(0)}%`)}
                 {linha("Em estoque", <span className={v.stock <= v.minStock ? "text-red-400 font-bold" : ""}>{v.stock} {v.unit || "un"}</span>)}
                 {linha("Estoque mínimo", `${v.minStock} ${v.unit || "un"}`)}
@@ -1767,7 +1768,7 @@ function EstoqueInner() {
                               }}
                               className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700/50 last:border-0 transition-colors">
                               <div className="text-white text-sm">{p.name}</div>
-                              <div className="text-zinc-500 text-xs">Estoque: {p.stock} · Custo: R$ {p.costPrice?.toFixed(2)}</div>
+                              <div className="text-zinc-500 text-xs">Estoque: {p.stock} · Custo: {fmtMoeda(p.costPrice)}</div>
                             </button>
                           )) : (
                             <div className="px-3 py-2 text-zinc-500 text-sm">Nenhum produto encontrado</div>

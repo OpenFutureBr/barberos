@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { fmtMoeda } from "@/lib/formatadores"
+import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -57,34 +59,6 @@ type ConfigFull = {
 }
 
 // ---- formatters ----
-function fmtCnpj(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 14)
-  if (d.length <= 2) return d
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
-}
-function fmtTel(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11)
-  if (d.length <= 2) return `(${d}`
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-}
-function fmtWa(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 13)
-  if (d.length <= 2) return `+${d}`
-  if (d.length <= 4) return `+${d.slice(0, 2)} (${d.slice(2)}`
-  if (d.length <= 9) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`
-  if (d.length <= 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`
-  return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
-}
-function fmtCep(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 8)
-  if (d.length <= 5) return d
-  return `${d.slice(0, 5)}-${d.slice(5)}`
-}
 function toDateInput(iso: string | null | undefined) {
   if (!iso) return ""
   return new Date(iso).toISOString().split("T")[0]
@@ -217,17 +191,17 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
         if (!d) return
         setNome(d.name ?? "")
         setSlug(d.slug ?? "")
-        setTelefone(fmtTel(d.phone ?? ""))
+        setTelefone(mascaraTelefone(d.phone ?? ""))
         setEmail(d.email ?? "")
         setEndereco(d.address ?? "")
         setCidade(d.city ?? "")
         setEstado(d.state ?? "")
-        setCep(fmtCep(d.zipCode ?? ""))
+        setCep(mascaraCep(d.zipCode ?? ""))
         setInauguratedAt(toDateInput(d.inauguratedAt))
         setPixKey(d.pixKey ?? "")
-        setWhatsapp(fmtWa(d.whatsapp ?? ""))
+        setWhatsapp(mascaraWhatsapp(d.whatsapp ?? ""))
         setInstagram(d.instagram ?? "")
-        setCnpj(fmtCnpj(d.cnpj ?? ""))
+        setCnpj(mascaraCnpj(d.cnpj ?? ""))
         setRazaoSocial(d.razaoSocial ?? "")
         setInscricaoMunicipal(d.inscricaoMunicipal ?? "")
         setRegimeTributario(d.regimeTributario ?? "Simples Nacional")
@@ -359,7 +333,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
-                  <input value={telefone} onChange={e => setTelefone(fmtTel(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
+                  <input value={telefone} onChange={e => setTelefone(mascaraTelefone(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Email</label>
@@ -379,7 +353,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
                   <label className="text-zinc-400 text-xs mb-1 block">WhatsApp</label>
                   <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500">
                     <span className="text-zinc-600 text-xs px-2 py-2">💬</span>
-                    <input value={whatsapp} onChange={e => setWhatsapp(fmtWa(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
+                    <input value={whatsapp} onChange={e => setWhatsapp(mascaraWhatsapp(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
                   </div>
                   <p className="text-zinc-600 text-xs mt-0.5">Com código do país (+55)</p>
                 </div>
@@ -406,7 +380,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">CEP</label>
-                  <input value={cep} onChange={e => setCep(fmtCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
+                  <input value={cep} onChange={e => setCep(mascaraCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
@@ -424,7 +398,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-2 gap-3 pt-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">CNPJ</label>
-                  <input value={cnpj} onChange={e => setCnpj(fmtCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
+                  <input value={cnpj} onChange={e => setCnpj(mascaraCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Inscrição Municipal</label>
@@ -516,7 +490,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
                               <div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${s.isEnabled ? "translate-x-4.5" : "translate-x-0.5"}`} />
                             </div>
                             <span className={`text-sm transition-colors ${s.isEnabled ? "text-white" : "text-zinc-500"}`}>{s.name}</span>
-                            <span className="text-zinc-600 text-xs ml-auto">R$ {s.price.toFixed(2)}</span>
+                            <span className="text-zinc-600 text-xs ml-auto">{fmtMoeda(s.price)}</span>
                           </label>
                         ))}
                       </div>

@@ -5,6 +5,8 @@ import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
 import { getCache, setCache } from "@/lib/prefetch-cache"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, pilulaStatus } from "@/lib/status"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -65,11 +67,12 @@ type Config = { pixKey: string | null; name: string; city: string | null; whatsa
 function resolverStatus(c: Cobranca): { chave: string; label: string; cor: string } {
   if (c.payment) return { chave: "PAGO", label: "Pago", cor: "bg-green-500/10 text-green-400 border-green-500/20" }
   if (c.status === "DONE") return { chave: "A_COBRAR", label: "A cobrar", cor: "bg-amber-500/10 text-amber-400 border-amber-500/20" }
-  if (c.status === "CANCELLED") return { chave: "CANCELADO", label: "Cancelado", cor: "bg-red-500/10 text-red-400 border-red-500/20" }
-  if (c.status === "NO_SHOW") return { chave: "NAO_COMPARECEU", label: "Não compareceu", cor: "bg-red-500/10 text-red-400 border-red-500/20" }
-  if (c.status === "IN_PROGRESS") return { chave: "EM_ATENDIMENTO", label: "Em atendimento", cor: "bg-blue-500/10 text-blue-400 border-blue-500/20" }
-  if (c.status === "IN_QUEUE") return { chave: "PENDENTE", label: "Na fila", cor: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" }
-  return { chave: "PENDENTE", label: "Agendado", cor: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" }
+  // Os demais seguem o status do agendamento (rótulo e cor únicos, lib/status)
+  const doAgendamento = (chave: string) => ({ chave, label: rotuloStatus(c.status), cor: pilulaStatus(c.status) })
+  if (c.status === "CANCELLED") return doAgendamento("CANCELADO")
+  if (c.status === "NO_SHOW") return doAgendamento("NAO_COMPARECEU")
+  if (c.status === "IN_PROGRESS") return doAgendamento("EM_ATENDIMENTO")
+  return doAgendamento("PENDENTE")
 }
 
 const FILTROS = [
@@ -83,9 +86,6 @@ const FILTROS = [
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-}
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
 // ── Componente ──────────────────────────────────────────────────────────────
