@@ -273,6 +273,10 @@ export default function ClientesPage() {
               <div
                 key={cliente.id}
                 onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                // Pré-carrega o esqueleto da ficha (loading.tsx) ao encostar na
+                // linha: com router.push não há <Link> para fazer isso sozinho,
+                // e sem prefetch o clique esperava o servidor sem feedback.
+                onPointerEnter={() => router.prefetch(`/dashboard/clientes/${cliente.id}`)}
                 className="flex items-center gap-3 px-4 py-3 active:bg-zinc-800/50 cursor-pointer"
               >
                 <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -303,6 +307,10 @@ export default function ClientesPage() {
                 <tr
                   key={cliente.id}
                   onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                // Pré-carrega o esqueleto da ficha (loading.tsx) ao encostar na
+                // linha: com router.push não há <Link> para fazer isso sozinho,
+                // e sem prefetch o clique esperava o servidor sem feedback.
+                onPointerEnter={() => router.prefetch(`/dashboard/clientes/${cliente.id}`)}
                   className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer ${i === clientes.length - 1 ? "border-0" : ""}`}
                 >
                   <td className="px-4 py-3">

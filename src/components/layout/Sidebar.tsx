@@ -1,14 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { getCache, setCache } from "@/lib/prefetch-cache"
 import { ControleTema } from "@/components/ui/SeletorTema"
 import { usePermissoes } from "@/lib/usePermissoes"
-import { useSubstituirHistorico } from "@/lib/navegacao"
+import { useSubstituirHistorico, rotaAtiva } from "@/lib/navegacao"
 
 const ic = (path: string, fill = false) => (
   <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -49,6 +49,31 @@ export default function Sidebar() {
 
   const { itensVisiveis } = usePermissoes()
   const substituirHistorico = useSubstituirHistorico()
+  const router = useRouter()
+
+  // O Next só pré-carrega <Link> montado e visível, e os grupos começam
+  // recolhidos — sem isto o primeiro clique em cada tela baixava o código na
+  // hora. Pré-carrega tudo o que o usuário pode abrir quando o navegador fica
+  // ocioso, e de novo ao passar o mouse num grupo. Só no desktop: no celular
+  // esta barra está escondida e a folha da MobileNav monta os links ao abrir.
+  const prefetchFeito = useRef(false)
+  function prefetchItens(hrefs: string[]) {
+    for (const h of hrefs) router.prefetch(h)
+  }
+  const hrefsVisiveis = MENU_GROUPS
+    .flatMap(g => itensVisiveis(g))
+    .filter(i => !i.newTab)
+    .map(i => i.href)
+  const chaveHrefs = hrefsVisiveis.join("|")
+  useEffect(() => {
+    if (prefetchFeito.current || !hrefsVisiveis.length) return
+    if (!window.matchMedia("(min-width: 768px)").matches) return
+    const ocioso = window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 2000))
+    const cancelar = window.cancelIdleCallback ?? clearTimeout
+    const id = ocioso(() => { prefetchFeito.current = true; prefetchItens(hrefsVisiveis) }, { timeout: 4000 })
+    return () => cancelar(id as number)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveHrefs])
 
   // Restaura, antes do primeiro paint, os grupos expandidos e o scroll do menu.
   // Em duas passadas: aplicar os grupos muda a altura do <nav>, e o scroll só
@@ -167,12 +192,13 @@ export default function Sidebar() {
           const itensFiltrados = itensVisiveis(group)
           if (itensFiltrados.length === 0) return null
           const isCollapsed = collapsed.has(group.label)
-          const hasActive = itensFiltrados.some(i => i.href === pathname)
+          const hasActive = itensFiltrados.some(i => rotaAtiva(pathname, i.href))
           return (
             <div key={group.label}>
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label)}
+                onPointerEnter={() => prefetchItens(itensFiltrados.filter(i => !i.newTab).map(i => i.href))}
                 className="w-full flex items-center justify-between px-3 pt-3 pb-1 group"
               >
                 <span className={`text-xs font-mono uppercase tracking-widest transition-colors ${isCollapsed && hasActive ? "text-amber-500/70" : "text-zinc-600 group-hover:text-zinc-400"}`}>
@@ -184,7 +210,7 @@ export default function Sidebar() {
                 </span>
               </button>
               {!isCollapsed && itensFiltrados.map((item) => {
-                const isActive = pathname === item.href
+                const isActive = rotaAtiva(pathname, item.href)
                 return (
                   <Link
                     key={item.href}

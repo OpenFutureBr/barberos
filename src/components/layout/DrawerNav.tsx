@@ -6,7 +6,7 @@ import { useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { MENU_GROUPS } from "@/lib/menu-items"
 import { usePermissoes } from "@/lib/usePermissoes"
-import { useSubstituirHistorico } from "@/lib/navegacao"
+import { useSubstituirHistorico, rotaAtiva } from "@/lib/navegacao"
 import { useInstalarApp } from "@/lib/useInstalarApp"
 
 const ic = (path: string, fill = false) => (
@@ -57,7 +57,7 @@ export default function DrawerNav({ aberto, onFechar }: { aberto: boolean; onFec
               <div key={group.label}>
                 <div className="px-4 pt-3 pb-1 text-zinc-600 text-xs font-mono uppercase tracking-widest">{group.label}</div>
                 {itens.map(item => {
-                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                  const isActive = rotaAtiva(pathname, item.href)
                   return (
                     <Link key={item.href} href={item.href}
                       replace={substituirHistorico}

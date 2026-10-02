@@ -4,29 +4,39 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import DrawerNav from "./DrawerNav"
+import { MENU_GROUPS } from "@/lib/menu-items"
 import { usePermissoes } from "@/lib/usePermissoes"
 import { useSubstituirHistorico } from "@/lib/navegacao"
 
+// Nomes mais completos que o rótulo do menu (ou telas fora do menu). O resto
+// sai do próprio MENU_GROUPS, para tela nova não cair em "BarberOS".
 const NOMES: Record<string, string> = {
-  "/dashboard":               "Dashboard",
-  "/dashboard/agenda":        "Agenda",
-  "/dashboard/fila":          "Fila de Espera",
-  "/dashboard/clientes":      "Clientes",
-  "/dashboard/equipe":        "Equipe",
-  "/dashboard/estoque":       "Estoque & Produtos",
-  "/dashboard/domicilio":     "Domicílio",
-  "/dashboard/financeiro":    "Financeiro",
-  "/dashboard/cashback":      "Cashback & Gift Cards",
-  "/dashboard/assinaturas":   "Assinaturas",
-  "/dashboard/ia-biotipo":    "Central IA",
-  "/dashboard/servicos":      "Serviços",
-  "/dashboard/unidades":      "Unidades",
-  "/dashboard/white-label":   "White Label",
-  "/dashboard/whatsapp":      "WhatsApp",
-  "/dashboard/pix":           "PIX",
-  "/dashboard/precificacao":  "Precificação",
-  "/dashboard/fiscal":        "Fiscal",
-  "/alterar-senha":           "Alterar Senha",
+  "/dashboard/fila":              "Fila de Espera",
+  "/dashboard/estoque":           "Estoque & Produtos",
+  "/dashboard/cashback":          "Cashback & Gift Cards",
+  "/dashboard/unidades":          "Unidades",
+  "/dashboard/pix":               "PIX",
+  "/dashboard/fiscal":            "Fiscal",
+  "/dashboard/api-docs":          "API",
+  "/dashboard/unidades/relatorio": "Relatório de Unidades",
+  "/alterar-senha":               "Alterar Senha",
+}
+
+// Subtelas sem item próprio no menu
+const SUBTELAS: [RegExp, string][] = [
+  [/^\/dashboard\/clientes\/[^/]+$/, "Ficha do Cliente"],
+  [/^\/dashboard\/agenda\/comanda\/[^/]+$/, "Comanda"],
+]
+
+const ROTULOS_MENU: Record<string, string> = Object.fromEntries(
+  MENU_GROUPS.flatMap(g => g.items.map(i => [i.href, i.label])),
+)
+
+function tituloDaRota(pathname: string): string {
+  return NOMES[pathname]
+    ?? SUBTELAS.find(([re]) => re.test(pathname))?.[1]
+    ?? ROTULOS_MENU[pathname]
+    ?? "BarberOS"
 }
 
 export default function Topbar({
@@ -62,7 +72,7 @@ export default function Topbar({
     return () => clearInterval(t)
   }, [])
 
-  const nome = NOMES[pathname] ?? "BarberOS"
+  const nome = tituloDaRota(pathname)
 
   return (
     <>
