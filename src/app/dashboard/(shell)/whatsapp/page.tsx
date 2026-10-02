@@ -45,6 +45,9 @@ const TIPO_LABEL: Record<string, string> = {
   pix: "PIX", aniversario: "Aniversário", avaliacao: "Avaliação",
 }
 
+// Disparadas de fato pelo cron (/api/cron/automacoes-whatsapp). As demais ainda não têm lógica de disparo.
+const AUTOMACOES_ATIVAS = new Set(["confirmacao", "lembrete"])
+
 const TEMPLATES = [
   { label: "Lembrete", texto: (nome: string) => `Olá ${nome}! Lembrando do seu horário na Barbearia. Qualquer dúvida é só chamar! 💈` },
   { label: "Retorno", texto: (nome: string) => `Olá ${nome}! Sentimos sua falta 😊 Que tal agendar um horário? Estamos te esperando!` },
@@ -300,8 +303,8 @@ function AbaAutomacoes() {
 
   return (
     <div className="space-y-3 max-w-2xl">
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-amber-400 text-sm">
-        As automações estão em desenvolvimento — os disparos ainda não ocorrem automaticamente. Configure agora e ative quando disponível.
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 text-blue-400 text-sm">
+        Confirmação e lembrete já disparam automaticamente (cron na VPS, a cada ~10-15min). As demais automações ainda estão em desenvolvimento — configure agora e ative quando disponível.
       </div>
 
       <div className="flex items-center gap-2 pb-1">
@@ -316,6 +319,11 @@ function AbaAutomacoes() {
               <span className={`text-xs px-2 py-0.5 rounded-full ${TIPO_STYLE[auto.tipo] ?? "bg-zinc-700 text-zinc-400"}`}>
                 {TIPO_LABEL[auto.tipo] ?? auto.tipo}
               </span>
+              {AUTOMACOES_ATIVAS.has(auto.tipo) ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">● Disparando</span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700">Em breve</span>
+              )}
             </div>
             <div className="text-zinc-500 text-xs">{auto.descricao}</div>
             <div className="text-zinc-600 text-xs mt-1">{auto.enviadas} envios nos últimos 30 dias</div>
