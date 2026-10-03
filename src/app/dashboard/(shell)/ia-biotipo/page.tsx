@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import Modal from "@/components/ui/Modal"
 
 type CorteItem = { name: string; pct: number; description: string; serviceId?: string | null }
 
@@ -353,14 +354,13 @@ export default function IABiotipoPage() {
 
       {/* Modal de preview antes/depois */}
       {previewImg && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setPreviewImg(null)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-              <span className="text-white font-semibold text-sm">Preview: {previewImg.corte}</span>
-              <button onClick={() => setPreviewImg(null)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">✕</button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 p-4">
+        <Modal
+          aberto
+          onFechar={() => setPreviewImg(null)}
+          tamanho="lg"
+          titulo={`Preview: ${previewImg.corte}`}
+        >
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="text-zinc-500 text-xs uppercase tracking-wider mb-1.5 text-center">Antes</div>
                 {imagemPreview && (
@@ -374,9 +374,8 @@ export default function IABiotipoPage() {
                 <img src={previewImg.src} alt="Depois" className="w-full rounded-xl object-cover aspect-square" data-no-invert />
               </div>
             </div>
-            <p className="text-zinc-600 text-xs text-center pb-4">Gerado por IA (Gemini) — imagem ilustrativa, resultado real pode variar.</p>
-          </div>
-        </div>
+            <p className="text-zinc-600 text-xs text-center mt-4">Gerado por IA (Gemini) — imagem ilustrativa, resultado real pode variar.</p>
+        </Modal>
       )}
     </>
   )

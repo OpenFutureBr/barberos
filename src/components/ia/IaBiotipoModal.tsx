@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import Modal from "@/components/ui/Modal"
 
 type CorteItem = {
   name: string
@@ -123,18 +124,15 @@ export default function IaBiotipoModal({ onFechar, onSelecionarServico, establis
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
-          <div>
-            <h2 className="text-white font-bold text-sm">IA Biotipo Facial</h2>
-            <p className="text-zinc-500 text-xs">Análise por Visagismo · Groq Vision</p>
-          </div>
-          <button onClick={() => { pararCamera(); onFechar() }} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+    // Fechar (X, Esc) sempre desliga a camera — senao o LED fica aceso.
+    <Modal
+      aberto
+      onFechar={() => { pararCamera(); onFechar() }}
+      fecharNoFundo={false}
+      titulo="IA Biotipo Facial"
+      subtitulo="Análise por Visagismo · Groq Vision"
+    >
+        <div className="space-y-4">
           {erro && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-xs">{erro}</div>
           )}
@@ -264,7 +262,6 @@ export default function IaBiotipoModal({ onFechar, onSelecionarServico, establis
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

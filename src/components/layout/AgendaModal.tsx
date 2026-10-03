@@ -6,6 +6,8 @@ import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch
 import { fmtMoeda } from "@/lib/formatadores"
 import { mascaraTelefone } from "@/lib/mascaras"
 import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
@@ -289,16 +291,23 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <div>
-            <h2 className="text-white font-bold">Novo Cliente</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">Telefone: {telefone}</p>
-          </div>
-          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+    <Modal
+      aberto
+      onFechar={onCancelar}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Novo Cliente"
+      subtitulo={`Telefone: ${telefone}`}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onCancelar}>Cancelar</Button>
+          <Button variant="accent" type="submit" form="form-cadastro-cliente" disabled={salvando}>
+            {salvando ? "Salvando..." : "Cadastrar"}
+          </Button>
+        </>
+      }
+    >
+        <form id="form-cadastro-cliente" onSubmit={handleSalvar} className="space-y-3">
           <div>
             <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
             <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
@@ -312,19 +321,8 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
           <p className="text-zinc-500 text-xs uppercase tracking-wider pt-1">Endereço</p>
           <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
           {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={salvando}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-              {salvando ? "Salvando..." : "Cadastrar"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -366,34 +364,32 @@ function ModalCadastroEndereco({ clienteId, clienteNome, onSalvo, onCancelar }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <div>
-            <h2 className="text-white font-bold">Endereço para Domicílio</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">{clienteNome}</p>
-          </div>
-          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+    <Modal
+      aberto
+      onFechar={onCancelar}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Endereço para Domicílio"
+      subtitulo={clienteNome}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onCancelar}>Cancelar</Button>
+          {/* teal = domicilio, mesma cor do resto do fluxo de atendimento em casa */}
+          <Button variant="accent" type="submit" form="form-cadastro-endereco" disabled={salvando}
+            className="bg-teal-500 hover:bg-teal-400 text-white">
+            {salvando ? "Salvando..." : "Salvar endereço"}
+          </Button>
+        </>
+      }
+    >
+        <form id="form-cadastro-endereco" onSubmit={handleSalvar} className="space-y-3">
           <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg px-3 py-2 text-teal-400 text-xs">
             Para agendamentos a domicílio, o cliente precisa ter endereço cadastrado.
           </div>
           <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
           {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={salvando}
-              className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-              {salvando ? "Salvando..." : "Salvar endereço"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -819,17 +815,26 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-            <h2 className="text-white font-bold">Novo Agendamento</h2>
-            <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-          </div>
-
+      <Modal
+        aberto
+        onFechar={onFechar}
+        fecharNoFundo={false}
+        titulo="Novo Agendamento"
+        // Carregando nao tem formulario, entao tambem nao tem botoes
+        rodape={carregando ? undefined : (
+          <>
+            <Button variant="ghost" onClick={onFechar}>Cancelar</Button>
+            <Button variant="accent" type="submit" form="form-agenda"
+              disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId || (tipoAtendimento === "domicilio" && !clienteTemEndereco)}>
+              {salvando ? "Salvando..." : "Confirmar"}
+            </Button>
+          </>
+        )}
+      >
           {carregando ? (
-            <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+            <div className="p-4 text-center text-zinc-500 text-sm">Carregando...</div>
           ) : (
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+            <form id="form-agenda" onSubmit={handleSalvar} className="space-y-3">
 
               {/* Tipo de atendimento */}
               <div>
@@ -1088,22 +1093,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   </button>
                 </div>
               )}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onFechar}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit"
-                  disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId || (tipoAtendimento === "domicilio" && !clienteTemEndereco)}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Confirmar"}
-                </button>
-              </div>
             </form>
           )}
-        </div>
-      </div>
+      </Modal>
 
       {/* Modal de cadastro rápido */}
       {mostrarCadastro && (

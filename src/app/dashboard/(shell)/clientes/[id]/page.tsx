@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const paises = [
   { codigo: "+55", sigla: "BR", mascara: "(XX) XXXXX-XXXX", digitos: 11 },
@@ -604,13 +606,21 @@ export default function ClientePerfilPage() {
 
       {/* Modal Editar */}
       {modalEditar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Editar Cliente</h2>
-              <button onClick={() => setModalEditar(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalEditar(false)}
+          fecharNoFundo={false}
+          titulo="Editar Cliente"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalEditar(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-editar-cliente" disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar alterações"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-editar-cliente" onSubmit={handleSalvar} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
                 <input value={nome} onChange={(e) => {
@@ -679,42 +689,32 @@ export default function ClientePerfilPage() {
               {erroEditar && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroEditar}</div>
               )}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalEditar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Salvar alterações"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal Excluir */}
       {modalExcluir && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6">
-            <h2 className="text-white font-bold text-lg mb-2">Excluir cliente?</h2>
+        <Modal
+          aberto
+          onFechar={() => setModalExcluir(false)}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="Excluir cliente?"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalExcluir(false)}>Cancelar</Button>
+              <Button variant="danger" onClick={handleExcluir} disabled={excluindo}>
+                {excluindo ? "Excluindo..." : "Confirmar exclusão"}
+              </Button>
+            </>
+          }
+        >
             <p className="text-zinc-400 text-sm mb-1">
               O cliente <span className="text-white font-medium">{cliente.name}</span> será desativado.
             </p>
-            <p className="text-zinc-600 text-xs mb-6">O histórico de agendamentos será preservado.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setModalExcluir(false)}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                Cancelar
-              </button>
-              <button onClick={handleExcluir} disabled={excluindo}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                {excluindo ? "Excluindo..." : "Confirmar exclusão"}
-              </button>
-            </div>
-          </div>
-        </div>
+            <p className="text-zinc-600 text-xs">O histórico de agendamentos será preservado.</p>
+        </Modal>
       )}
 
     </>

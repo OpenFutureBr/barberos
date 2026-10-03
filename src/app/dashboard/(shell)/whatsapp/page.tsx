@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { enviarWhatsApp } from "@/lib/whatsapp"
 import Image from "next/image"
 import { usePolling } from "@/lib/usePolling"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,11 +175,16 @@ function QrModal({ onClose, onConnected }: { onClose: () => void; onConnected: (
   }, 3000, { ativo: !!qr })
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm text-center">
-        <h2 className="text-white font-bold text-lg mb-1">Conectar WhatsApp</h2>
-        <p className="text-zinc-500 text-sm mb-5">Abra o WhatsApp no celular → Dispositivos conectados → Conectar dispositivo</p>
-
+    <Modal
+      aberto
+      onFechar={onClose}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Conectar WhatsApp"
+      subtitulo="Abra o WhatsApp no celular → Dispositivos conectados → Conectar dispositivo"
+      rodape={<Button variant="ghost" onClick={onClose}>Fechar</Button>}
+    >
+      <div className="text-center">
         {loading && <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">Gerando QR Code...</div>}
         {erro && <div className="h-48 flex items-center justify-center text-red-400 text-sm">{erro}</div>}
         {qr && !loading && (
@@ -189,12 +196,8 @@ function QrModal({ onClose, onConnected }: { onClose: () => void; onConnected: (
         {qr && (
           <p className="text-zinc-600 text-xs mt-3 animate-pulse">Aguardando leitura do QR Code...</p>
         )}
-
-        <button onClick={onClose} className="mt-5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-          Fechar
-        </button>
       </div>
-    </div>
+    </Modal>
   )
 }
 

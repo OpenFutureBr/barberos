@@ -6,6 +6,8 @@ import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, corTextoStatus, ORDEM_STATUS } from "@/lib/status"
 import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
@@ -898,14 +900,21 @@ export default function AgendaPage() {
         }
 
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                <h2 className="text-white font-bold">Detalhes do Agendamento</h2>
-                <button onClick={() => setModalDetalhe(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-              </div>
-
-              <div className="p-5 space-y-4">
+          <Modal
+            aberto
+            onFechar={() => setModalDetalhe(false)}
+            fecharNoFundo={false}
+            titulo="Detalhes do Agendamento"
+            rodape={!cancelado && statusAtual !== "DONE" && statusAtual !== "WITHDRAWN" ? (
+              <>
+                <Button variant="neutral" size="lg" onClick={() => setModalDetalhe(false)}>Salvar</Button>
+                <Button variant="accent" size="lg" className="flex-1" onClick={handleFinalizarComanda} disabled={finalizando}>
+                  {finalizando ? "Aguarde..." : `Finalizar cobrança · ${fmtMoeda(totalComanda)}`}
+                </Button>
+              </>
+            ) : undefined}
+          >
+              <div className="space-y-4">
                 {/* Cabeçalho do agendamento */}
                 <div>
                   <div className="text-white font-bold text-lg">{apptSelecionado.client?.name}</div>
@@ -1021,40 +1030,29 @@ export default function AgendaPage() {
                     Remarcar agendamento
                   </button>
                 )}
-
-                {/* Finalizar cobrança — só quando pendente */}
-                {!cancelado && statusAtual !== "DONE" && statusAtual !== "WITHDRAWN" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => setModalDetalhe(false)}
-                      className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold px-5 py-3.5 rounded-xl text-sm border border-zinc-700 transition-colors">
-                      Salvar
-                    </button>
-                    <button onClick={handleFinalizarComanda} disabled={finalizando}
-                      className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
-                      {finalizando ? "Aguarde..." : `Finalizar cobrança · ${fmtMoeda(totalComanda)}`}
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 
       {/* Modal Remarcar */}
       {modalRemarcar && apptSelecionado && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4"
-          onClick={() => setModalRemarcar(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold">Remarcar Agendamento</h2>
-                <p className="text-zinc-500 text-xs mt-0.5">{apptSelecionado.client?.name} · {apptSelecionado.service?.name}</p>
-              </div>
-              <button onClick={() => setModalRemarcar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModalRemarcar(false)}
+          tamanho="sm"
+          titulo="Remarcar Agendamento"
+          subtitulo={`${apptSelecionado.client?.name ?? ""} · ${apptSelecionado.service?.name ?? ""}`}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalRemarcar(false)}>Cancelar</Button>
+              <Button className="bg-blue-500 hover:bg-blue-400 text-white border-transparent" onClick={handleRemarcar} disabled={salvandoRemarcar}>
+                {salvandoRemarcar ? "Salvando..." : "Confirmar remarcação"}
+              </Button>
+            </>
+          }
+        >
+            <div className="space-y-4">
               {/* Tipo */}
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo</label>
@@ -1093,19 +1091,8 @@ export default function AgendaPage() {
                   {profissionais.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setModalRemarcar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="button" onClick={handleRemarcar} disabled={salvandoRemarcar}
-                  className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoRemarcar ? "Salvando..." : "Confirmar remarcação"}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

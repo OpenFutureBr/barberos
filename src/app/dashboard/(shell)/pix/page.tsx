@@ -7,6 +7,8 @@ import { fetchCached } from "@/lib/prefetch-cache"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, pilulaStatus } from "@/lib/status"
+import Modal from "@/components/ui/Modal"
+import Button, { ButtonLink } from "@/components/ui/Button"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -483,13 +485,19 @@ export default function PixPage() {
 
       {/* Modal — PIX avulso */}
       {modalGerar && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Gerar PIX avulso</h2>
-              <button onClick={() => setModalGerar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={gerarAvulso} className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModalGerar(false)}
+          fecharNoFundo={false}
+          titulo="Gerar PIX avulso"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalGerar(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-pix-avulso">Gerar código</Button>
+            </>
+          }
+        >
+            <form id="form-pix-avulso" onSubmit={gerarAvulso} className="space-y-4">
               <div className="bg-zinc-800 rounded-lg px-3 py-2 flex items-center gap-2">
                 <span className="text-zinc-500 text-xs">Chave PIX:</span>
                 <span className="text-white text-xs font-mono">{config?.pixKey}</span>
@@ -506,26 +514,34 @@ export default function PixPage() {
                   placeholder="0,00"
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
               </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setModalGerar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm">Cancelar</button>
-                <button type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm">Gerar código</button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal — exibir PIX avulso gerado */}
       {pixAvulso && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">PIX gerado</h2>
-              <button onClick={() => setPixAvulso(null)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <div className="p-5 text-center space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setPixAvulso(null)}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="PIX gerado"
+          rodape={
+            <>
+              <Button variant={copiado ? "success" : "neutral"} onClick={() => copiar(pixAvulso.payload)}>
+                {copiado ? "✓ Copiado!" : "Copiar código"}
+              </Button>
+              {config?.whatsapp && (
+                <ButtonLink variant="success"
+                  href={`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(`Segue o código PIX:\n\n${pixAvulso.payload}`)}`}
+                  target="_blank" rel="noopener noreferrer">
+                  WhatsApp
+                </ButtonLink>
+              )}
+            </>
+          }
+        >
+            <div className="text-center space-y-4">
               {pixAvulso.desc && <div className="text-zinc-400 text-sm">{pixAvulso.desc}</div>}
               <div className="text-green-400 text-3xl font-bold">{fmtMoeda(pixAvulso.valor)}</div>
               <div className="flex justify-center">
@@ -539,22 +555,8 @@ export default function PixPage() {
                 <div className="text-zinc-500 text-xs mb-1 font-mono uppercase tracking-wider">Copia e Cola</div>
                 <div className="text-zinc-300 text-xs font-mono break-all select-all leading-relaxed">{pixAvulso.payload}</div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => copiar(pixAvulso.payload)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${copiado ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"}`}>
-                  {copiado ? "✓ Copiado!" : "Copiar código"}
-                </button>
-                {config?.whatsapp && (
-                  <a href={`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(`Segue o código PIX:\n\n${pixAvulso.payload}`)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center bg-green-500/15 hover:bg-green-500/25 text-green-400 font-medium py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                    WhatsApp
-                  </a>
-                )}
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

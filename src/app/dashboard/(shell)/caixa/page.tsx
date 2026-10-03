@@ -7,6 +7,8 @@ import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/cai
 import PeriodoGrid from "@/components/caixa/PeriodoGrid"
 import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
 import CardCarousel from "@/components/ui/CardCarousel"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 import { diaISOemBRT } from "@/lib/data-brt"
 import { fmtMoeda } from "@/lib/formatadores"
 
@@ -904,13 +906,21 @@ export default function CaixaPage() {
 
       {/* Modal — novo lançamento */}
       {modalLancamento && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Novo Lançamento</h2>
-              <button onClick={() => setModalLancamento(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleLancamento} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalLancamento(false)}
+          fecharNoFundo={false}
+          titulo="Novo Lançamento"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalLancamento(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-lancamento" disabled={salvando}>
+                {salvando ? "Registrando..." : "Registrar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-lancamento" onSubmit={handleLancamento} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo *</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -949,19 +959,8 @@ export default function CaixaPage() {
                   ))}
                 </div>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalLancamento(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Registrando..." : "Registrar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal — fechar caixa */}
@@ -987,25 +986,31 @@ export default function CaixaPage() {
         ]
 
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                {detalheTipo ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setDetalheTipo(null)} className="text-zinc-500 hover:text-white transition-colors text-sm">← Voltar</button>
-                    <h2 className="text-white font-bold">
-                      {detalheTipo === "SALDO" ? "Saldo esperado" : linhas.find(l => l.tipo === detalheTipo)?.label}
-                    </h2>
-                  </div>
-                ) : (
-                  <h2 className="text-white font-bold">Fechar Caixa</h2>
-                )}
-                <button onClick={() => { setModalFechar(false); setDetalheTipo(null) }} className="text-zinc-500 hover:text-white text-xl">✕</button>
+          <Modal
+            aberto
+            onFechar={() => { setModalFechar(false); setDetalheTipo(null) }}
+            fecharNoFundo={false}
+            tamanho="sm"
+            titulo={detalheTipo ? (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setDetalheTipo(null)} className="text-fg-3 hover:text-fg transition-colors text-sm">← Voltar</button>
+                <h2 className="text-fg text-sm font-semibold">
+                  {detalheTipo === "SALDO" ? "Saldo esperado" : linhas.find(l => l.tipo === detalheTipo)?.label}
+                </h2>
               </div>
-
+            ) : "Fechar Caixa"}
+            rodape={detalheTipo ? undefined : (
+              <>
+                <Button variant="ghost" onClick={() => setModalFechar(false)}>Cancelar</Button>
+                <Button variant="danger" type="submit" form="form-fechar-caixa" disabled={salvando}>
+                  {salvando ? "Fechando..." : "Fechar caixa"}
+                </Button>
+              </>
+            )}
+          >
               {detalheTipo ? (
                 /* Visão analítica */
-                <div className="p-5 space-y-3">
+                <div className="space-y-3">
                   <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Por método de pagamento</div>
 
                   {detalheTipo === "SALDO" ? (
@@ -1050,7 +1055,7 @@ export default function CaixaPage() {
                 </div>
               ) : (
                 /* Visão sintética + fechamento */
-                <form onSubmit={handleFecharCaixa} className="p-5 space-y-4">
+                <form id="form-fechar-caixa" onSubmit={handleFecharCaixa} className="space-y-4">
                   <div className="bg-zinc-800 rounded-xl overflow-hidden">
                     {linhas.map(({ tipo: t, label, cor, total }) => (
                       <button key={t} type="button"
@@ -1086,20 +1091,9 @@ export default function CaixaPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => setModalFechar(false)}
-                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                      Cancelar
-                    </button>
-                    <button type="submit" disabled={salvando}
-                      className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                      {salvando ? "Fechando..." : "Fechar caixa"}
-                    </button>
-                  </div>
                 </form>
               )}
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 

@@ -6,6 +6,8 @@ import type { DadosPagamento } from "@/components/layout/PagamentoModal"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { hojeISOemBRT } from "@/lib/data-brt"
 import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -520,13 +522,21 @@ export default function AssinaturasPage() {
 
       {/* Modal criar/editar plano */}
       {modalPlano && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">{editandoPlano ? "Editar plano" : "Novo plano"}</h2>
-              <button onClick={() => setModalPlano(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvarPlano} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalPlano(false)}
+          fecharNoFundo={false}
+          titulo={editandoPlano ? "Editar plano" : "Novo plano"}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalPlano(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-plano-assinatura" disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar plano"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-plano-assinatura" onSubmit={handleSalvarPlano} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome do plano *</label>
                 <input value={nomePlano} onChange={e => setNomePlano(e.target.value)} required placeholder="Ex: Plano Full"
@@ -583,19 +593,8 @@ export default function AssinaturasPage() {
               {erroPlano && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroPlano}</div>
               )}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalPlano(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Salvar plano"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
       <PagamentoModal
         dados={dadosRenovacao}

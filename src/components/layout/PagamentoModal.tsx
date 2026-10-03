@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 // ── PIX payload (EMV / BACEN) ──────────────────────────────────────────────
 
@@ -149,16 +151,28 @@ export default function PagamentoModal({
   // Recibo pós-pagamento
   if (recibo) {
     return (
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-          <div className="p-6 text-center border-b border-zinc-800">
+      // Sem titulo: o "✓ Pagamento confirmado" centralizado faz as vezes de
+      // cabecalho, e o recibo antigo tambem nao tinha o ✕
+      <Modal
+        aberto
+        onFechar={onFechar}
+        fecharNoFundo={false}
+        tamanho="sm"
+        rodape={
+          <>
+            <Button variant="neutral" onClick={() => window.print()}>Imprimir</Button>
+            <Button variant="accent" onClick={onFechar}>Fechar</Button>
+          </>
+        }
+      >
+          <div className="pb-4 mb-4 text-center border-b border-zinc-800">
             <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <span className="text-green-400 text-2xl">✓</span>
             </div>
             <h2 className="text-white font-bold text-lg">Pagamento confirmado</h2>
             <p className="text-zinc-500 text-xs mt-1">{recibo.hora}</p>
           </div>
-          <div className="p-5 space-y-3">
+          <div className="space-y-3">
             <div className="bg-zinc-800 rounded-xl p-4 space-y-2.5">
               <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">Recibo</div>
               <div className="flex justify-between">
@@ -193,21 +207,8 @@ export default function PagamentoModal({
               </div>
             </div>
             <p className="text-zinc-600 text-xs text-center">Futuramente disponível: emissão de NFS-e</p>
-            <div className="flex gap-2 pt-1">
-              <button type="button"
-                onClick={() => window.print()}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm border border-zinc-700 transition-colors">
-                Imprimir
-              </button>
-              <button type="button"
-                onClick={onFechar}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2.5 rounded-lg text-sm transition-colors">
-                Fechar
-              </button>
-            </div>
           </div>
-        </div>
-      </div>
+      </Modal>
     )
   }
 
@@ -342,20 +343,26 @@ export default function PagamentoModal({
     : null
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-          <h2 className="text-white font-bold">Registrar pagamento</h2>
-
-          <button
-            onClick={onFechar}
-            className="text-zinc-500 hover:text-white text-xl transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
+    <Modal
+      aberto
+      onFechar={onFechar}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Registrar pagamento"
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onFechar}>Cancelar</Button>
+          <Button variant="accent" onClick={confirmar} disabled={confirmando}>
+            {confirmando
+              ? "Registrando..."
+              : isPagarDepois
+                ? "Registrar pendência"
+                : "Confirmar pagamento"}
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-4">
           {/* Info do agendamento + valor */}
           <div className="bg-zinc-800 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
             <div className="space-y-1 min-w-0">
@@ -471,32 +478,7 @@ export default function PagamentoModal({
               {erro}
             </div>
           )}
-
-          {/* Confirmar */}
-          <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onFechar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="button"
-              onClick={confirmar}
-              disabled={confirmando}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {confirmando
-                ? "Registrando..."
-                : isPagarDepois
-                  ? "Registrar pendência"
-                  : "Confirmar pagamento"}
-            </button>
-          </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

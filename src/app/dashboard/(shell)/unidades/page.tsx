@@ -6,6 +6,8 @@ import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { fmtMoeda } from "@/lib/formatadores"
 import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
 import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -278,21 +280,28 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   const logoSrc = logoPreview || logoUrl
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
-      <div className="w-full max-w-xl bg-zinc-900 flex flex-col h-full overflow-hidden">
-        {/* header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
-          <div>
-            <h2 className="text-white font-bold">{nome || "Configurações da Unidade"}</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">barberos.com/{slug}</p>
-          </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-        </div>
-
+    <Modal
+      aberto
+      onFechar={onClose}
+      fecharNoFundo={false}
+      tamanho="lg"
+      titulo={nome || "Configurações da Unidade"}
+      subtitulo={`barberos.com/${slug}`}
+      // Sem rodape enquanto carrega: o form ainda nao existe para o submit
+      rodape={loading ? undefined : (
+        <>
+          {salvo && <span className="text-green-400 text-sm mr-auto">✓ Salvo</span>}
+          <Button variant="ghost" onClick={onClose}>Fechar</Button>
+          <Button variant="accent" type="submit" form="form-config-unidade" disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </>
+      )}
+    >
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Carregando...</div>
+          <div className="py-10 flex items-center justify-center text-zinc-500 text-sm">Carregando...</div>
         ) : (
-          <form onSubmit={handleSalvar} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <form id="form-config-unidade" onSubmit={handleSalvar} className="space-y-3">
 
             {/* Logo */}
             <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>
@@ -535,21 +544,9 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">{erro}</div>
             )}
 
-            <div className="flex items-center gap-3 pb-6">
-              <button type="submit" disabled={salvando}
-                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
-                {salvando ? "Salvando..." : "Salvar alterações"}
-              </button>
-              {salvo && <span className="text-green-400 text-sm">✓ Salvo</span>}
-              <button type="button" onClick={onClose} className="ml-auto text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-                Fechar
-              </button>
-            </div>
-
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -793,13 +790,21 @@ export default function UnidadesPage() {
 
       {/* Modal nova unidade */}
       {modalNova && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Nova Unidade</h2>
-              <button onClick={() => { setModalNova(false); setErroCriacao("") }} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={criarUnidade} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => { setModalNova(false); setErroCriacao("") }}
+          fecharNoFundo={false}
+          titulo="Nova Unidade"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => { setModalNova(false); setErroCriacao("") }}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-nova-unidade" disabled={criando || !novoNome.trim()}>
+                {criando ? "Criando..." : "Criar unidade"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-nova-unidade" onSubmit={criarUnidade} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome da unidade *</label>
                 <input
@@ -823,19 +828,8 @@ export default function UnidadesPage() {
               </div>
               <p className="text-zinc-600 text-xs">O slug e demais configurações podem ser ajustados após a criação.</p>
               {erroCriacao && <div className="text-red-400 text-sm">{erroCriacao}</div>}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => { setModalNova(false); setErroCriacao("") }}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={criando || !novoNome.trim()}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {criando ? "Criando..." : "Criar unidade"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Config drawer */}

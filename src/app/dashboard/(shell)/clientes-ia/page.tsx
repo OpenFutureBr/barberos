@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
 
 type ClienteIA = {
   id: string
@@ -275,16 +276,13 @@ export default function ClientesIAPage() {
 
       {/* Modal mensagem recuperação */}
       {recuperando && clienteRecuperando && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => { setRecuperando(null); setMensagemIA(null) }}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold">💬 Recuperar cliente</h2>
-                <p className="text-zinc-500 text-xs mt-0.5">{clienteRecuperando.nome}</p>
-              </div>
-              <button onClick={() => { setRecuperando(null); setMensagemIA(null) }} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => { setRecuperando(null); setMensagemIA(null) }}
+          titulo="💬 Recuperar cliente"
+          subtitulo={clienteRecuperando.nome}
+        >
+            <div className="space-y-4">
               {gerandoMsg ? (
                 <div className="text-zinc-500 text-sm animate-pulse text-center py-4">⬡ IA gerando mensagem personalizada...</div>
               ) : mensagemIA ? (
@@ -311,8 +309,7 @@ export default function ClientesIAPage() {
                 </>
               ) : null}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   )

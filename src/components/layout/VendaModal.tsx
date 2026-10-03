@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { getCache, setCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 import { useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -137,9 +139,12 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
   ).slice(0, 6)
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+    <Modal
+      aberto
+      onFechar={onFechar}
+      fecharNoFundo={false}
+      titulo={
+        <div className="flex items-center gap-3">
           {/* Tabs */}
           <div className="flex bg-zinc-800 rounded-lg overflow-hidden">
             <button type="button" onClick={() => setAbaVenda("nova")}
@@ -151,20 +156,30 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               Fechar comanda
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            {abaVenda === "nova" && itens.length > 0 && (
-              <button type="button" onClick={limparCarrinho}
-                className="text-zinc-600 hover:text-red-400 text-xs transition-colors">
-                Limpar
-              </button>
-            )}
-            <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-          </div>
+          {abaVenda === "nova" && itens.length > 0 && (
+            <button type="button" onClick={limparCarrinho}
+              className="text-zinc-600 hover:text-red-400 text-xs transition-colors">
+              Limpar
+            </button>
+          )}
         </div>
+      }
+      // A aba "Fechar comanda" cobra direto em cada card, sem rodape
+      rodape={abaVenda === "nova" ? (
+        <>
+          <Button variant="ghost" onClick={onFechar}>
+            {itens.length > 0 ? "Fechar (manter carrinho)" : "Cancelar"}
+          </Button>
+          <Button variant="accent" type="submit" form="form-venda" disabled={!itens.length}>
+            {itens.length ? `Finalizar cobrança · ${fmtMoeda(itens.reduce((s, i) => s + i.qty * i.unitPrice, 0))}` : "Adicione produtos"}
+          </Button>
+        </>
+      ) : undefined}
+    >
 
         {/* Aba Fechar Comanda */}
         {abaVenda === "fechar" && (
-          <div className="p-4 space-y-2">
+          <div className="space-y-2">
             {loadingComandas ? (
               <div className="text-center py-8 text-zinc-600 text-sm">Carregando...</div>
             ) : comandasAbertas.length === 0 ? (
@@ -233,7 +248,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
 
         {/* Aba Nova Venda */}
         {abaVenda === "nova" && (
-        <form onSubmit={handleFinalizar} className="p-5 space-y-4">
+        <form id="form-venda" onSubmit={handleFinalizar} className="space-y-4">
 
           {/* Cliente */}
           <div className="relative">
@@ -247,7 +262,9 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               onChange={(e) => { setBuscaCliente(e.target.value); setClienteVenda(e.target.value); setDropdownCliente(true) }}
               onFocus={() => setDropdownCliente(true)}
               onBlur={() => setTimeout(() => setDropdownCliente(false), 150)}
-              onKeyDown={(e) => { if (e.key === "Escape") setDropdownCliente(false) }}
+              // Com a lista aberta, o Escape so fecha a lista (o Modal ignora
+              // Esc com defaultPrevented) — senao fecharia a venda inteira
+              onKeyDown={(e) => { if (e.key === "Escape") { if (dropdownCliente) e.preventDefault(); setDropdownCliente(false) } }}
               placeholder={clientesHojeIds.size > 0 ? "Buscar ou selecionar cliente de hoje..." : "Buscar ou digitar nome..."}
               className={inputCls} />
 
@@ -355,20 +372,8 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               Adicione produtos ao carrinho para registrar a venda
             </div>
           )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onFechar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {itens.length > 0 ? "Fechar (manter carrinho)" : "Cancelar"}
-            </button>
-            <button type="submit" disabled={!itens.length}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {itens.length ? `Finalizar cobrança · ${fmtMoeda(itens.reduce((s, i) => s + i.qty * i.unitPrice, 0))}` : "Adicione produtos"}
-            </button>
-          </div>
         </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

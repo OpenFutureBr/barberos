@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 type NotaPendente = {
   id: string
@@ -251,13 +253,19 @@ export default function FiscalPage() {
 
       {/* Modal emitir NF-e */}
       {modalEmitir && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Emitir NF-e</h2>
-              <button onClick={() => setModalEmitir(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleEmitir} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalEmitir(false)}
+          fecharNoFundo={false}
+          titulo="Emitir NF-e"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalEmitir(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-emitir-nfe">Fechar</Button>
+            </>
+          }
+        >
+            <form id="form-emitir-nfe" onSubmit={handleEmitir} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Cliente *</label>
                 <input value={cliente} onChange={(e) => setCliente(e.target.value)} required placeholder="Nome do cliente" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
@@ -273,13 +281,8 @@ export default function FiscalPage() {
               <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 text-xs text-zinc-400">
                 ⚠ A emissão real de NF-e ainda não está integrada a nenhum provedor. Esta tela só organiza os dados — nada é enviado.
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalEmitir(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">Fechar</button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

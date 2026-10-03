@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 function tempoComoCliente(createdAt: string): string {
   const dias = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000)
@@ -390,13 +392,21 @@ export default function ClientesPage() {
       )}
 
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Novo Cliente</h2>
-              <button onClick={fecharModal} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={fecharModal}
+          fecharNoFundo={false}
+          titulo="Novo Cliente"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-novo-cliente" disabled={salvando || telefoneExiste}>
+                {salvando ? "Salvando..." : "Cadastrar cliente"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-novo-cliente" onSubmit={handleSalvar} className="space-y-3">
 
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
@@ -501,20 +511,8 @@ export default function ClientesPage() {
                   {erro}
                 </div>
               )}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={fecharModal}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando || telefoneExiste}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Cadastrar cliente"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

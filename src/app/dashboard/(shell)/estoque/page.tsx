@@ -7,6 +7,8 @@ import { fetchJsonSafe } from "@/lib/safe-fetch"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { fmtMoeda } from "@/lib/formatadores"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -196,7 +198,8 @@ function ComboboxGrupo({ value, onChange, grupos }: {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") { e.preventDefault(); if (filtrados.length === 1) { selecionar(filtrados[0]); return }; if (exibirCriar) setConfirmarCriar(true) }
-    if (e.key === "Escape") { setAberto(false); setConfirmarCriar(false) }
+    // Com a lista aberta o Esc so fecha a lista, nao o modal de produto em volta
+    if (e.key === "Escape") { if (aberto) e.preventDefault(); setAberto(false); setConfirmarCriar(false) }
   }
 
   return (
@@ -234,17 +237,26 @@ function ComboboxGrupo({ value, onChange, grupos }: {
 
 function ModalAlcool({ subgrupo, onConfirm }: { subgrupo: string; onConfirm: (v: boolean) => void }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6 text-center">
+    // Escape/X contam como "Não": e o mesmo que o handler faz com false, e o
+    // subgrupo escolhido nao fica pendente sem resposta.
+    <Modal
+      aberto
+      onFechar={() => onConfirm(false)}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo={subgrupo}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={() => onConfirm(false)}>Não</Button>
+          <Button variant="accent" onClick={() => onConfirm(true)}>Sim, contém álcool</Button>
+        </>
+      }
+    >
+      <div className="text-center">
         <div className="text-3xl mb-3">🍺</div>
-        <h3 className="text-white font-bold mb-1">{subgrupo}</h3>
-        <p className="text-zinc-400 text-sm mb-5">Este produto contém álcool?</p>
-        <div className="flex gap-3">
-          <button onClick={() => onConfirm(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm">Não</button>
-          <button onClick={() => onConfirm(true)} className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2.5 rounded-lg text-sm">Sim, contém álcool</button>
-        </div>
+        <p className="text-zinc-400 text-sm">Este produto contém álcool?</p>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1463,16 +1475,23 @@ function EstoqueInner() {
 
       {/* MODAL LANÇAMENTO DO CATÁLOGO */}
       {modalLancamento && itemLancando && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold">Lançar no Estoque</h2>
-                <p className="text-zinc-500 text-xs mt-0.5 truncate max-w-[240px]">{itemLancando.name}</p>
-              </div>
-              <button onClick={() => setModalLancamento(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={confirmarLancamento} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalLancamento(false)}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="Lançar no Estoque"
+          subtitulo={itemLancando.name}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalLancamento(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-lancamento" disabled={salvandoLancamento}>
+                {salvandoLancamento ? "Lançando..." : "Confirmar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-lancamento" onSubmit={confirmarLancamento} className="space-y-3">
               {itemLancando.photoUrl && (
                 <img src={itemLancando.photoUrl} alt={itemLancando.name}
                   className="w-full h-32 object-cover rounded-xl bg-zinc-800"
@@ -1503,17 +1522,8 @@ function EstoqueInner() {
                   </span>
                 </div>
               )}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalLancamento(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvandoLancamento}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoLancamento ? "Lançando..." : "Confirmar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* MODAL EDITAR PRODUTO */}
@@ -1530,14 +1540,18 @@ function EstoqueInner() {
           </div>
         )
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setProdutoVendo(null)}>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                <h2 className="text-white font-bold">Detalhes do produto</h2>
-                <button onClick={() => setProdutoVendo(null)} aria-label="Fechar" className="text-zinc-500 hover:text-white text-xl">✕</button>
-              </div>
-
-              <div className="p-5">
+          <Modal
+            aberto
+            onFechar={() => setProdutoVendo(null)}
+            titulo="Detalhes do produto"
+            rodape={
+              <>
+                <Button variant="ghost" onClick={() => setProdutoVendo(null)}>Fechar</Button>
+                <Button variant="accent" onClick={() => { setProdutoVendo(null); abrirEditar(v) }}>Editar</Button>
+              </>
+            }
+          >
+              <div>
                 <div className="flex items-start gap-3 mb-4">
                   <FotoProduto url={v.photoUrl} nome={v.name} tamanho="md" />
                   <div className="min-w-0">
@@ -1568,31 +1582,27 @@ function EstoqueInner() {
                     Apagar levaria embora lançamentos já contabilizados no financeiro.
                   </p>
                 )}
-
-                <div className="flex gap-2 mt-5">
-                  <button type="button" onClick={() => setProdutoVendo(null)}
-                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                    Fechar
-                  </button>
-                  <button type="button" onClick={() => { setProdutoVendo(null); abrirEditar(v) }}
-                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                    Editar
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 
       {modalEditar && produtoEditando && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Editar Produto</h2>
-              <button onClick={() => setModalEditar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={handleSalvarEdicao} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalEditar(false)}
+          fecharNoFundo={false}
+          titulo="Editar Produto"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalEditar(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-editar-produto" disabled={salvandoEdicao}>
+                {salvandoEdicao ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-editar-produto" onSubmit={handleSalvarEdicao} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome *</label>
                 <input value={nomeEdit} onChange={(e) => setNomeEdit(e.target.value)} required className={inputCls} />
@@ -1640,28 +1650,27 @@ function EstoqueInner() {
                 <span className={`text-sm ${alcoolEdit ? "text-amber-400" : "text-zinc-400"}`}>🔞 Produto alcoólico</span>
               </div>
               {erroEdit && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroEdit}</div>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalEditar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvandoEdicao}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoEdicao ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* MODAL NOVO PRODUTO */}
       {modalNovo && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Novo Produto</h2>
-              <button onClick={() => setModalNovo(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalNovo(false)}
+          fecharNoFundo={false}
+          titulo="Novo Produto"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalNovo(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-novo-produto" disabled={salvando}>
+                {salvando ? "Salvando..." : "Cadastrar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-novo-produto" onSubmit={handleSalvar} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome do produto *</label>
                 <input value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="Ex: Pomada Matte" className={inputCls} />
@@ -1709,44 +1718,46 @@ function EstoqueInner() {
                 <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className={inputCls} />
               </div>
               {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalNovo(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Cadastrar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {mostrarModalAlcool && <ModalAlcool subgrupo={subgrupoAlcoolPendente} onConfirm={handleConfirmarAlcool} />}
 
       {/* MODAL ENTRADA DE MERCADORIA */}
       {modalEntrada && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 flex-shrink-0">
-              <h2 className="text-white font-bold">Entrada de Mercadoria</h2>
-              <button onClick={fecharModalEntrada} className="text-zinc-500 hover:text-white text-xl">✕</button>
+        <Modal
+          aberto
+          onFechar={fecharModalEntrada}
+          fecharNoFundo={false}
+          titulo={
+            <div>
+              <h2 className="text-fg text-sm font-semibold truncate">Entrada de Mercadoria</h2>
+              {/* Abas no cabecalho: ficam visiveis enquanto o corpo rola */}
+              <div className="flex mt-2">
+                {(["simples","estratificada"] as const).map(t => (
+                  <button key={t} type="button" onClick={() => setTipoEntrada(t)}
+                    className={`flex-1 px-3 py-2 text-xs font-semibold tracking-wide uppercase transition-colors ${
+                      tipoEntrada === t ? "text-amber-400 border-b-2 border-amber-500" : "text-zinc-500 hover:text-zinc-300"
+                    }`}>
+                    {t === "simples" ? "Simples" : "Estratificada (NF-e)"}
+                  </button>
+                ))}
+              </div>
             </div>
-
-            {/* Abas */}
-            <div className="flex border-b border-zinc-800 flex-shrink-0">
-              {(["simples","estratificada"] as const).map(t => (
-                <button key={t} onClick={() => setTipoEntrada(t)}
-                  className={`flex-1 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${
-                    tipoEntrada === t ? "text-amber-400 border-b-2 border-amber-500" : "text-zinc-500 hover:text-zinc-300"
-                  }`}>
-                  {t === "simples" ? "Simples" : "Estratificada (NF-e)"}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={confirmarEntrada} className="flex-1 overflow-y-auto p-5 space-y-4">
+          }
+          rodape={
+            <>
+              <Button variant="ghost" onClick={fecharModalEntrada}>Cancelar</Button>
+              <Button variant="success" type="submit" form="form-entrada" disabled={salvandoEntrada ||
+                (tipoEntrada === "simples" && itensEntrada.length === 0) ||
+                (tipoEntrada === "estratificada" && (!dadosNfe || itensNfe.filter(i => i.produto).length === 0))}>
+                {salvandoEntrada ? "Salvando..." : `Confirmar ${tipoEntrada === "simples" ? itensEntrada.length : itensNfe.filter(i=>i.produto).length} item(ns)`}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-entrada" onSubmit={confirmarEntrada} className="space-y-4">
 
               {/* ── ABA SIMPLES ── */}
               {tipoEntrada === "simples" && (
@@ -1988,23 +1999,8 @@ function EstoqueInner() {
                     className={inputCls} />
                 </div>
               )}
-
-              {/* Botões */}
-              <div className="flex gap-3 pt-1 flex-shrink-0">
-                <button type="button" onClick={fecharModalEntrada}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvandoEntrada ||
-                  (tipoEntrada === "simples" && itensEntrada.length === 0) ||
-                  (tipoEntrada === "estratificada" && (!dadosNfe || itensNfe.filter(i => i.produto).length === 0))}
-                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-40 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                  {salvandoEntrada ? "Salvando..." : `Confirmar ${tipoEntrada === "simples" ? itensEntrada.length : itensNfe.filter(i=>i.produto).length} item(ns)`}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
 
