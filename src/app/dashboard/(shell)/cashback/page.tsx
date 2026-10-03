@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
 
 
@@ -101,40 +101,11 @@ export default function CashbackPage() {
       </div>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="distribuido" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 h-full">
-            <div className="text-amber-400 text-xs font-mono uppercase tracking-widest mb-1">Total distribuído</div>
-            {loading
-              ? <div className="h-8 bg-amber-500/10 rounded animate-pulse" />
-              : <div className="text-amber-400 text-2xl font-bold">{fmtMoeda(totalEarned)}</div>
-            }
-            <div className="text-zinc-500 text-xs mt-1">acumulado no programa</div>
-          </div>,
-          <div key="resgatado" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Total resgatado</div>
-            {loading
-              ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
-              : <div className="text-green-400 text-2xl font-bold">{fmtMoeda(totalRedeemed)}</div>
-            }
-            <div className="text-zinc-600 text-xs mt-1">pelos clientes</div>
-          </div>,
-          <div key="saldo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Saldo ativo</div>
-            {loading
-              ? <div className="h-8 bg-zinc-800 rounded animate-pulse" />
-              : <div className="text-blue-400 text-2xl font-bold">{fmtMoeda(saldoAtivo)}</div>
-            }
-            <div className="text-zinc-600 text-xs mt-1">em carteiras dos clientes</div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={3} className="mb-4">{[
+        <Stat key="distribuido" destaque tone="accent" carregando={loading} rotulo="Total distribuído" valor={fmtMoeda(totalEarned)} apoio="acumulado no programa" />,
+        <Stat key="resgatado" tone="success" carregando={loading} rotulo="Total resgatado" valor={fmtMoeda(totalRedeemed)} apoio="pelos clientes" />,
+        <Stat key="saldo" tone="info" carregando={loading} rotulo="Saldo ativo" valor={fmtMoeda(saldoAtivo)} apoio="em carteiras dos clientes" />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">

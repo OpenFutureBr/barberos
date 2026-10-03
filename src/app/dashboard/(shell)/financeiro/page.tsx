@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL } from "@/lib/categorias-caixa"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
 
 
@@ -500,61 +500,13 @@ export default function FinanceiroPage() {
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       {(() => {
-        const kpis = [
-          <div key="receita" className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 h-full">
-            <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
-              Receita total
-            </div>
-            {loading ? (
-              <div className="h-8 bg-green-500/10 rounded animate-pulse" />
-            ) : (
-              <div className="text-green-400 text-2xl font-bold">
-                {fmtMoeda(dre?.totalReceitas ?? 0)}
-              </div>
-            )}
-          </div>,
-          <div key="areceber" className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 h-full">
-            <div className="text-orange-400 text-xs font-mono uppercase tracking-widest mb-1">
-              A receber
-            </div>
-            {loading ? (
-              <div className="h-8 bg-orange-500/10 rounded animate-pulse" />
-            ) : (
-              <div className="text-orange-400 text-2xl font-bold">
-                {fmtMoeda(resumoPendencias.totalPendente)}
-              </div>
-            )}
-          </div>,
-          <div key="vencido" className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 h-full">
-            <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
-              Vencido
-            </div>
-            {loading ? (
-              <div className="h-8 bg-red-500/10 rounded animate-pulse" />
-            ) : (
-              <div className="text-red-400 text-2xl font-bold">
-                {fmtMoeda(resumoPendencias.totalVencido)}
-              </div>
-            )}
-          </div>,
-          <div key="repasses" className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 h-full">
-            <div className="text-blue-400 text-xs font-mono uppercase tracking-widest mb-1">
-              Repasses
-            </div>
-            {loading ? (
-              <div className="h-8 bg-blue-500/10 rounded animate-pulse" />
-            ) : (
-              <div className="text-blue-400 text-2xl font-bold">
-                {fmtMoeda(totalRepasses)}
-              </div>
-            )}
-          </div>,
-        ]
         return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
-          </div>
+          <KpiGrid colunas={4} className="mb-4">{[
+            <Stat key="receita" destaque tone="success" carregando={loading} rotulo="Receita total" valor={fmtMoeda(dre?.totalReceitas ?? 0)} />,
+            <Stat key="areceber" destaque tone="warning" carregando={loading} rotulo="A receber" valor={fmtMoeda(resumoPendencias.totalPendente)} />,
+            <Stat key="vencido" destaque tone="danger" carregando={loading} rotulo="Vencido" valor={fmtMoeda(resumoPendencias.totalVencido)} />,
+            <Stat key="repasses" destaque tone="info" carregando={loading} rotulo="Repasses" valor={fmtMoeda(totalRepasses)} />,
+          ]}</KpiGrid>
         )
       })()}
 
@@ -1084,12 +1036,9 @@ export default function FinanceiroPage() {
                     </div>
                   </div>,
                 ]
-                return (
-                  <div className="mt-4">
-                    <CardCarousel cards={kpisEvolucao} />
-                    <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisEvolucao}</div>
-                  </div>
-                )
+                // Mini-resumos dentro do painel do grafico: ficam compactos, so a
+                // fileira vem do kit
+                return <KpiGrid colunas={3} className="mt-4">{kpisEvolucao}</KpiGrid>
               })()}
             </>
           )}

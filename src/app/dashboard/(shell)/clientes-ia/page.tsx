@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import { fmtMoeda } from "@/lib/formatadores"
 import { useAviso } from "@/components/ui/Avisos"
 import Modal from "@/components/ui/Modal"
 
@@ -134,36 +135,12 @@ export default function ClientesIAPage() {
       </div>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="vip" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Clientes VIP</div>
-            <div className="text-amber-400 text-2xl font-bold">{loading ? "—" : vips}</div>
-            <div className="text-zinc-600 text-xs mt-1">alta frequência e valor</div>
-          </div>,
-          <div key="risco" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Em risco</div>
-            <div className="text-red-400 text-2xl font-bold">{loading ? "—" : emRisco}</div>
-            <div className="text-zinc-600 text-xs mt-1">acima do intervalo habitual</div>
-          </div>,
-          <div key="inativos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-zinc-600 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Inativos</div>
-            <div className="text-zinc-400 text-2xl font-bold">{loading ? "—" : inativos}</div>
-            <div className="text-zinc-600 text-xs mt-1">sem visita há muito tempo</div>
-          </div>,
-          <div key="ticket" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Ticket médio</div>
-            <div className="text-blue-400 text-2xl font-bold">{loading ? "—" : `R$ ${ticketMedio}`}</div>
-            <div className="text-zinc-600 text-xs mt-1">média geral da base</div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={4} className="mb-4">{[
+        <Stat key="vip" tone="accent" carregando={loading} rotulo="Clientes VIP" valor={vips} apoio="alta frequência e valor" />,
+        <Stat key="risco" tone="danger" carregando={loading} rotulo="Em risco" valor={emRisco} apoio="acima do intervalo habitual" />,
+        <Stat key="inativos" tone="apagado" carregando={loading} rotulo="Inativos" valor={inativos} apoio="sem visita há muito tempo" />,
+        <Stat key="ticket" tone="info" carregando={loading} rotulo="Ticket médio" valor={fmtMoeda(ticketMedio)} apoio="média geral da base" />,
+      ]}</KpiGrid>
 
       {/* Filtros */}
       <div className="flex items-center justify-between mb-3">

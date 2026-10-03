@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "rea
 import { useSearchParams } from "next/navigation"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 import Modal from "@/components/ui/Modal"
@@ -806,31 +806,11 @@ function EstoqueInner() {
       </div>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="valor" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
-            <div className="text-blue-400 text-xl font-bold">{fmtMoeda(totalEstoque)}</div>
-            <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
-          </div>,
-          <div key="criticos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
-            <div className="text-red-400 text-xl font-bold">{criticos}</div>
-            <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
-          </div>,
-          <div key="catalogo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
-            <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
-            <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={3} className="mb-4">{[
+        <Stat key="valor" tone="info" rotulo="Valor em estoque" valor={fmtMoeda(totalEstoque)} apoio={`${produtos.filter(p => p.isActive).length} ativos`} />,
+        <Stat key="criticos" tone="danger" rotulo="Itens críticos" valor={criticos} apoio="abaixo do mínimo" />,
+        <Stat key="catalogo" tone="accent" rotulo="Catálogo" valor={catalogoProdutos.length + meusProdutos.length} apoio="pré-definidos + meus" />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">

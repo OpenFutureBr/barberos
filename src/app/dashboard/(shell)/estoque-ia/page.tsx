@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 
 type Previsao = {
@@ -85,33 +85,12 @@ export default function EstoqueIAPage() {
       </div>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="critico" className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 h-full">
-            <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">Ruptura iminente</div>
-            <div className="text-red-400 text-3xl font-bold">{criticos}</div>
-            <div className="text-zinc-500 text-xs mt-1">produtos em situação crítica</div>
-          </div>,
-          <div key="atencao" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 h-full">
-            <div className="text-amber-400 text-xs font-mono uppercase tracking-widest mb-1">Atenção</div>
-            <div className="text-amber-400 text-3xl font-bold">{atencao}</div>
-            <div className="text-zinc-500 text-xs mt-1">produtos com estoque baixo</div>
-          </div>,
-          <div key="selecionados" className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 h-full">
-            <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Itens selecionados</div>
-            <div className="text-purple-400 text-3xl font-bold">{pedidoAberto.length}</div>
-            <div className="text-zinc-500 text-xs mt-1">
-              {pedidoAberto.length > 0 ? `${totalPedido} unidades no pedido` : "selecione para pedir"}
-            </div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={3} className="mb-4">{[
+        <Stat key="critico" destaque tone="danger" rotulo="Ruptura iminente" valor={criticos} apoio="produtos em situação crítica" />,
+        <Stat key="atencao" destaque tone="accent" rotulo="Atenção" valor={atencao} apoio="produtos com estoque baixo" />,
+        <Stat key="selecionados" destaque tone="purple" rotulo="Itens selecionados" valor={pedidoAberto.length}
+          apoio={pedidoAberto.length > 0 ? `${totalPedido} unidades no pedido` : "selecione para pedir"} />,
+      ]}</KpiGrid>
 
       {/* Insight IA */}
       {(loading || insight) && (

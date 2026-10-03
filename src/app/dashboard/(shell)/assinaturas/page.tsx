@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { hojeISOemBRT } from "@/lib/data-brt"
 import { fmtMoeda } from "@/lib/formatadores"
 import Modal from "@/components/ui/Modal"
@@ -228,25 +228,12 @@ export default function AssinaturasPage() {
       </div>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          { label: "Planos ativos", val: planosAtivos.length, cor: "text-amber-400" },
-          { label: "Assinantes", val: totalAssinantes, cor: "text-white" },
-          { label: "Receita mensal", val: fmtMoeda(totalReceita), cor: "text-green-400" },
-          { label: "Em atraso", val: atrasados, cor: atrasados > 0 ? "text-red-400" : "text-zinc-600" },
-        ].map(k => (
-          <div key={k.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">{k.label}</div>
-            {loading ? <div className="h-7 bg-zinc-800 rounded animate-pulse" /> : <div className={`text-xl font-bold ${k.cor}`}>{k.val}</div>}
-          </div>
-        ))
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={4} className="mb-4">{[
+        <Stat key="planos" tone="accent" carregando={loading} rotulo="Planos ativos" valor={planosAtivos.length} />,
+        <Stat key="assinantes" carregando={loading} rotulo="Assinantes" valor={totalAssinantes} />,
+        <Stat key="receita" tone="success" carregando={loading} rotulo="Receita mensal" valor={fmtMoeda(totalReceita)} />,
+        <Stat key="atraso" tone={atrasados > 0 ? "danger" : "apagado"} carregando={loading} rotulo="Em atraso" valor={atrasados} />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">

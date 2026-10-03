@@ -6,7 +6,7 @@ import { BucketPeriodo, CoresGrafico, lerCoresGrafico, salvarCoresGrafico, expor
 import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/caixa/icons"
 import PeriodoGrid from "@/components/caixa/PeriodoGrid"
 import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import Modal from "@/components/ui/Modal"
 import Button from "@/components/ui/Button"
 import { diaISOemBRT } from "@/lib/data-brt"
@@ -521,29 +521,15 @@ export default function CaixaPage() {
 
         {/* KPIs — refletem o bucket selecionado no drill-down, se houver — carrossel no mobile, grid no desktop */}
         {(() => {
-          const kpisHoje = [
-            <div key="receitas" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
-                Receitas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
-              </div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.entradas : receitas)}</div>}
-            </div>,
-            <div key="despesas" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
-                Despesas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
-              </div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.saidas : despesas)}</div>}
-            </div>,
-            <div key="sangrias" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Sangrias</div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-amber-400 text-xl font-bold">{fmtMoeda(sangrias)}</div>}
-            </div>,
-          ]
+          const sufixo = bucketHojeAtivo && <span className="text-accent">· {bucketHojeAtivo.label}</span>
           return (
-            <>
-              <CardCarousel cards={kpisHoje} />
-              <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisHoje}</div>
-            </>
+            <KpiGrid colunas={3}>{[
+              <Stat key="receitas" tone="success" carregando={loading}
+                rotulo={<>Receitas {sufixo}</>} valor={fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.entradas : receitas)} />,
+              <Stat key="despesas" tone="danger" carregando={loading}
+                rotulo={<>Despesas {sufixo}</>} valor={fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.saidas : despesas)} />,
+              <Stat key="sangrias" tone="accent" carregando={loading} rotulo="Sangrias" valor={fmtMoeda(sangrias)} />,
+            ]}</KpiGrid>
           )
         })()}
       </div>
@@ -679,55 +665,24 @@ export default function CaixaPage() {
           <div className="sticky top-[var(--h-topbar)] z-10 bg-zinc-950 pb-3 space-y-3">
             {/* Resumo do período — reflete o bucket selecionado no drill-down, se houver — carrossel no mobile, grid no desktop */}
             {(() => {
-              const kpisFluxo = [
-                <div key="entradas" className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 h-full">
-                  <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
-                    Entradas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
-                  </div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-green-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.entradas : fluxo?.totalEntradas ?? 0)}</div>
-                  )}
-                </div>,
-                <div key="saidas" className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 h-full">
-                  <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
-                    Saídas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
-                  </div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-red-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.saidas : fluxo?.totalSaidas ?? 0)}</div>
-                  )}
-                </div>,
-                (() => {
-                  const saldoExibido = bucketFluxoAtivo ? bucketFluxoAtivo.entradas - bucketFluxoAtivo.saidas : fluxo?.saldoFinal ?? 0
-                  return (
-                    <div key="saldo" className={`border rounded-xl p-4 h-full ${saldoExibido >= 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-red-500/5 border-red-500/20"}`}>
-                      <div className={`text-xs font-mono uppercase tracking-widest mb-1 ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>Saldo</div>
-                      {loadingFluxo ? (
-                        <div className="h-7 bg-amber-500/10 rounded animate-pulse" />
-                      ) : (
-                        <div className={`text-xl font-bold ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>{fmtMoeda(saldoExibido)}</div>
-                      )}
-                    </div>
-                  )
-                })(),
-                <div key="projecao" className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4 h-full">
-                  <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Projeção de receita</div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-purple-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.projecao ?? 0 : fluxo?.totalProjetado ?? 0)}</div>
-                  )}
-                  <div className="text-purple-600/60 text-xs mt-1">pendentes + agendamentos futuros</div>
-                </div>,
-              ]
+              const sufixo = bucketFluxoAtivo && <span className="text-accent normal-case">· {bucketFluxoAtivo.label}</span>
+              const saldoExibido = bucketFluxoAtivo ? bucketFluxoAtivo.entradas - bucketFluxoAtivo.saidas : fluxo?.saldoFinal ?? 0
               return (
-                <>
-                  <CardCarousel cards={kpisFluxo} />
-                  <div className="hidden md:grid md:grid-cols-4 gap-3">{kpisFluxo}</div>
-                </>
+                <KpiGrid colunas={4}>{[
+                  <Stat key="entradas" destaque tone="success" carregando={loadingFluxo}
+                    rotulo={<>Entradas {sufixo}</>}
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.entradas : fluxo?.totalEntradas ?? 0)} />,
+                  <Stat key="saidas" destaque tone="danger" carregando={loadingFluxo}
+                    rotulo={<>Saídas {sufixo}</>}
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.saidas : fluxo?.totalSaidas ?? 0)} />,
+                  <Stat key="saldo" destaque tone={saldoExibido >= 0 ? "accent" : "danger"} carregando={loadingFluxo}
+                    rotulo="Saldo" valor={fmtMoeda(saldoExibido)} />,
+                  // Tracejado: e projecao, nao dinheiro que ja entrou
+                  <Stat key="projecao" destaque tone="purple" carregando={loadingFluxo} className="border-dashed"
+                    rotulo="Projeção de receita"
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.projecao ?? 0 : fluxo?.totalProjetado ?? 0)}
+                    apoio="pendentes + agendamentos futuros" />,
+                ]}</KpiGrid>
               )
             })()}
 
