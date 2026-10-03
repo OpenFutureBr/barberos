@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { verificarCoberturaAssinatura, consumirCorteAssinatura } from "@/lib/assinatura"
+import { gravarCreditoCashback } from "@/lib/cashback"
 
 type CashbackConfig = {
   servicos: number
@@ -95,51 +96,6 @@ async function getCashbackConfig(estabId: string): Promise<CashbackConfig & { id
   } catch {}
 
   return defaultCashbackConfig
-}
-
-function calcularNivel(totalGasto: number): "BRONZE" | "SILVER" | "GOLD" | "VIP" {
-  if (totalGasto >= 5000) return "VIP"
-  if (totalGasto >= 2000) return "GOLD"
-  if (totalGasto >= 500) return "SILVER"
-
-  return "BRONZE"
-}
-
-async function calcularSegmento(clientId: string, novoTotalAtend: number): Promise<string> {
-  // VIP: assinante ativo
-  const sub = await prisma.subscription.findUnique({
-    where: {
-      clientId,
-    },
-    select: {
-      status: true,
-    },
-  })
-
-  if (sub?.status === "ACTIVE") return "VIP"
-
-  // VIP: 5+ cortes nos últimos 30 dias
-  const trintaDias = new Date()
-  trintaDias.setDate(trintaDias.getDate() - 30)
-
-  const recentes = await prisma.appointment.count({
-    where: {
-      clientId,
-      status: "DONE" as any,
-      scheduledAt: {
-        gte: trintaDias,
-      },
-    },
-  })
-
-  if (recentes >= 5) return "VIP"
-
-  // Níveis por total de atendimentos
-  if (novoTotalAtend <= 2) return "NEW"
-  if (novoTotalAtend <= 9) return "REGULAR"
-  if (novoTotalAtend <= 19) return "AT_RISK"
-
-  return "INACTIVE"
 }
 
 export async function POST(request: Request) {
@@ -289,7 +245,6 @@ export async function POST(request: Request) {
       paymentStatus === "PAID" && pagamentoAnterior?.status !== "PAID"
 
     if (deveCreditarCashback && appt.client) {
-      const clientId = appt.client.id
       const cashbackCfg = await getCashbackConfig(appt.establishmentId)
 
       // Separa serviço de produtos
@@ -315,150 +270,18 @@ export async function POST(request: Request) {
           ? `${appt.service?.name ?? "Serviço"} · ${pctServico}% + produtos · ${pctProduto}%`
           : `${appt.service?.name ?? "Serviço"} · ${pctServico}%`
 
-      // Upsert da conta de fidelidade
-      const loyaltyAccount = await prisma.loyaltyAccount.upsert({
-        where: {
-          clientId,
-        },
-        create: {
-          clientId,
-          totalEarned: cashbackValor,
-          totalRedeemed: 0,
-          currentBalance: cashbackValor,
-          totalPoints: Math.floor(valorPago),
-        },
-        update: {
-          totalEarned: {
-            increment: cashbackValor,
-          },
-          currentBalance: {
-            increment: cashbackValor,
-          },
-          totalPoints: {
-            increment: Math.floor(valorPago),
-          },
-        },
-      })
-
-      // Registra a transação com auditoria completa dos percentuais aplicados
-      await prisma.loyaltyTransaction.create({
-        data: {
-          loyaltyAccountId: loyaltyAccount.id,
-          type: "EARNED",
-          amount: cashbackValor,
-          description: descricao,
-          servicoBase: valorServico,
-          servicoRate: pctServico,
-          produtoBase: valorProdutos > 0 ? valorProdutos : null,
-          produtoRate: valorProdutos > 0 ? pctProduto : null,
-          ...(cashbackCfg.id ? { cashbackConfigId: cashbackCfg.id } : {}),
-        },
-      })
-
-      // Calcula corte e produto favorito do cliente
-      const todasAppts = await prisma.appointment.findMany({
-        where: {
-          clientId,
-          status: {
-            notIn: ["CANCELLED", "NO_SHOW"] as any,
-          },
-        },
-        select: {
-          id: true,
-          service: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      })
-
-      const apptIds = todasAppts.map((a) => a.id)
-
-      const todosMovs =
-        apptIds.length === 0
-          ? []
-          : await prisma.stockMovement.findMany({
-              where: {
-                type: "SAIDA",
-                appointmentId: {
-                  in: apptIds,
-                },
-              },
-              select: {
-                quantity: true,
-                product: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            })
-
-      // Corte favorito: serviço mais frequente
-      const svcCount: Record<string, number> = {}
-
-      for (const a of todasAppts) {
-        if (a.service?.name) {
-          svcCount[a.service.name] = (svcCount[a.service.name] ?? 0) + 1
-        }
-      }
-
-      const favoritoCorte =
-        Object.entries(svcCount).sort((a, b) =>
-          b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR"),
-        )[0]?.[0] ?? null
-
-      // Produto favorito: produto mais vendido por quantidade
-      const prodCount: Record<string, number> = {}
-
-      for (const m of todosMovs) {
-        if (m.product?.name) {
-          prodCount[m.product.name] = (prodCount[m.product.name] ?? 0) + m.quantity
-        }
-      }
-
-      const favoritoProduto =
-        Object.entries(prodCount).sort((a, b) =>
-          b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0], "pt-BR"),
-        )[0]?.[0] ?? null
-
-      // Atualiza saldo, nível, favoritos e métricas materializadas
-      const novoTotal = appt.client.totalSpent + valorPago
-      const novasVisitas = appt.client.totalAtendimentos + 1
-      const novoTicketMedio = Math.round((novoTotal / novasVisitas) * 100) / 100
-      const novoSegmento = await calcularSegmento(clientId, novasVisitas)
-
-      await prisma.client.update({
-        where: {
-          id: clientId,
-        },
-        data: {
-          cashbackBalance: {
-            increment: cashbackValor,
-          },
-          totalSpent: {
-            increment: valorPago,
-          },
-          totalAtendimentos: {
-            increment: 1,
-          },
-          ticketMedio: novoTicketMedio,
-          lastVisitAt: new Date(),
-          loyaltyLevel: calcularNivel(novoTotal) as any,
-          segment: novoSegmento as any,
-          favoritoCorte,
-          favoritoProduto,
-        },
-      })
-
-      await prisma.payment.update({
-        where: {
-          id: payment.id,
-        },
-        data: {
-          cashbackGenerated: cashbackValor,
-        },
+      // Gravações numa transação, com proteção contra crédito duplo (lib/cashback)
+      await gravarCreditoCashback({
+        paymentId: payment.id,
+        client: appt.client,
+        valorPago,
+        cashbackValor,
+        descricao,
+        servicoBase: valorServico,
+        servicoRate: pctServico,
+        produtoBase: valorProdutos > 0 ? valorProdutos : null,
+        produtoRate: valorProdutos > 0 ? pctProduto : null,
+        cashbackConfigId: cashbackCfg.id,
       })
     }
 

@@ -66,14 +66,21 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const body: { serviceId: string; isEnabled: boolean }[] = await request.json()
 
-    await Promise.all(
-      body.map(async ({ serviceId, isEnabled }) => {
-        const existing = await prisma.serviceUnit.findFirst({ where: { serviceId, establishmentId: estabId }, select: { id: true } })
-        if (existing) {
-          return prisma.serviceUnit.update({ where: { id: existing.id }, data: { isEnabled } })
-        }
-        return prisma.serviceUnit.create({ data: { serviceId, establishmentId: estabId, isEnabled } })
-      })
+    // Só serviços desta organização (antes aceitava qualquer serviceId)
+    const validos = new Set((await prisma.service.findMany({
+      where: { id: { in: body.map(b => b.serviceId) }, establishment: { organizationId: orgId } },
+      select: { id: true },
+    })).map(s => s.id))
+
+    // Uma transação de upserts em vez de 2 consultas por serviço em paralelo
+    await prisma.$transaction(
+      body.filter(b => validos.has(b.serviceId)).map(({ serviceId, isEnabled }) =>
+        prisma.serviceUnit.upsert({
+          where: { serviceId_establishmentId: { serviceId, establishmentId: estabId } },
+          create: { serviceId, establishmentId: estabId, isEnabled },
+          update: { isEnabled },
+        }),
+      ),
     )
 
     return NextResponse.json({ ok: true })
