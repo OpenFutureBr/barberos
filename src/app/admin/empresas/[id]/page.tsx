@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 import { fmtMoeda } from "@/lib/formatadores"
 
 type EmpresaDetalhe = {
@@ -200,6 +201,8 @@ type Aba = "visao" | "unidades" | "usuarios" | "faturas" | "metricas"
 
 export default function AdminEmpresaDetalhePage() {
   const { id } = useParams<{ id: string }>()
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
 
   const [dados, setDados] = useState<EmpresaDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -285,14 +288,14 @@ export default function AdminEmpresaDetalhePage() {
     const data = await res.json().catch(() => null)
 
     if (!res.ok) {
-      alert(data?.error || "Erro ao executar ação.")
+      avisar(data?.error || "Erro ao executar ação.", "erro")
       return
     }
 
     await carregarDados()
     } catch (error) {
       console.error(error)
-      alert("Erro ao executar ação.")
+      avisar("Erro ao executar ação.", "erro")
     } finally {
       setActionLoading(false)
     }
@@ -308,11 +311,10 @@ export default function AdminEmpresaDetalhePage() {
   async function bloquearOuDesbloquear() {
     if (!empresa) return
 
-    const texto = empresa.isBlocked
-      ? "Deseja desbloquear esta empresa?"
-      : "Deseja bloquear esta empresa?"
-
-    if (!confirm(texto)) return
+    const ok = await confirmar(empresa.isBlocked
+      ? { titulo: "Desbloquear esta empresa?", confirmar: "Desbloquear" }
+      : { titulo: "Bloquear esta empresa?", mensagem: "Os usuários dela perdem o acesso ao sistema até o desbloqueio.", confirmar: "Bloquear", perigo: true })
+    if (!ok) return
 
     await executarAcao({
       action: "toggle-block",
@@ -321,11 +323,13 @@ export default function AdminEmpresaDetalhePage() {
 
   async function alterarPlano() {
     if (!novoPlano) {
-      alert("Selecione um plano.")
+      avisar("Selecione um plano.", "erro")
       return
     }
 
-    if (!confirm(`Deseja alterar o plano para ${novoPlano}?`)) return
+    // Mostra o nome do plano — antes a pergunta exibia o id interno.
+    const nome = planos.find(p => p.id === novoPlano)?.name ?? novoPlano
+    if (!(await confirmar({ titulo: `Alterar o plano para ${nome}?`, confirmar: "Alterar plano" }))) return
 
     await executarAcao({
       action: "change-plan",
@@ -334,7 +338,7 @@ export default function AdminEmpresaDetalhePage() {
   }
 
   async function marcarFaturaComoPaga(invoiceId: string) {
-    if (!confirm("Deseja marcar esta fatura como paga?")) return
+    if (!(await confirmar({ titulo: "Marcar esta fatura como paga?", confirmar: "Marcar como paga" }))) return
 
     await executarAcao({
       action: "mark-invoice-paid",

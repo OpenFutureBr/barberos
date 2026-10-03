@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, corTextoStatus, ORDEM_STATUS } from "@/lib/status"
+import { useAviso } from "@/components/ui/Avisos"
 
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
@@ -48,6 +49,7 @@ function formatarDataCurta(dataISO: string) {
 }
 
 export default function AgendaPage() {
+  const avisar = useAviso()
   const router = useRouter()
   const hojeISO = getDataSaoPaulo(new Date())
 
@@ -256,7 +258,7 @@ export default function AgendaPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: apptSelecionado.id, status: "CANCELLED" }),
     })
-    if (!res.ok) { alert("Erro ao cancelar agendamento"); return }
+    if (!res.ok) { avisar("Erro ao cancelar agendamento", "erro"); return }
     // Limpa todo o cache e recarrega
     invalidateCache("agendamentos:")
     if (profFiltro) {

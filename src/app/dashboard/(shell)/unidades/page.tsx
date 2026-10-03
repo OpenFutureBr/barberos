@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { fmtMoeda } from "@/lib/formatadores"
 import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
+import { useAviso } from "@/components/ui/Avisos"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -98,6 +99,7 @@ function Secao({ titulo, id, colapsados, toggle, children }: {
 
 // ---- Modal de config por unidade ----
 function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClose: () => void; onSalvo: () => void }) {
+  const avisar = useAviso()
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
@@ -224,9 +226,9 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
       fd.append("logo", file)
       const res = await fetch(`/api/unidades/${unidadeId}/logo`, { method: "POST", body: fd })
       const data = await res.json()
-      if (!res.ok) { alert(data.error || "Erro ao enviar logo"); return }
+      if (!res.ok) { avisar(data.error || "Erro ao enviar logo", "erro"); return }
       setLogoUrl(data.url)
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setUploadando(false) }
   }
 

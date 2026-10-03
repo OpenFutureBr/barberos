@@ -7,6 +7,7 @@ import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { hojeISOemBRT } from "@/lib/data-brt"
 import { mascaraTelefone } from "@/lib/mascaras"
 import { invalidateCache } from "@/lib/prefetch-cache"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 
 // Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
 function ic(path: string, cls = "w-3.5 h-3.5") {
@@ -544,6 +545,8 @@ function FormularioProfissional({
 }
 
 export default function EquipePage() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const cacheEquipe = useRef<any[] | null>(null)
   const [equipe, setEquipe] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
@@ -560,10 +563,19 @@ export default function EquipePage() {
   const [resetandoSenha, setResetandoSenha] = useState<string | null>(null)
 
   async function handleResetarSenha(prof: any) {
-    if (!confirm(`Resetar a senha de ${prof.name} para 123456?`)) return
+    const ok = await confirmar({
+      titulo: `Resetar a senha de ${prof.name}?`,
+      mensagem: "A senha volta para 123456 e será pedida uma nova no próximo acesso.",
+      confirmar: "Resetar senha",
+      perigo: true,
+    })
+    if (!ok) return
     setResetandoSenha(prof.id)
-    await fetch(`/api/equipe/${prof.id}/resetar-senha`, { method: "POST" })
+    // Antes o resultado era ignorado: uma falha passava por sucesso.
+    const res = await fetch(`/api/equipe/${prof.id}/resetar-senha`, { method: "POST" }).catch(() => null)
     setResetandoSenha(null)
+    if (res?.ok) avisar(`Senha de ${prof.name} resetada para 123456.`, "sucesso")
+    else avisar("Não foi possível resetar a senha.", "erro")
   }
 
   useEffect(() => {

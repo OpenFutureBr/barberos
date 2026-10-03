@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 
 type Previsao = {
   id: string
@@ -31,6 +32,8 @@ export default function EstoqueIAPage() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState("")
   const [pedidoAberto, setPedidoAberto] = useState<string[]>([])
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
 
   useEffect(() => {
     fetch("/api/ia/estoque")
@@ -53,6 +56,17 @@ export default function EstoqueIAPage() {
   const totalPedido = previsoes.filter(p => pedidoAberto.includes(p.id)).reduce((s, p) => s + p.sugestao, 0)
   const visiveis = previsoes.filter(p => p.urgencia !== "OK" || p.sugestao > 0 || previsoes.length <= 10)
 
+  // O pedido nao vai para fornecedor nenhum: o util e levar a lista pronta
+  // para o WhatsApp/e-mail de quem compra.
+  async function fazerPedido() {
+    const lista = previsoes.filter(p => pedidoAberto.includes(p.id)).map(p => `• ${p.produto}: ${p.sugestao} un`).join("\n")
+    const texto = `${lista}\n\nTotal: ${totalPedido} unidades`
+    if (!(await confirmar({ titulo: "Pedido de reposição", mensagem: texto, confirmar: "Copiar pedido", cancelar: "Fechar" }))) return
+    navigator.clipboard.writeText(`Pedido:\n\n${texto}`)
+      .then(() => avisar("Pedido copiado!", "sucesso"))
+      .catch(() => avisar("Não foi possível copiar.", "erro"))
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-4">
@@ -62,7 +76,7 @@ export default function EstoqueIAPage() {
         </div>
         {pedidoAberto.length > 0 && (
           <button
-            onClick={() => alert(`Pedido:\n\n${previsoes.filter(p => pedidoAberto.includes(p.id)).map(p => `• ${p.produto}: ${p.sugestao} un`).join("\n")}\n\nTotal: ${totalPedido} unidades`)}
+            onClick={fazerPedido}
             className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
           >
             📦 Fazer pedido ({pedidoAberto.length} itens)

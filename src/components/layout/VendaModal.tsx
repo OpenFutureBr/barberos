@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { getCache, setCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
+import { useConfirmar } from "@/components/ui/Avisos"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -20,6 +21,7 @@ function getHojeISO() {
 }
 
 export default function VendaModal({ aberto, onFechar, itens, setItens }: Props) {
+  const confirmar = useConfirmar()
   const [produtos, setProdutos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [clientesHojeIds, setClientesHojeIds] = useState<Set<string>>(new Set())
@@ -108,8 +110,8 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
     onFechar()
   }
 
-  function limparCarrinho() {
-    if (itens.length > 0 && !confirm("Limpar o carrinho?")) return
+  async function limparCarrinho() {
+    if (itens.length > 0 && !(await confirmar({ titulo: "Limpar o carrinho?", mensagem: `${itens.length} ${itens.length === 1 ? "item será removido" : "itens serão removidos"}.`, confirmar: "Limpar", perigo: true }))) return
     setItens(() => [])
     setBuscaCliente(""); setClienteVenda("")
   }

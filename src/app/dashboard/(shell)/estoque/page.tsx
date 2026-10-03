@@ -6,6 +6,7 @@ import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } 
 import { fetchJsonSafe } from "@/lib/safe-fetch"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { fmtMoeda } from "@/lib/formatadores"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -283,6 +284,8 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
 }
 
 function EstoqueInner() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const searchParams = useSearchParams()
   const [aba, setAba] = useState<"estoque" | "catalogo" | "pdv" | "movimentos">("estoque")
   const [produtos, setProdutos] = useState<any[]>([])
@@ -537,7 +540,7 @@ function EstoqueInner() {
       ? itensEntrada.filter(i => i.produto && Number(i.qty) > 0)
       : itensNfe.filter(i => i.produto && Number(i.qty) > 0)
 
-    if (itens.length === 0) { alert("Adicione ao menos um produto."); return }
+    if (itens.length === 0) { avisar("Adicione ao menos um produto.", "erro"); return }
     setSalvandoEntrada(true)
     try {
       await Promise.all(itens.map(item =>
@@ -556,7 +559,7 @@ function EstoqueInner() {
       await buscarProdutos()
       await buscarMovimentos()
       fecharModalEntrada()
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setSalvandoEntrada(false) }
   }
 
@@ -577,13 +580,13 @@ function EstoqueInner() {
             unitPrice: item.unitPrice,
           }),
         })
-        if (!res.ok) { const d = await res.json(); alert(`${item.produto.name}: ${d.error}`); return }
+        if (!res.ok) { const d = await res.json(); avisar(`${item.produto.name}: ${d.error}`, "erro"); return }
       }
       await buscarProdutos()
       await buscarMovimentos()
       setModalVenda(false)
       setItensVenda([]); setClienteVenda(""); setBuscaClienteVenda(""); setBuscaProdutoVenda("")
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setSalvandoVenda(false) }
   }
 
@@ -680,7 +683,7 @@ function EstoqueInner() {
 
       if (!res.ok) {
         const err = await res.json()
-        alert("Erro: " + (err.error || res.status))
+        avisar("Erro: " + (err.error || res.status), "erro")
         return
       }
 
@@ -688,7 +691,7 @@ function EstoqueInner() {
       setModalLancamento(false)
       setItemLancando(null)
     } catch (err) {
-      alert("Erro ao lançar: " + String(err))
+      avisar("Erro ao lançar: " + String(err), "erro")
     } finally {
       setSalvandoLancamento(false)
     }
@@ -749,12 +752,12 @@ function EstoqueInner() {
   const [produtoVendo, setProdutoVendo] = useState<ProdutoDetalhe | null>(null)
 
   async function handleExcluir(prod: ProdutoDetalhe) {
-    if (!confirm(`Excluir "${prod.name}" definitivamente? Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmar({ titulo: `Excluir "${prod.name}"?`, mensagem: "Exclusão definitiva — esta ação não pode ser desfeita.", confirmar: "Excluir", perigo: true }))) return
     const res = await fetch(`/api/estoque?id=${encodeURIComponent(prod.id)}`, { method: "DELETE" })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
       // 409 = ganhou historico entre o carregamento da lista e o clique.
-      alert(d.error || "Não foi possível excluir o produto.")
+      avisar(d.error || "Não foi possível excluir o produto.", "erro")
       await buscarProdutos()
       return
     }
@@ -762,7 +765,7 @@ function EstoqueInner() {
   }
 
   async function handleDesativar(id: string) {
-    if (!confirm("Desativar este produto?")) return
+    if (!(await confirmar({ titulo: "Desativar este produto?", mensagem: "Ele some das vendas e da lista, mas o histórico fica guardado.", confirmar: "Desativar" }))) return
     await fetch("/api/estoque", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, isActive: false }) })
     await buscarProdutos()
   }

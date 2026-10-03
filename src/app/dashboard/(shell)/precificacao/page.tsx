@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
 import { fmtMoeda } from "@/lib/formatadores"
+import { useConfirmar } from "@/components/ui/Avisos"
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
@@ -52,6 +53,7 @@ function descricaoDias(dias: number[]) {
 }
 
 export default function PrecificacaoPage() {
+  const confirmar = useConfirmar()
   const [regras, setRegras] = useState<Regra[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
   const [loading, setLoading] = useState(true)
@@ -155,7 +157,7 @@ export default function PrecificacaoPage() {
   }
 
   async function handleExcluir(id: string) {
-    if (!confirm("Excluir esta regra?")) return
+    if (!(await confirmar({ titulo: "Excluir esta regra?", confirmar: "Excluir", perigo: true }))) return
     setRegras(prev => prev.filter(r => r.id !== id))
     await fetch(`/api/precificacao/${id}`, { method: "DELETE" })
   }

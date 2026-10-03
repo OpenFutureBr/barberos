@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
 import { SCRIPT_TEMA_BOOT } from "@/lib/tema"
 import RegistrarSW from "@/components/RegistrarSW"
+import { AvisosProvider } from "@/components/ui/Avisos"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -80,7 +81,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {/* A sessão é um JWT de 7 dias: rebuscar /api/auth/session a cada volta
             à aba não traz nada novo (o padrão do next-auth é refazer). */}
-        <SessionProvider refetchOnWindowFocus={false}>{children}</SessionProvider>
+        <SessionProvider refetchOnWindowFocus={false}>
+          <AvisosProvider>{children}</AvisosProvider>
+        </SessionProvider>
         <RegistrarSW />
       </body>
     </html>

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
 import { fmtMoeda } from "@/lib/formatadores"
 import { mascaraTelefone } from "@/lib/mascaras"
+import { useAviso } from "@/components/ui/Avisos"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
@@ -397,6 +398,7 @@ function ModalCadastroEndereco({ clienteId, clienteNome, onSalvo, onCancelar }: 
 }
 
 export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Props) {
+  const avisar = useAviso()
   const { data: session } = useSession()
   const planFeatures = (session?.user as any)?.planFeatures as string[] | undefined
   const iaLicensed = planFeatures?.includes("ia") || planFeatures?.includes("*") || !!(session?.user as any)?.iaLicensed
@@ -769,7 +771,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       })
       const result = await response.json()
       if (!response.ok) {
-        alert(result.error || "Erro ao criar agendamento")
+        avisar(result.error || "Erro ao criar agendamento", "erro")
         return
       }
 
@@ -806,7 +808,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       onFechar()
     } catch (e) {
       console.error(e)
-      alert("Erro inesperado ao criar agendamento")
+      avisar("Erro inesperado ao criar agendamento", "erro")
     } finally {
       salvandoRef.current = false
       setSalvando(false)

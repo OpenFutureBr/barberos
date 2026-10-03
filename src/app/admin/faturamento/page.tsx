@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 import { fmtMoeda } from "@/lib/formatadores"
 
 type Fatura = {
@@ -44,6 +45,8 @@ function fmtData(d: string | null) {
 }
 
 export default function AdminFaturamentoPage() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const [dados, setDados] = useState<DadosFaturamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<"todas" | "pendentes" | "vencidas" | "pagas">("todas")
@@ -55,11 +58,24 @@ export default function AdminFaturamentoPage() {
   const [processando, setProcessando] = useState(false)
 
   async function processarCobrancas() {
-    if (!confirm("Processar inadimplência agora?\n\nIsso irá:\n• Marcar faturas vencidas como OVERDUE\n• Atualizar status das organizações\n• Suspender empresas com +7 dias de atraso")) return
+    const ok = await confirmar({
+      titulo: "Processar inadimplência agora?",
+      mensagem: "Isso irá:\n• Marcar faturas vencidas como OVERDUE\n• Atualizar status das organizações\n• Suspender empresas com +7 dias de atraso",
+      confirmar: "Processar",
+      perigo: true,
+    })
+    if (!ok) return
     setProcessando(true)
-    const res = await fetch("/api/admin/cobranca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
-    const d = await res.json()
-    alert(`Processado:\n• ${d.trialsConvertidos} trials convertidos\n• ${d.faturasGeradas} faturas geradas\n• ${d.faturasVencidas} faturas marcadas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`)
+    const res = await fetch("/api/admin/cobranca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }).catch(() => null)
+    const d = await res?.json().catch(() => ({})) ?? {}
+    // Antes um erro da rota virava "undefined trials convertidos..." e o
+    // botao ficava travado em "processando".
+    if (!res?.ok) {
+      avisar(d.error || "Erro ao processar cobranças.", "erro")
+      setProcessando(false)
+      return
+    }
+    avisar(`Processado:\n• ${d.trialsConvertidos} trials convertidos\n• ${d.faturasGeradas} faturas geradas\n• ${d.faturasVencidas} faturas marcadas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`, "sucesso")
     setProcessando(false)
     buscar()
   }
@@ -86,7 +102,7 @@ export default function AdminFaturamentoPage() {
   }
 
   async function marcarPaga(id: string) {
-    if (!confirm("Marcar esta fatura como paga?")) return
+    if (!(await confirmar({ titulo: "Marcar esta fatura como paga?", confirmar: "Marcar como paga" }))) return
     setAcao(id)
     await fetch(`/api/admin/empresas/${faturaById(id)?.organizacaoId}`, {
       method: "PATCH",

@@ -7,6 +7,7 @@ import PageSkeleton from "@/components/PageSkeleton"
 import { clearPwaCache } from "@/lib/clearPwaCache"
 import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
 import { invalidateCache } from "@/lib/prefetch-cache"
+import { useAviso } from "@/components/ui/Avisos"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -225,6 +226,7 @@ function WlContainer() {
 }
 
 export default function ConfiguracoesPage() {
+  const avisar = useAviso()
   const { data: session } = useSession()
   const isOwner = ["ADMIN", "ORG_OWNER"].includes(session?.user?.role ?? "")
   const [loading, setLoading] = useState(true)
@@ -390,10 +392,10 @@ export default function ConfiguracoesPage() {
       fd.append("logo", file)
       const res = await fetch("/api/configuracoes/logo", { method: "POST", body: fd })
       const data = await res.json()
-      if (!res.ok) { alert(data.error || "Erro ao enviar logo"); return }
+      if (!res.ok) { avisar(data.error || "Erro ao enviar logo", "erro"); return }
       setLogoUrl(data.url)
       window.dispatchEvent(new CustomEvent("logoAtualizada", { detail: data.url }))
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setUploadandoLogo(false) }
   }
 
@@ -407,10 +409,10 @@ export default function ConfiguracoesPage() {
       fd.append("logo", file)
       const res = await fetch("/api/org/logo", { method: "POST", body: fd })
       const data = await res.json()
-      if (!res.ok) { alert(data.error || "Erro ao enviar logo da organização"); return }
+      if (!res.ok) { avisar(data.error || "Erro ao enviar logo da organização", "erro"); return }
       setOrgLogoUrl(data.url)
       window.dispatchEvent(new CustomEvent("logoAtualizada", { detail: data.url }))
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setUploadandoOrgLogo(false) }
   }
 

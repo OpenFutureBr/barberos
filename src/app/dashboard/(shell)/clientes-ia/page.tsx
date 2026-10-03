@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { useAviso } from "@/components/ui/Avisos"
 
 type ClienteIA = {
   id: string
@@ -26,6 +27,7 @@ const segmentoConfig: Record<string, { label: string; style: string; icon: strin
 }
 
 export default function ClientesIAPage() {
+  const avisar = useAviso()
   const [clientes, setClientes] = useState<ClienteIA[]>([])
   const [insight, setInsight] = useState("")
   const [loading, setLoading] = useState(true)
@@ -95,7 +97,7 @@ export default function ClientesIAPage() {
         setEnviado(true)
         setTimeout(() => setEnviado(false), 3000)
       } else {
-        alert(d.error || "Erro ao enviar mensagem")
+        avisar(d.error || "Erro ao enviar mensagem", "erro")
       }
     } finally {
       setEnviando(false)

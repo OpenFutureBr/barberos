@@ -10,6 +10,11 @@ const LARGURAS = {
   xl: "md:max-w-4xl",
 } as const
 
+// Modais abertos, do mais antigo ao mais novo. Com um aberto por cima de outro
+// (a confirmacao do useConfirmar nasce de dentro de modais), o Escape fecha so
+// o de cima — cada um escuta o document e, sem isso, fechavam os dois juntos.
+const pilha: object[] = []
+
 /**
  * Dialogo centralizado no desktop e folha de tela cheia no mobile — os modais
  * atuais do projeto usam a mesma caixa nos dois, o que no celular corta
@@ -41,16 +46,21 @@ export default function Modal({
   useEffect(() => {
     if (!aberto) return
 
+    const eu = {}
+    pilha.push(eu)
+
     function onTecla(e: KeyboardEvent) {
-      if (e.key === "Escape") onFechar()
+      if (e.key === "Escape" && pilha[pilha.length - 1] === eu) onFechar()
     }
     document.addEventListener("keydown", onTecla)
 
     const overflowAnterior = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    painelRef.current?.focus()
+    // Respeita um autoFocus de dentro (este efeito roda depois dos filhos).
+    if (!painelRef.current?.contains(document.activeElement)) painelRef.current?.focus()
 
     return () => {
+      pilha.splice(pilha.indexOf(eu), 1)
       document.removeEventListener("keydown", onTecla)
       document.body.style.overflow = overflowAnterior
     }
