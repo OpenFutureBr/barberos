@@ -5,6 +5,7 @@ import { fetchJsonSafe } from "@/lib/safe-fetch"
 import { fmtMoeda } from "@/lib/formatadores"
 import Modal from "@/components/ui/Modal"
 import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 type NotaPendente = {
   id: string
@@ -86,18 +87,14 @@ export default function FiscalPage() {
   return (
     <>
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Fiscal & NF-e</h1>
-          <p className="text-zinc-500 text-sm">Emissão de nota fiscal · Relatório MEI · Compliance tributário</p>
-        </div>
+      <PageHeader titulo="Fiscal & NF-e" subtitulo="Emissão de nota fiscal · Relatório MEI · Compliance tributário">
         <button
           onClick={() => setModalEmitir(true)}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
         >
           + Emitir NF-e
         </button>
-      </div>
+      </PageHeader>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3 mb-4">

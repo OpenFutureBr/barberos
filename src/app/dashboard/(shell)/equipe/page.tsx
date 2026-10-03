@@ -10,6 +10,7 @@ import { invalidateCache } from "@/lib/prefetch-cache"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 import Modal from "@/components/ui/Modal"
 import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 // Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
 function ic(path: string, cls = "w-3.5 h-3.5") {
@@ -627,16 +628,12 @@ export default function EquipePage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Equipe</h1>
-          <p className="text-zinc-500 text-sm">{totalAtivos} ativos · {totalInativos} inativos · CLT · PJ · MEI · Autônomo</p>
-        </div>
+      <PageHeader titulo="Equipe" subtitulo={<>{totalAtivos} ativos · {totalInativos} inativos · CLT · PJ · MEI · Autônomo</>}>
         <button onClick={() => { setErroModal(""); setModalNovo(true) }}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
           + Profissional
         </button>
-      </div>
+      </PageHeader>
 
       {/* Filtro */}
       <div className="flex gap-2 mb-4">

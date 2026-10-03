@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAviso } from "@/components/ui/Avisos"
+import PageHeader from "@/components/ui/PageHeader"
 
 const endpoints = [
   {
@@ -144,15 +145,11 @@ export default function ApiDocsPage() {
   return (
     <>
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">API Pública — Documentação</h1>
-          <p className="text-zinc-500 text-sm">REST API · v1 · Autenticação via Bearer Token</p>
-        </div>
+      <PageHeader titulo="API Pública — Documentação" subtitulo="REST API · v1 · Autenticação via Bearer Token">
         <span className="text-xs px-3 py-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
           ● API Online
         </span>
-      </div>
+      </PageHeader>
 
       {/* API Key */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">

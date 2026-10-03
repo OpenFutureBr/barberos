@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
+import PageHeader from "@/components/ui/PageHeader"
 
 type Previsao = {
   id: string
@@ -69,11 +70,7 @@ export default function EstoqueIAPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">⬡ IA — Previsão de Estoque</h1>
-          <p className="text-zinc-500 text-sm">Análise preditiva automática · Sugestões de reposição</p>
-        </div>
+      <PageHeader titulo="⬡ IA — Previsão de Estoque" subtitulo="Análise preditiva automática · Sugestões de reposição">
         {pedidoAberto.length > 0 && (
           <button
             onClick={fazerPedido}
@@ -82,7 +79,7 @@ export default function EstoqueIAPage() {
             📦 Fazer pedido ({pedidoAberto.length} itens)
           </button>
         )}
-      </div>
+      </PageHeader>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={3} className="mb-4">{[

@@ -9,6 +9,7 @@ import { fmtMoeda } from "@/lib/formatadores"
 import { useAviso, useConfirmar } from "@/components/ui/Avisos"
 import Modal from "@/components/ui/Modal"
 import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -798,12 +799,7 @@ function EstoqueInner() {
   return (
     <>
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Estoque & PDV</h1>
-          <p className="text-zinc-500 text-sm">{produtos.filter(p => p.isActive).length} produtos · {criticos} críticos</p>
-        </div>
-      </div>
+      <PageHeader titulo="Estoque & PDV" subtitulo={<>{produtos.filter(p => p.isActive).length} produtos · {criticos} críticos</>} />
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={3} className="mb-4">{[

@@ -9,6 +9,7 @@ import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, pilulaStatus } from "@/lib/status"
 import Modal from "@/components/ui/Modal"
 import Button, { ButtonLink } from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -187,16 +188,12 @@ export default function PixPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">PIX & Cobranças</h1>
-          <p className="text-zinc-500 text-sm">Atendimentos do dia · Pagamentos · Geração de PIX</p>
-        </div>
+      <PageHeader titulo="PIX & Cobranças" subtitulo="Atendimentos do dia · Pagamentos · Geração de PIX">
         <button onClick={() => setModalGerar(true)} disabled={semChave}
           className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
           + Gerar PIX avulso
         </button>
-      </div>
+      </PageHeader>
 
       {semChave && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-4 text-amber-400 text-sm">

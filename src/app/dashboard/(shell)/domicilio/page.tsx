@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
 import { rotuloStatus, pilulaStatus } from "@/lib/status"
+import PageHeader from "@/components/ui/PageHeader"
 
 // ---- types ----
 type ApptStatus = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "NO_SHOW"
@@ -225,17 +226,13 @@ export default function DomicilioPage() {
     <>
 
       {/* header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Atendimento a Domicílio</h1>
-          <p className="text-zinc-500 text-sm">Rota do dia · Kit pessoal · Zona de atendimento</p>
-        </div>
+      <PageHeader titulo="Atendimento a Domicílio" subtitulo="Rota do dia · Kit pessoal · Zona de atendimento">
         {zone?.name && (
           <span className="text-xs px-3 py-1.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
             {zone.name}
           </span>
         )}
-      </div>
+      </PageHeader>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={3} className="mb-4">{[

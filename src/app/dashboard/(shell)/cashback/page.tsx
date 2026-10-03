@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
+import PageHeader from "@/components/ui/PageHeader"
 
 
 const nivelStyle: Record<string, string> = {
@@ -93,12 +94,7 @@ export default function CashbackPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Cashback & Fidelidade</h1>
-          <p className="text-zinc-500 text-sm">Programa automático por serviço</p>
-        </div>
-      </div>
+      <PageHeader titulo="Cashback & Fidelidade" subtitulo="Programa automático por serviço" />
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={3} className="mb-4">{[

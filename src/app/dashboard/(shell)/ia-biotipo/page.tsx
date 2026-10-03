@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import Modal from "@/components/ui/Modal"
+import PageHeader from "@/components/ui/PageHeader"
 
 type CorteItem = { name: string; pct: number; description: string; serviceId?: string | null }
 
@@ -135,18 +136,14 @@ export default function IABiotipoPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">IA de Biotipo Facial</h1>
-          <p className="text-zinc-500 text-sm">Análise por Visagismo · Groq Vision · Cortes do catálogo em primeiro lugar</p>
-        </div>
+      <PageHeader titulo="IA de Biotipo Facial" subtitulo="Análise por Visagismo · Groq Vision · Cortes do catálogo em primeiro lugar">
         {etapa !== "upload" && (
           <button onClick={resetar}
             className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors">
             Nova análise
           </button>
         )}
-      </div>
+      </PageHeader>
 
       {/* Upload / câmera */}
       {etapa === "upload" && (

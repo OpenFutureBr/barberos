@@ -8,6 +8,7 @@ import { hojeISOemBRT } from "@/lib/data-brt"
 import { fmtMoeda } from "@/lib/formatadores"
 import Modal from "@/components/ui/Modal"
 import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -206,11 +207,7 @@ export default function AssinaturasPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Assinaturas</h1>
-          <p className="text-zinc-500 text-sm">Planos mensais com cotas de cortes</p>
-        </div>
+      <PageHeader titulo="Assinaturas" subtitulo="Planos mensais com cotas de cortes">
         <div className="flex items-center gap-2">
           {aba === "planos" && (
             <button onClick={() => abrirModalPlano()}
@@ -225,7 +222,7 @@ export default function AssinaturasPage() {
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={4} className="mb-4">{[

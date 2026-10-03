@@ -5,6 +5,7 @@ import Stat, { KpiGrid } from "@/components/ui/Stat"
 import { fmtMoeda } from "@/lib/formatadores"
 import { useAviso } from "@/components/ui/Avisos"
 import Modal from "@/components/ui/Modal"
+import PageHeader from "@/components/ui/PageHeader"
 
 type ClienteIA = {
   id: string
@@ -127,12 +128,7 @@ export default function ClientesIAPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">⬡ IA — Ranking de Clientes</h1>
-          <p className="text-zinc-500 text-sm">Segmentação automática · Score de risco · Ações inteligentes</p>
-        </div>
-      </div>
+      <PageHeader titulo="⬡ IA — Ranking de Clientes" subtitulo="Segmentação automática · Score de risco · Ações inteligentes" />
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
       <KpiGrid colunas={4} className="mb-4">{[
