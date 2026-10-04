@@ -2,10 +2,7 @@ import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { temPermissao } from "@/lib/permissoes"
-
-const EVO_URL = process.env.EVOLUTION_API_URL
-const EVO_KEY = process.env.EVOLUTION_API_KEY
-const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE ?? "barberos"
+import { sendToContactViaOpenWa } from "@/lib/whatsapp-openwa"
 
 export async function POST(request: Request) {
   try {
@@ -23,53 +20,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "telefone e mensagem são obrigatórios" }, { status: 400 })
     }
 
-    const numero = telefone.replace(/\D/g, "")
-    const numeroFinal = numero.startsWith("55") ? numero : `55${numero}`
+    const resultado = await sendToContactViaOpenWa({ phone: telefone, text: mensagem })
 
-    let status = "ok"
-    let errorMsg: string | undefined
+    const status = resultado.ok || resultado.status === "UNCONFIRMED" ? "ok" : "erro"
+    const errorMsg = resultado.ok ? undefined : resultado.error
 
-    const res = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": EVO_KEY ?? "",
+    await prisma.whatsAppLog.create({
+      data: {
+        establishmentId: estabId,
+        clientId: clientId ?? null,
+        clientName: clientName ?? "Desconhecido",
+        phone: telefone,
+        message: mensagem,
+        status,
+        errorMsg: errorMsg ?? null,
+        source: "manual",
+        sentById: userId ?? null,
       },
-      body: JSON.stringify({
-        number: numeroFinal,
-        textMessage: { text: mensagem },
-      }),
     })
 
-    const data = await res.json()
-
-    if (!res.ok) {
-      status = "erro"
-      errorMsg = data.message ?? "Erro ao enviar mensagem"
-    }
-
-    // Log the send attempt
-    if (estabId) {
-      await prisma.whatsAppLog.create({
-        data: {
-          establishmentId: estabId,
-          clientId: clientId ?? null,
-          clientName: clientName ?? "Desconhecido",
-          phone: telefone,
-          message: mensagem,
-          status,
-          errorMsg: errorMsg ?? null,
-          source: "manual",
-          sentById: userId ?? null,
-        },
-      })
-    }
-
     if (status === "erro") {
-      return NextResponse.json({ error: errorMsg }, { status: 500 })
+      return NextResponse.json({ error: errorMsg }, { status: 502 })
     }
-
-    return NextResponse.json({ ok: true, data })
+    return NextResponse.json({ ok: true, status: resultado.status })
   } catch (error) {
     console.error("[WhatsApp] Erro:", error)
     return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })

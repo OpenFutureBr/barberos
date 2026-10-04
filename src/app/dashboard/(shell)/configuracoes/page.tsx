@@ -247,36 +247,30 @@ export default function ConfiguracoesPage() {
     })
   }
 
-  // WhatsApp / Evolution API
+  // WhatsApp / OpenWA
   const [wStatus, setWStatus] = useState<"loading" | "connected" | "disconnected" | "error">("loading")
-  const [wQr, setWQr] = useState<string | null>(null)
+  const [wManageUrl, setWManageUrl] = useState<string | null>(null)
+  const [wSessionName, setWSessionName] = useState<string | null>(null)
   const [wReconectando, setWReconectando] = useState(false)
-  const [wInstance, setWInstance] = useState("")
 
   const fetchWStatus = useCallback(() => {
-    fetch("/api/whatsapp/status")
+    return fetch("/api/whatsapp/status")
       .then(r => r.json())
       .then(d => {
-        const state = d?.instance?.state ?? d?.state ?? ""
-        setWInstance(d?.instance?.instanceName ?? "")
-        setWStatus(state === "open" ? "connected" : state ? "disconnected" : "error")
+        setWManageUrl(d?.manageUrl ?? null)
+        setWSessionName(d?.sessionName ?? null)
+        setWStatus(d?.state === "open" ? "connected" : d?.state ? "disconnected" : "error")
       })
       .catch(() => setWStatus("error"))
   }, [])
 
   async function reconectarWhats() {
     setWReconectando(true)
-    setWQr(null)
     try {
-      const res = await fetch("/api/whatsapp/status", { method: "POST" })
-      const data = await res.json()
-      // Evolution API retorna base64 na raiz ou dentro de qrcode
-      const qr = data?.base64 ?? data?.qrcode?.base64 ?? null
-      if (qr) setWQr(qr)
-      // Verifica status após 5s para detectar conexão
-      setTimeout(fetchWStatus, 5000)
-    } catch {}
-    finally { setWReconectando(false) }
+      await fetchWStatus()
+    } finally {
+      setWReconectando(false)
+    }
   }
 
   async function salvarPainelConfig(config: { playlists: { label: string; url: string }[]; playlistAtivaIdx: number; slots: any[] }) {
@@ -681,8 +675,8 @@ export default function ConfiguracoesPage() {
           </div>
         </Secao>
 
-        {/* WhatsApp — Evolution API */}
-        <Secao titulo="WhatsApp — Evolution API" id="whatsapp"
+        {/* WhatsApp — OpenWA */}
+        <Secao titulo="WhatsApp — OpenWA" id="whatsapp"
           badge={
             <span className={`ml-2 text-xs px-2 py-0.5 rounded-full border font-mono ${
               wStatus === "connected" ? "bg-green-500/10 text-green-400 border-green-500/20" :
@@ -698,8 +692,8 @@ export default function ConfiguracoesPage() {
             {/* Status atual */}
             <div className="bg-zinc-800 rounded-lg px-4 py-3 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400 text-xs">Instância</span>
-                <span className="text-white text-xs font-mono">{wInstance || process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || "barberos"}</span>
+                <span className="text-zinc-400 text-xs">Sessão</span>
+                <span className="text-white text-xs font-mono">{wSessionName || "—"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 text-xs">Status</span>
@@ -709,27 +703,20 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
 
-            {/* QR Code */}
-            {wQr && (
-              <div className="flex flex-col items-center gap-2 bg-white rounded-xl p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={wQr} alt="QR Code WhatsApp" className="w-48 h-48 object-contain" />
-                <p className="text-zinc-700 text-xs text-center">Escaneie com o WhatsApp para conectar</p>
-              </div>
-            )}
-
             {/* Botões */}
             <div className="flex gap-2">
               <button type="button" onClick={fetchWStatus}
                 className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium py-2 rounded-lg border border-zinc-700 transition-colors">
                 Verificar status
               </button>
-              <button type="button" onClick={reconectarWhats} disabled={wReconectando}
-                className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 text-sm font-medium py-2 rounded-lg border border-green-500/20 transition-colors">
-                {wReconectando ? "Conectando..." : wStatus === "connected" ? "Reconectar" : "Conectar"}
-              </button>
+              {wManageUrl && (
+                <a href={wManageUrl} target="_blank" rel="noopener noreferrer" onClick={() => setTimeout(reconectarWhats, 3000)}
+                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-50 text-green-400 text-sm font-medium py-2 rounded-lg border border-green-500/20 transition-colors text-center">
+                  {wReconectando ? "Verificando..." : wStatus === "connected" ? "Abrir painel" : "Conectar no painel"}
+                </a>
+              )}
             </div>
-            <p className="text-zinc-600 text-xs">Ao clicar em Conectar, um QR Code aparecerá acima. Escaneie com o WhatsApp do número que enviará as mensagens.</p>
+            <p className="text-zinc-600 text-xs">A sessão é criada e o QR Code é escaneado direto no painel do OpenWA (abre em outra aba). Depois, clique em &quot;Verificar status&quot;.</p>
           </div>
         </Secao>
 
