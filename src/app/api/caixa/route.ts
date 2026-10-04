@@ -236,6 +236,11 @@ export async function GET(request: Request) {
         continue
       }
 
+      // Venda pelo carrinho (VendaModal): o /api/venda já lançou a receita como
+      // Transaction, e a baixa de estoque vem com appointmentId "venda-<ts>".
+      // Mostrar o movimento também duplicava a venda no caixa.
+      if (m.appointmentId?.startsWith("venda-")) continue
+
       const valor = m.quantity * (m.unitPrice ?? 0)
       if (valor <= 0) continue
 
