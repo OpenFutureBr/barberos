@@ -141,9 +141,98 @@ function metodoLabel(method: string | null): string {
   const m = method.toUpperCase()
   if (m === "PIX") return "PIX"
   if (m === "CASH") return "Dinheiro"
-  if (m === "CARD" || m === "CARD_CREDITO") return "Crédito"
+  // CARD é crédito OU débito: o PagamentoModal grava os dois como CARD
+  if (m === "CARD") return "Cartão"
+  if (m === "CARD_CREDITO") return "Crédito"
   if (m === "CARD_DEBITO") return "Débito"
+  if (m === "CASHBACK") return "Cashback"
+  if (m === "SUBSCRIPTION") return "Assinatura"
   return method
+}
+
+// ── Resumo por forma de recebimento ─────────────────────────────────────────
+const ORDEM_FORMAS = ["PIX", "Dinheiro", "Cartão", "Crédito", "Débito", "Cashback", "Assinatura"]
+const SEM_FORMA = "Não informado"
+
+type FormaResumo = { forma: string; valor: number; count: number }
+
+function resumirPorForma(lancamentos: Lancamento[]): FormaResumo[] {
+  const grupos = new Map<string, FormaResumo>()
+  for (const l of lancamentos) {
+    if (l.tipo !== "RECEITA") continue
+    const forma = metodoLabel(l.method) || SEM_FORMA
+    const g = grupos.get(forma) ?? { forma, valor: 0, count: 0 }
+    g.valor += l.valor
+    g.count++
+    grupos.set(forma, g)
+  }
+  const pos = (f: string) => {
+    const i = ORDEM_FORMAS.indexOf(f)
+    return i >= 0 ? i : f === SEM_FORMA ? 99 : 50
+  }
+  return [...grupos.values()].sort((a, b) => pos(a.forma) - pos(b.forma))
+}
+
+/* Dinheiro que deveria estar na gaveta: abertura + recebido em dinheiro −
+   sangrias (sempre saem da gaveta) − despesas pagas em dinheiro. */
+function dinheiroNaGaveta(lancamentos: Lancamento[], abertura: number) {
+  let v = abertura
+  for (const l of lancamentos) {
+    const emDinheiro = l.method?.toUpperCase() === "CASH"
+    if (l.tipo === "RECEITA" && emDinheiro) v += l.valor
+    else if (l.tipo === "SANGRIA") v -= l.valor
+    else if (l.tipo === "DESPESA" && emDinheiro) v -= l.valor
+  }
+  return v
+}
+
+function ResumoFormas({ formas, gaveta, carregando }: { formas: FormaResumo[]; gaveta: number; carregando: boolean }) {
+  const total = formas.reduce((s, f) => s + f.valor, 0)
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden mb-4">
+      <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-2">
+        <span className="text-zinc-400 text-xs uppercase tracking-widest font-mono">Recebimentos por forma de pagamento</span>
+        {!carregando && <span className="text-zinc-300 text-sm font-mono font-bold">{fmtMoeda(total)}</span>}
+      </div>
+      {carregando ? (
+        <div className="p-4 space-y-2">
+          {[0, 1, 2].map(i => <div key={i} className="h-8 bg-zinc-800 rounded animate-pulse" />)}
+        </div>
+      ) : formas.length === 0 ? (
+        <div className="p-6 text-center text-zinc-600 text-sm">Nenhum recebimento hoje</div>
+      ) : (
+        <div className="divide-y divide-zinc-800">
+          {formas.map(f => {
+            const pct = total > 0 ? (f.valor / total) * 100 : 0
+            return (
+              <div key={f.forma} className="px-4 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-sm font-medium ${f.forma === SEM_FORMA ? "text-zinc-500" : "text-zinc-200"}`}>{f.forma}</span>
+                    <span className="text-zinc-600 text-xs">{f.count} lançamento{f.count !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 flex-shrink-0">
+                    <span className="text-zinc-500 text-xs font-mono">{pct.toFixed(0)}%</span>
+                    <span className="text-green-400 text-sm font-mono font-bold">{fmtMoeda(f.valor)}</span>
+                  </div>
+                </div>
+                <div className="h-1 bg-zinc-800 rounded-full mt-1.5 overflow-hidden">
+                  <div className="h-full bg-green-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )
+          })}
+          <div className="px-4 py-2.5 flex items-center justify-between gap-3 bg-zinc-800/40">
+            <div className="min-w-0">
+              <div className="text-zinc-200 text-sm font-medium">Dinheiro esperado na gaveta</div>
+              <div className="text-zinc-600 text-xs">abertura + dinheiro recebido − sangrias − despesas em dinheiro</div>
+            </div>
+            <span className={`text-sm font-mono font-bold flex-shrink-0 ${gaveta < 0 ? "text-red-400" : "text-white"}`}>{fmtMoeda(gaveta)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Bucketing: Caixa de hoje (por hora) ─────────────────────────────────────
@@ -360,6 +449,8 @@ export default function CaixaPage() {
   const despesas = lancamentos.filter(l => l.tipo === "DESPESA").reduce((s, l) => s + l.valor, 0)
   const sangrias = lancamentos.filter(l => l.tipo === "SANGRIA").reduce((s, l) => s + l.valor, 0)
   const saldo = receitas - despesas - sangrias
+  const formasHoje = useMemo(() => resumirPorForma(lancamentos), [lancamentos])
+  const gavetaHoje = dinheiroNaGaveta(lancamentos, caixa?.openingAmount ?? 0)
 
   const bucketsHoje = useMemo(() => construirBucketsHora(lancamentos), [lancamentos])
   const bucketHojeAtivo = bucketHoje ? bucketsHoje.find(b => b.chave === bucketHoje) ?? null : null
@@ -431,7 +522,13 @@ export default function CaixaPage() {
     exportarExcel(
       `caixa-hoje-${fmtDataISO(new Date())}`,
       ["Hora", "Descrição", "Método", "Tipo", "Valor"],
-      lancamentos.map(l => [fmtHora(l.createdAt), l.descricao, metodoLabel(l.method), l.tipo, l.valor * (l.tipo === "RECEITA" ? 1 : -1)]),
+      [
+        ...lancamentos.map(l => [fmtHora(l.createdAt), l.descricao, metodoLabel(l.method), l.tipo, l.valor * (l.tipo === "RECEITA" ? 1 : -1)]),
+        [],
+        ["", "Recebimentos por forma de pagamento", "", "", ""],
+        ...formasHoje.map(f => ["", `${f.count} lançamento${f.count !== 1 ? "s" : ""}`, f.forma, "RECEITA", f.valor]),
+        ["", "Dinheiro esperado na gaveta", "Dinheiro", "", gavetaHoje],
+      ],
     )
   }
 
@@ -533,6 +630,8 @@ export default function CaixaPage() {
           )
         })()}
       </div>
+
+      <ResumoFormas formas={formasHoje} gaveta={gavetaHoje} carregando={loading} />
 
       {/* Container da tabela/grid/gráfico */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
