@@ -238,8 +238,12 @@ export async function POST(request: Request) {
 
       const caixa = await getOuCriarCaixaHoje(ESTAB_ID)
 
-      // Avança nextBillingAt em 1 mês e volta para ACTIVE
-      const proximoVencimento = new Date(assinatura.nextBillingAt)
+      // Próximo vencimento = 1 mês a partir do vencimento atual ou de hoje, o que
+      // for mais tarde (mesma regra de /api/assinaturas/assinantes/[id]/renovar).
+      // Somar 1 mês a um vencimento antigo deixava a assinatura ainda vencida:
+      // o recebimento entrava no caixa e a cobrança seguia em "A cobrar".
+      const agora = new Date()
+      const proximoVencimento = new Date(assinatura.nextBillingAt > agora ? assinatura.nextBillingAt : agora)
       proximoVencimento.setMonth(proximoVencimento.getMonth() + 1)
 
       await prisma.$transaction(async (tx) => {
