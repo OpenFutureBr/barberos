@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { salvarTemplates } from "@/lib/permissoes-templates"
 
 // Platform-wide role permission templates (organizationId = null)
 // Only ADMIN can read/write these
@@ -36,25 +37,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Formato inválido" }, { status: 400 })
     }
 
-    const results = await Promise.all(
-      body.map(async ({ role, resource, canView, canCreate, canEdit, canDelete }) => {
-        const existing = await prisma.rolePermissionTemplate.findFirst({
-          where: { role, resource, organizationId: null },
-          select: { id: true },
-        })
-        if (existing) {
-          return prisma.rolePermissionTemplate.update({
-            where: { id: existing.id },
-            data: { canView, canCreate, canEdit, canDelete },
-          })
-        }
-        return prisma.rolePermissionTemplate.create({
-          data: { role, resource, canView, canCreate, canEdit, canDelete, organizationId: null },
-        })
-      })
-    )
+    const updated = await salvarTemplates(null, body)
 
-    return NextResponse.json({ updated: results.length })
+    return NextResponse.json({ updated })
   } catch (error) {
     return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }

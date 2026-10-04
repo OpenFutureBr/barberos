@@ -33,8 +33,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const body: { resource: string; canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean }[] = await req.json()
 
-  // Upsert em paralelo para cada recurso
-  await Promise.all(
+  // Uma transação (sequencial numa conexão) em vez de N upserts em paralelo
+  await prisma.$transaction(
     body.map(p =>
       prisma.userPermission.upsert({
         where: { userId_resource: { userId: id, resource: p.resource } },

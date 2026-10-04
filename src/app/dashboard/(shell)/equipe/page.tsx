@@ -4,6 +4,13 @@ import { useState, useEffect, useRef } from "react"
 import { RESOURCES } from "@/lib/resources"
 import { roleLabel, roleBadge } from "@/lib/role-labels"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { mascaraTelefone } from "@/lib/mascaras"
+import { invalidateCache } from "@/lib/prefetch-cache"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 // Ícones no mesmo estilo outline usado na Sidebar (mais sóbrio que emoji)
 function ic(path: string, cls = "w-3.5 h-3.5") {
@@ -64,27 +71,37 @@ function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }
   const grupos = Array.from(new Set(RESOURCES.map(r => r.group)))
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <h2 className="text-white font-bold text-sm">Permissões de acesso</h2>
-              {prof.role && (
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${roleBadge(prof.role)}`}>
-                  {roleLabel(prof.role)}
-                </span>
-              )}
-            </div>
-            <p className="text-zinc-500 text-xs">
-              {prof.name} · {usernameGerado ? <span className="text-amber-400 font-mono">@{usernameGerado}</span> : <span className="text-red-400">sem usuário</span>}
-            </p>
-          </div>
-          <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl">✕</button>
+    <Modal
+      aberto
+      onFechar={onFechar}
+      fecharNoFundo={false}
+      tamanho="lg"
+      titulo={
+        <div className="flex items-center gap-2">
+          <h2 className="text-white font-bold text-sm">Permissões de acesso</h2>
+          {prof.role && (
+            <span className={`text-xs px-2 py-0.5 rounded-full border ${roleBadge(prof.role)}`}>
+              {roleLabel(prof.role)}
+            </span>
+          )}
         </div>
-
+      }
+      subtitulo={
+        <>
+          {prof.name} · {usernameGerado ? <span className="text-amber-400 font-mono">@{usernameGerado}</span> : <span className="text-red-400">sem usuário</span>}
+        </>
+      }
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onFechar}>Cancelar</Button>
+          <Button variant="accent" onClick={salvar} disabled={salvando || loading}>
+            {salvando ? "Salvando..." : "Salvar permissões"}
+          </Button>
+        </>
+      }
+    >
         {!usernameGerado && (
-          <div className="mx-5 mt-4 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div className="mb-5 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between gap-4">
             <div>
               <div className="text-amber-400 text-sm font-medium">Sem acesso ao sistema</div>
               <div className="text-zinc-500 text-xs mt-0.5">Gere um login para que este profissional possa entrar no sistema. A senha inicial será <span className="font-mono text-zinc-400">123456</span>.</div>
@@ -105,9 +122,9 @@ function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }
         )}
 
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-600 text-sm">Carregando...</div>
+          <div className="py-10 flex items-center justify-center text-zinc-600 text-sm">Carregando...</div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="space-y-5">
             {grupos.map(grupo => (
               <div key={grupo}>
                 <div className="flex items-center gap-2 mb-2">
@@ -150,19 +167,7 @@ function PermissoesModal({ prof, onFechar }: { prof: any; onFechar: () => void }
             ))}
           </div>
         )}
-
-        <div className="p-5 border-t border-zinc-800 flex gap-3">
-          <button onClick={onFechar}
-            className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-            Cancelar
-          </button>
-          <button onClick={salvar} disabled={salvando || loading}
-            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold px-4 py-2.5 rounded-lg text-sm transition-colors">
-            {salvando ? "Salvando..." : "Salvar permissões"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -182,15 +187,9 @@ const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 const horasOpcoes = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`)
 
 function hojeISO() {
-  return new Date().toISOString().split("T")[0]
+  return hojeISOemBRT()
 }
 
-function formatarTelefone(valor: string): string {
-  const nums = valor.replace(/\D/g, "").slice(0, 11)
-  if (nums.length <= 2) return nums.length ? `(${nums}` : ""
-  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
-  return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
-}
 
 function calcularIdade(birthDate: string | null) {
   if (!birthDate) return null
@@ -310,13 +309,21 @@ function FormularioProfissional({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <h2 className="text-white font-bold">{titulo}</h2>
-          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+    <Modal
+      aberto
+      onFechar={onCancelar}
+      fecharNoFundo={false}
+      titulo={titulo}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onCancelar}>Cancelar</Button>
+          <Button variant="accent" type="submit" form="form-profissional" disabled={salvando}>
+            {salvando ? "Salvando..." : "Confirmar"}
+          </Button>
+        </>
+      }
+    >
+        <form id="form-profissional" onSubmit={handleSubmit} className="space-y-4">
 
           <div>
             <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
@@ -354,7 +361,7 @@ function FormularioProfissional({
             </div>
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
-              <input value={telefone} onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+              <input value={telefone} onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
                 placeholder="(11) 99999-9999"
                 className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600" />
             </div>
@@ -529,24 +536,14 @@ function FormularioProfissional({
           {erro && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>
           )}
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={salvando}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {salvando ? "Salvando..." : "Confirmar"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
 export default function EquipePage() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const cacheEquipe = useRef<any[] | null>(null)
   const [equipe, setEquipe] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
@@ -563,10 +560,19 @@ export default function EquipePage() {
   const [resetandoSenha, setResetandoSenha] = useState<string | null>(null)
 
   async function handleResetarSenha(prof: any) {
-    if (!confirm(`Resetar a senha de ${prof.name} para 123456?`)) return
+    const ok = await confirmar({
+      titulo: `Resetar a senha de ${prof.name}?`,
+      mensagem: "A senha volta para 123456 e será pedida uma nova no próximo acesso.",
+      confirmar: "Resetar senha",
+      perigo: true,
+    })
+    if (!ok) return
     setResetandoSenha(prof.id)
-    await fetch(`/api/equipe/${prof.id}/resetar-senha`, { method: "POST" })
+    // Antes o resultado era ignorado: uma falha passava por sucesso.
+    const res = await fetch(`/api/equipe/${prof.id}/resetar-senha`, { method: "POST" }).catch(() => null)
     setResetandoSenha(null)
+    if (res?.ok) avisar(`Senha de ${prof.name} resetada para 123456.`, "sucesso")
+    else avisar("Não foi possível resetar a senha.", "erro")
   }
 
   useEffect(() => {
@@ -590,7 +596,7 @@ export default function EquipePage() {
     try {
       const res = await fetch("/api/equipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) })
       if (!res.ok) { setErroModal("Erro ao salvar."); return }
-      cacheEquipe.current = null; await buscarEquipe(true); setModalNovo(false)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalNovo(false)
     } catch { setErroModal("Erro inesperado.") } finally { setSalvando(false) }
   }
 
@@ -600,7 +606,7 @@ export default function EquipePage() {
     try {
       const res = await fetch(`/api/equipe/${profSelecionado.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) })
       if (!res.ok) { setErroModal("Erro ao salvar."); return }
-      cacheEquipe.current = null; await buscarEquipe(true); setModalEditar(false); setProfSelecionado(null)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalEditar(false); setProfSelecionado(null)
     } catch { setErroModal("Erro inesperado.") } finally { setSalvando(false) }
   }
 
@@ -609,7 +615,7 @@ export default function EquipePage() {
     setExcluindo(true)
     try {
       await fetch(`/api/equipe/${profSelecionado.id}`, { method: "DELETE" })
-      cacheEquipe.current = null; await buscarEquipe(true); setModalExcluir(false); setProfSelecionado(null)
+      cacheEquipe.current = null; invalidateCache("equipe"); await buscarEquipe(true); setModalExcluir(false); setProfSelecionado(null)
     } catch {} finally { setExcluindo(false) }
   }
 
@@ -622,16 +628,12 @@ export default function EquipePage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Equipe</h1>
-          <p className="text-zinc-500 text-sm">{totalAtivos} ativos · {totalInativos} inativos · CLT · PJ · MEI · Autônomo</p>
-        </div>
+      <PageHeader titulo="Equipe" subtitulo={<>{totalAtivos} ativos · {totalInativos} inativos · CLT · PJ · MEI · Autônomo</>}>
         <button onClick={() => { setErroModal(""); setModalNovo(true) }}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
           + Profissional
         </button>
-      </div>
+      </PageHeader>
 
       {/* Filtro */}
       <div className="flex gap-2 mb-4">
@@ -783,23 +785,24 @@ export default function EquipePage() {
       {modalPermissoes && profSelecionado && <PermissoesModal prof={profSelecionado} onFechar={() => { setModalPermissoes(false); setProfSelecionado(null) }} />}
 
       {modalExcluir && profSelecionado && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6">
-            <h2 className="text-white font-bold text-lg mb-2">Desativar profissional?</h2>
-            <p className="text-zinc-400 text-sm mb-1"><span className="text-white font-medium">{profSelecionado.name}</span> será marcado como inativo.</p>
-            <p className="text-zinc-600 text-xs mb-6">O histórico de atendimentos será preservado. Você pode reativar pelo botão Editar.</p>
-            <div className="flex gap-3">
-              <button onClick={() => { setModalExcluir(false); setProfSelecionado(null) }}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                Cancelar
-              </button>
-              <button onClick={handleExcluir} disabled={excluindo}
-                className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-medium px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
+        <Modal
+          aberto
+          onFechar={() => { setModalExcluir(false); setProfSelecionado(null) }}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="Desativar profissional?"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => { setModalExcluir(false); setProfSelecionado(null) }}>Cancelar</Button>
+              <Button variant="danger" onClick={handleExcluir} disabled={excluindo}>
                 {excluindo ? "Desativando..." : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </>
+          }
+        >
+            <p className="text-zinc-400 text-sm mb-1"><span className="text-white font-medium">{profSelecionado.name}</span> será marcado como inativo.</p>
+            <p className="text-zinc-600 text-xs">O histórico de atendimentos será preservado. Você pode reativar pelo botão Editar.</p>
+        </Modal>
       )}
     </>
   )

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { MENU_GROUPS, type MenuGroup } from "@/lib/menu-items"
 import { usePermissoes } from "@/lib/usePermissoes"
-import { useSubstituirHistorico } from "@/lib/navegacao"
+import { useSubstituirHistorico, rotaAtiva } from "@/lib/navegacao"
 
 function Icon({ path, fill = false, size = 20 }: { path: string; fill?: boolean; size?: number }) {
   return (
@@ -96,7 +96,7 @@ export default function MobileNav() {
 
         <div className="grid grid-cols-4 gap-1 px-2 pb-3 max-h-[50vh] overflow-y-auto">
           {itens.map(item => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+            const isActive = rotaAtiva(pathname, item.href)
             return (
               <Link
                 key={item.href}
@@ -124,7 +124,7 @@ export default function MobileNav() {
       {/* Barra — sempre visivel */}
       <div className="flex items-center h-16 overflow-x-auto scrollbar-none px-1 gap-1">
         {grupos.map(grupo => {
-          const naRota = grupo.items.some(item => pathname === item.href || pathname.startsWith(item.href + "/"))
+          const naRota = grupo.items.some(item => rotaAtiva(pathname, item.href))
           const aberto = grupoAberto?.label === grupo.label
           return (
             <button

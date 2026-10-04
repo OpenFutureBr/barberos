@@ -4,7 +4,12 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "rea
 import { useSearchParams } from "next/navigation"
 import { catalogoProdutos, GRUPOS, SUBGRUPOS_ALCOOLICOS, type CatalogoProduto } from "@/data/catalogo-produtos"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import { fmtMoeda } from "@/lib/formatadores"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -194,7 +199,8 @@ function ComboboxGrupo({ value, onChange, grupos }: {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") { e.preventDefault(); if (filtrados.length === 1) { selecionar(filtrados[0]); return }; if (exibirCriar) setConfirmarCriar(true) }
-    if (e.key === "Escape") { setAberto(false); setConfirmarCriar(false) }
+    // Com a lista aberta o Esc so fecha a lista, nao o modal de produto em volta
+    if (e.key === "Escape") { if (aberto) e.preventDefault(); setAberto(false); setConfirmarCriar(false) }
   }
 
   return (
@@ -232,17 +238,26 @@ function ComboboxGrupo({ value, onChange, grupos }: {
 
 function ModalAlcool({ subgrupo, onConfirm }: { subgrupo: string; onConfirm: (v: boolean) => void }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6 text-center">
+    // Escape/X contam como "Não": e o mesmo que o handler faz com false, e o
+    // subgrupo escolhido nao fica pendente sem resposta.
+    <Modal
+      aberto
+      onFechar={() => onConfirm(false)}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo={subgrupo}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={() => onConfirm(false)}>Não</Button>
+          <Button variant="accent" onClick={() => onConfirm(true)}>Sim, contém álcool</Button>
+        </>
+      }
+    >
+      <div className="text-center">
         <div className="text-3xl mb-3">🍺</div>
-        <h3 className="text-white font-bold mb-1">{subgrupo}</h3>
-        <p className="text-zinc-400 text-sm mb-5">Este produto contém álcool?</p>
-        <div className="flex gap-3">
-          <button onClick={() => onConfirm(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm">Não</button>
-          <button onClick={() => onConfirm(true)} className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2.5 rounded-lg text-sm">Sim, contém álcool</button>
-        </div>
+        <p className="text-zinc-400 text-sm">Este produto contém álcool?</p>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -273,7 +288,7 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
         </div>
         <div className="p-2">
           <div className="text-white text-xs font-medium leading-tight truncate">{nome}</div>
-          <div className="text-amber-400 text-xs font-bold mt-0.5">R$ {preco.toFixed(2)}</div>
+          <div className="text-amber-400 text-xs font-bold mt-0.5">{fmtMoeda(preco)}</div>
           <div className="text-zinc-600 text-xs">{subcat}</div>
         </div>
       </button>
@@ -282,6 +297,8 @@ function CardCatalogo({ nome, foto, subcat, preco, noEstoque, inativo, hasAlcoho
 }
 
 function EstoqueInner() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const searchParams = useSearchParams()
   const [aba, setAba] = useState<"estoque" | "catalogo" | "pdv" | "movimentos">("estoque")
   const [produtos, setProdutos] = useState<any[]>([])
@@ -536,7 +553,7 @@ function EstoqueInner() {
       ? itensEntrada.filter(i => i.produto && Number(i.qty) > 0)
       : itensNfe.filter(i => i.produto && Number(i.qty) > 0)
 
-    if (itens.length === 0) { alert("Adicione ao menos um produto."); return }
+    if (itens.length === 0) { avisar("Adicione ao menos um produto.", "erro"); return }
     setSalvandoEntrada(true)
     try {
       await Promise.all(itens.map(item =>
@@ -555,7 +572,7 @@ function EstoqueInner() {
       await buscarProdutos()
       await buscarMovimentos()
       fecharModalEntrada()
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setSalvandoEntrada(false) }
   }
 
@@ -576,13 +593,13 @@ function EstoqueInner() {
             unitPrice: item.unitPrice,
           }),
         })
-        if (!res.ok) { const d = await res.json(); alert(`${item.produto.name}: ${d.error}`); return }
+        if (!res.ok) { const d = await res.json(); avisar(`${item.produto.name}: ${d.error}`, "erro"); return }
       }
       await buscarProdutos()
       await buscarMovimentos()
       setModalVenda(false)
       setItensVenda([]); setClienteVenda(""); setBuscaClienteVenda(""); setBuscaProdutoVenda("")
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setSalvandoVenda(false) }
   }
 
@@ -679,7 +696,7 @@ function EstoqueInner() {
 
       if (!res.ok) {
         const err = await res.json()
-        alert("Erro: " + (err.error || res.status))
+        avisar("Erro: " + (err.error || res.status), "erro")
         return
       }
 
@@ -687,7 +704,7 @@ function EstoqueInner() {
       setModalLancamento(false)
       setItemLancando(null)
     } catch (err) {
-      alert("Erro ao lançar: " + String(err))
+      avisar("Erro ao lançar: " + String(err), "erro")
     } finally {
       setSalvandoLancamento(false)
     }
@@ -748,12 +765,12 @@ function EstoqueInner() {
   const [produtoVendo, setProdutoVendo] = useState<ProdutoDetalhe | null>(null)
 
   async function handleExcluir(prod: ProdutoDetalhe) {
-    if (!confirm(`Excluir "${prod.name}" definitivamente? Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmar({ titulo: `Excluir "${prod.name}"?`, mensagem: "Exclusão definitiva — esta ação não pode ser desfeita.", confirmar: "Excluir", perigo: true }))) return
     const res = await fetch(`/api/estoque?id=${encodeURIComponent(prod.id)}`, { method: "DELETE" })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
       // 409 = ganhou historico entre o carregamento da lista e o clique.
-      alert(d.error || "Não foi possível excluir o produto.")
+      avisar(d.error || "Não foi possível excluir o produto.", "erro")
       await buscarProdutos()
       return
     }
@@ -761,7 +778,7 @@ function EstoqueInner() {
   }
 
   async function handleDesativar(id: string) {
-    if (!confirm("Desativar este produto?")) return
+    if (!(await confirmar({ titulo: "Desativar este produto?", mensagem: "Ele some das vendas e da lista, mas o histórico fica guardado.", confirmar: "Desativar" }))) return
     await fetch("/api/estoque", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, isActive: false }) })
     await buscarProdutos()
   }
@@ -782,39 +799,14 @@ function EstoqueInner() {
   return (
     <>
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Estoque & PDV</h1>
-          <p className="text-zinc-500 text-sm">{produtos.filter(p => p.isActive).length} produtos · {criticos} críticos</p>
-        </div>
-      </div>
+      <PageHeader titulo="Estoque & PDV" subtitulo={<>{produtos.filter(p => p.isActive).length} produtos · {criticos} críticos</>} />
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="valor" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Valor em estoque</div>
-            <div className="text-blue-400 text-xl font-bold">R$ {totalEstoque.toFixed(2)}</div>
-            <div className="text-zinc-600 text-xs mt-1">{produtos.filter(p => p.isActive).length} ativos</div>
-          </div>,
-          <div key="criticos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-red-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Itens críticos</div>
-            <div className="text-red-400 text-xl font-bold">{criticos}</div>
-            <div className="text-zinc-600 text-xs mt-1">abaixo do mínimo</div>
-          </div>,
-          <div key="catalogo" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Catálogo</div>
-            <div className="text-amber-400 text-xl font-bold">{catalogoProdutos.length + meusProdutos.length}</div>
-            <div className="text-zinc-600 text-xs mt-1">pré-definidos + meus</div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={3} className="mb-4">{[
+        <Stat key="valor" tone="info" rotulo="Valor em estoque" valor={fmtMoeda(totalEstoque)} apoio={`${produtos.filter(p => p.isActive).length} ativos`} />,
+        <Stat key="criticos" tone="danger" rotulo="Itens críticos" valor={criticos} apoio="abaixo do mínimo" />,
+        <Stat key="catalogo" tone="accent" rotulo="Catálogo" valor={catalogoProdutos.length + meusProdutos.length} apoio="pré-definidos + meus" />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -861,7 +853,7 @@ function EstoqueInner() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="text-white text-sm font-medium truncate">{p.name}</div>
-                            <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">R$ {p.salePrice?.toFixed(2)}</div>
+                            <div className="text-amber-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(p.salePrice)}</div>
                           </div>
                           <div className="text-zinc-600 text-xs truncate">
                             {[p.category || null, p.barcode || p.subCategory || null].filter(Boolean).join(" · ") || "—"}
@@ -928,7 +920,7 @@ function EstoqueInner() {
                               style={{ width: `${Math.min(100, (p.stock / Math.max(p.minStock * 2, 1)) * 100)}%` }} />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">R$ {p.salePrice?.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right text-amber-400 font-bold font-mono">{fmtMoeda(p.salePrice)}</td>
                         <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${status.style}`}>{status.label}</span></td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end">
@@ -1199,7 +1191,7 @@ function EstoqueInner() {
               <div className="flex gap-4 text-sm ml-auto">
                 <span className="text-zinc-500">{vendas.length} venda{vendas.length !== 1 ? "s" : ""}</span>
                 <span className="text-green-400 font-bold">
-                  R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                  {fmtMoeda(vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                 </span>
               </div>
             )}
@@ -1250,18 +1242,18 @@ function EstoqueInner() {
                               {" · "}{cliente}
                             </div>
                             <div className="text-zinc-600 text-xs">
-                              {v.quantity}× R$ {preco.toFixed(2)}
+                              {v.quantity}× {fmtMoeda(preco)}
                               {descPct && <span className="text-orange-400"> · {descPct}% desc</span>}
                             </div>
                           </div>
-                          <div className="text-green-400 font-bold font-mono text-sm flex-shrink-0">R$ {totalLinha.toFixed(2)}</div>
+                          <div className="text-green-400 font-bold font-mono text-sm flex-shrink-0">{fmtMoeda(totalLinha)}</div>
                         </div>
                       )
                     })}
                     <div className="px-4 py-2 flex items-center justify-between border-t border-zinc-700">
                       <span className="text-zinc-500 text-xs">Total geral</span>
                       <span className="text-green-400 font-bold font-mono">
-                        R$ {vendas.reduce((s, v) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                        {fmtMoeda(vendas.reduce((s, v) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                       </span>
                     </div>
                   </div>
@@ -1297,11 +1289,11 @@ function EstoqueInner() {
                             <td className="px-4 py-3 text-zinc-400 text-sm">{cliente}</td>
                             <td className="px-4 py-3 text-center text-zinc-300 text-sm">{v.quantity}</td>
                             <td className="px-4 py-3 text-right">
-                              <div className="text-amber-400 text-sm font-mono">R$ {preco.toFixed(2)}</div>
+                              <div className="text-amber-400 text-sm font-mono">{fmtMoeda(preco)}</div>
                               {descPct && <div className="text-orange-400 text-xs">{descPct}% desc</div>}
                             </td>
                             <td className="px-4 py-3 text-right text-green-400 font-bold font-mono">
-                              R$ {totalLinha.toFixed(2)}
+                              {fmtMoeda(totalLinha)}
                             </td>
                           </tr>
                         )
@@ -1311,7 +1303,7 @@ function EstoqueInner() {
                       <tr>
                         <td colSpan={5} className="px-4 py-2 text-zinc-500 text-xs text-right">Total geral</td>
                         <td className="px-4 py-2 text-right text-green-400 font-bold font-mono">
-                          R$ {vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0).toFixed(2)}
+                          {fmtMoeda(vendas.reduce((s: number, v: any) => s + ((v.unitPrice ?? v.product?.salePrice ?? 0) * v.quantity), 0))}
                         </td>
                       </tr>
                     </tfoot>
@@ -1383,7 +1375,7 @@ function EstoqueInner() {
                         {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
                           <div className="text-orange-400 text-xs mt-1">
                             {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
-                            · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                            · {fmtMoeda(m.unitPrice)} (tabela {fmtMoeda(m.product.salePrice)})
                           </div>
                         )}
                       </div>
@@ -1423,7 +1415,7 @@ function EstoqueInner() {
                             {m.type === "SAIDA" && m.unitPrice != null && m.product?.salePrice && m.unitPrice < m.product.salePrice && (
                               <div className="text-orange-400 text-xs mt-0.5">
                                 {((1 - m.unitPrice / m.product.salePrice) * 100).toFixed(0)}% desconto
-                                · R$ {m.unitPrice.toFixed(2)} (tabela R$ {m.product.salePrice.toFixed(2)})
+                                · {fmtMoeda(m.unitPrice)} (tabela {fmtMoeda(m.product.salePrice)})
                               </div>
                             )}
                           </td>
@@ -1459,16 +1451,23 @@ function EstoqueInner() {
 
       {/* MODAL LANÇAMENTO DO CATÁLOGO */}
       {modalLancamento && itemLancando && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold">Lançar no Estoque</h2>
-                <p className="text-zinc-500 text-xs mt-0.5 truncate max-w-[240px]">{itemLancando.name}</p>
-              </div>
-              <button onClick={() => setModalLancamento(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={confirmarLancamento} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalLancamento(false)}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="Lançar no Estoque"
+          subtitulo={itemLancando.name}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalLancamento(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-lancamento" disabled={salvandoLancamento}>
+                {salvandoLancamento ? "Lançando..." : "Confirmar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-lancamento" onSubmit={confirmarLancamento} className="space-y-3">
               {itemLancando.photoUrl && (
                 <img src={itemLancando.photoUrl} alt={itemLancando.name}
                   className="w-full h-32 object-cover rounded-xl bg-zinc-800"
@@ -1499,17 +1498,8 @@ function EstoqueInner() {
                   </span>
                 </div>
               )}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalLancamento(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvandoLancamento}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoLancamento ? "Lançando..." : "Confirmar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* MODAL EDITAR PRODUTO */}
@@ -1526,14 +1516,18 @@ function EstoqueInner() {
           </div>
         )
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setProdutoVendo(null)}>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                <h2 className="text-white font-bold">Detalhes do produto</h2>
-                <button onClick={() => setProdutoVendo(null)} aria-label="Fechar" className="text-zinc-500 hover:text-white text-xl">✕</button>
-              </div>
-
-              <div className="p-5">
+          <Modal
+            aberto
+            onFechar={() => setProdutoVendo(null)}
+            titulo="Detalhes do produto"
+            rodape={
+              <>
+                <Button variant="ghost" onClick={() => setProdutoVendo(null)}>Fechar</Button>
+                <Button variant="accent" onClick={() => { setProdutoVendo(null); abrirEditar(v) }}>Editar</Button>
+              </>
+            }
+          >
+              <div>
                 <div className="flex items-start gap-3 mb-4">
                   <FotoProduto url={v.photoUrl} nome={v.name} tamanho="md" />
                   <div className="min-w-0">
@@ -1546,8 +1540,8 @@ function EstoqueInner() {
                 </div>
 
                 {linha("Código de barras", v.barcode || "—")}
-                {linha("Preço de custo", `R$ ${Number(v.costPrice).toFixed(2)}`)}
-                {linha("Preço de venda", <span className="text-amber-400 font-bold font-mono">R$ {Number(v.salePrice).toFixed(2)}</span>)}
+                {linha("Preço de custo", `${fmtMoeda(Number(v.costPrice))}`)}
+                {linha("Preço de venda", <span className="text-amber-400 font-bold font-mono">{fmtMoeda(Number(v.salePrice))}</span>)}
                 {margem !== null && linha("Margem", `${margem.toFixed(0)}%`)}
                 {linha("Em estoque", <span className={v.stock <= v.minStock ? "text-red-400 font-bold" : ""}>{v.stock} {v.unit || "un"}</span>)}
                 {linha("Estoque mínimo", `${v.minStock} ${v.unit || "un"}`)}
@@ -1564,31 +1558,27 @@ function EstoqueInner() {
                     Apagar levaria embora lançamentos já contabilizados no financeiro.
                   </p>
                 )}
-
-                <div className="flex gap-2 mt-5">
-                  <button type="button" onClick={() => setProdutoVendo(null)}
-                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                    Fechar
-                  </button>
-                  <button type="button" onClick={() => { setProdutoVendo(null); abrirEditar(v) }}
-                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                    Editar
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 
       {modalEditar && produtoEditando && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Editar Produto</h2>
-              <button onClick={() => setModalEditar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={handleSalvarEdicao} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalEditar(false)}
+          fecharNoFundo={false}
+          titulo="Editar Produto"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalEditar(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-editar-produto" disabled={salvandoEdicao}>
+                {salvandoEdicao ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-editar-produto" onSubmit={handleSalvarEdicao} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome *</label>
                 <input value={nomeEdit} onChange={(e) => setNomeEdit(e.target.value)} required className={inputCls} />
@@ -1636,28 +1626,27 @@ function EstoqueInner() {
                 <span className={`text-sm ${alcoolEdit ? "text-amber-400" : "text-zinc-400"}`}>🔞 Produto alcoólico</span>
               </div>
               {erroEdit && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroEdit}</div>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalEditar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvandoEdicao}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoEdicao ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* MODAL NOVO PRODUTO */}
       {modalNovo && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Novo Produto</h2>
-              <button onClick={() => setModalNovo(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalNovo(false)}
+          fecharNoFundo={false}
+          titulo="Novo Produto"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalNovo(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-novo-produto" disabled={salvando}>
+                {salvando ? "Salvando..." : "Cadastrar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-novo-produto" onSubmit={handleSalvar} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome do produto *</label>
                 <input value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="Ex: Pomada Matte" className={inputCls} />
@@ -1705,44 +1694,46 @@ function EstoqueInner() {
                 <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className={inputCls} />
               </div>
               {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalNovo(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">Cancelar</button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Cadastrar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {mostrarModalAlcool && <ModalAlcool subgrupo={subgrupoAlcoolPendente} onConfirm={handleConfirmarAlcool} />}
 
       {/* MODAL ENTRADA DE MERCADORIA */}
       {modalEntrada && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 flex-shrink-0">
-              <h2 className="text-white font-bold">Entrada de Mercadoria</h2>
-              <button onClick={fecharModalEntrada} className="text-zinc-500 hover:text-white text-xl">✕</button>
+        <Modal
+          aberto
+          onFechar={fecharModalEntrada}
+          fecharNoFundo={false}
+          titulo={
+            <div>
+              <h2 className="text-fg text-sm font-semibold truncate">Entrada de Mercadoria</h2>
+              {/* Abas no cabecalho: ficam visiveis enquanto o corpo rola */}
+              <div className="flex mt-2">
+                {(["simples","estratificada"] as const).map(t => (
+                  <button key={t} type="button" onClick={() => setTipoEntrada(t)}
+                    className={`flex-1 px-3 py-2 text-xs font-semibold tracking-wide uppercase transition-colors ${
+                      tipoEntrada === t ? "text-amber-400 border-b-2 border-amber-500" : "text-zinc-500 hover:text-zinc-300"
+                    }`}>
+                    {t === "simples" ? "Simples" : "Estratificada (NF-e)"}
+                  </button>
+                ))}
+              </div>
             </div>
-
-            {/* Abas */}
-            <div className="flex border-b border-zinc-800 flex-shrink-0">
-              {(["simples","estratificada"] as const).map(t => (
-                <button key={t} onClick={() => setTipoEntrada(t)}
-                  className={`flex-1 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${
-                    tipoEntrada === t ? "text-amber-400 border-b-2 border-amber-500" : "text-zinc-500 hover:text-zinc-300"
-                  }`}>
-                  {t === "simples" ? "Simples" : "Estratificada (NF-e)"}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={confirmarEntrada} className="flex-1 overflow-y-auto p-5 space-y-4">
+          }
+          rodape={
+            <>
+              <Button variant="ghost" onClick={fecharModalEntrada}>Cancelar</Button>
+              <Button variant="success" type="submit" form="form-entrada" disabled={salvandoEntrada ||
+                (tipoEntrada === "simples" && itensEntrada.length === 0) ||
+                (tipoEntrada === "estratificada" && (!dadosNfe || itensNfe.filter(i => i.produto).length === 0))}>
+                {salvandoEntrada ? "Salvando..." : `Confirmar ${tipoEntrada === "simples" ? itensEntrada.length : itensNfe.filter(i=>i.produto).length} item(ns)`}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-entrada" onSubmit={confirmarEntrada} className="space-y-4">
 
               {/* ── ABA SIMPLES ── */}
               {tipoEntrada === "simples" && (
@@ -1767,7 +1758,7 @@ function EstoqueInner() {
                               }}
                               className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700/50 last:border-0 transition-colors">
                               <div className="text-white text-sm">{p.name}</div>
-                              <div className="text-zinc-500 text-xs">Estoque: {p.stock} · Custo: R$ {p.costPrice?.toFixed(2)}</div>
+                              <div className="text-zinc-500 text-xs">Estoque: {p.stock} · Custo: {fmtMoeda(p.costPrice)}</div>
                             </button>
                           )) : (
                             <div className="px-3 py-2 text-zinc-500 text-sm">Nenhum produto encontrado</div>
@@ -1984,23 +1975,8 @@ function EstoqueInner() {
                     className={inputCls} />
                 </div>
               )}
-
-              {/* Botões */}
-              <div className="flex gap-3 pt-1 flex-shrink-0">
-                <button type="button" onClick={fecharModalEntrada}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvandoEntrada ||
-                  (tipoEntrada === "simples" && itensEntrada.length === 0) ||
-                  (tipoEntrada === "estratificada" && (!dadosNfe || itensNfe.filter(i => i.produto).length === 0))}
-                  className="flex-1 bg-green-500/20 hover:bg-green-500/30 disabled:opacity-40 text-green-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                  {salvandoEntrada ? "Salvando..." : `Confirmar ${tipoEntrada === "simples" ? itensEntrada.length : itensNfe.filter(i=>i.produto).length} item(ns)`}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
 

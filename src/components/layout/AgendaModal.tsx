@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useRef, lazy, Suspense } from "react"
 import { useSession } from "next-auth/react"
-import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
+import { mascaraTelefone } from "@/lib/mascaras"
+import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
 function gerarSlots(inicio = "08:00", fim = "18:00", intervaloMin = 10) {
@@ -41,12 +46,6 @@ function getDataHoraInicial() {
   return { data: getDataSaoPaulo(adicionarMinutos(agoraMais5, 24 * 60)), hora: slots[0] }
 }
 
-function formatarTelefone(valor: string): string {
-  const nums = valor.replace(/\D/g, "").slice(0, 11)
-  if (nums.length <= 2) return nums.length ? `(${nums}` : ""
-  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`
-  return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`
-}
 
 type Props = {
   aberto: boolean
@@ -292,16 +291,23 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <div>
-            <h2 className="text-white font-bold">Novo Cliente</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">Telefone: {telefone}</p>
-          </div>
-          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+    <Modal
+      aberto
+      onFechar={onCancelar}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Novo Cliente"
+      subtitulo={`Telefone: ${telefone}`}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onCancelar}>Cancelar</Button>
+          <Button variant="accent" type="submit" form="form-cadastro-cliente" disabled={salvando}>
+            {salvando ? "Salvando..." : "Cadastrar"}
+          </Button>
+        </>
+      }
+    >
+        <form id="form-cadastro-cliente" onSubmit={handleSalvar} className="space-y-3">
           <div>
             <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
             <input value={nome} onChange={(e) => setNome(e.target.value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase()))}
@@ -315,19 +321,8 @@ function ModalCadastroCliente({ telefone, onSalvo, onCancelar }: {
           <p className="text-zinc-500 text-xs uppercase tracking-wider pt-1">Endereço</p>
           <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
           {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={salvando}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-              {salvando ? "Salvando..." : "Cadastrar"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -369,38 +364,37 @@ function ModalCadastroEndereco({ clienteId, clienteNome, onSalvo, onCancelar }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <div>
-            <h2 className="text-white font-bold">Endereço para Domicílio</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">{clienteNome}</p>
-          </div>
-          <button onClick={onCancelar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-        </div>
-        <form onSubmit={handleSalvar} className="p-5 space-y-3">
+    <Modal
+      aberto
+      onFechar={onCancelar}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Endereço para Domicílio"
+      subtitulo={clienteNome}
+      rodape={
+        <>
+          <Button variant="ghost" onClick={onCancelar}>Cancelar</Button>
+          {/* teal = domicilio, mesma cor do resto do fluxo de atendimento em casa */}
+          <Button variant="accent" type="submit" form="form-cadastro-endereco" disabled={salvando}
+            className="bg-teal-500 hover:bg-teal-400 text-white">
+            {salvando ? "Salvando..." : "Salvar endereço"}
+          </Button>
+        </>
+      }
+    >
+        <form id="form-cadastro-endereco" onSubmit={handleSalvar} className="space-y-3">
           <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg px-3 py-2 text-teal-400 text-xs">
             Para agendamentos a domicílio, o cliente precisa ter endereço cadastrado.
           </div>
           <CamposEndereco {...{ cep, setCep, rua, setRua, numero, setNumero, bairro, setBairro, cidade, setCidade, buscandoCep, setBuscandoCep }} />
           {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={salvando}
-              className="flex-1 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-              {salvando ? "Salvando..." : "Salvar endereço"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
 export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Props) {
+  const avisar = useAviso()
   const { data: session } = useSession()
   const planFeatures = (session?.user as any)?.planFeatures as string[] | undefined
   const iaLicensed = planFeatures?.includes("ia") || planFeatures?.includes("*") || !!(session?.user as any)?.iaLicensed
@@ -408,8 +402,12 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [servicos, setServicos] = useState<any[]>([])
-  const [agendamentos, setAgendamentos] = useState<any[]>([])
+  // Lista do dia + o dia a que ela pertence: até a do dia selecionado chegar,
+  // os horários não são calculados com a lista de outro dia.
+  const [agendaDoDia, setAgendaDoDia] = useState<{ data: string; lista: any[] }>({ data: "", lista: [] })
+  const agendamentos = agendaDoDia.lista
   const [salvando, setSalvando] = useState(false)
+  const salvandoRef = useRef(false)
   const [carregando, setCarregando] = useState(false)
 
   // Acompanhante
@@ -537,8 +535,11 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   const servicoSelecionado = servicos.find((s) => s.id === servicoId)
   const duracaoTotal = (servicoSelecionado?.durationMin || 30) + descansoMin
 
+  const agendaCarregada = agendaDoDia.data === dataSelecionada
+
   const horariosDisponiveis = horasBase.filter((h) => {
     if (!profAtendeDia) return false
+    if (!agendaCarregada) return false
     const inicioNovo = new Date(`${dataSelecionada}T${h}:00-03:00`)
     const fimNovo = adicionarMinutos(inicioNovo, duracaoTotal)
     const agoraMais5 = adicionarMinutos(new Date(), 5)
@@ -561,15 +562,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     if (!aberto) return
 
     // businessHours — usa cache preenchido pelo DashboardLayout se ainda válido
-    const cfgCache = getCache("configuracoes")
-    if (cfgCache && Array.isArray(cfgCache.businessHours)) {
-      setBusinessHours(cfgCache.businessHours)
-    } else {
-      fetch("/api/configuracoes").then(r => r.json()).then(d => {
-        if (!d.error) setCache("configuracoes", d)
-        if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
-      }).catch(() => {})
-    }
+    fetchCached("configuracoes", "/api/configuracoes").then(d => {
+      if (Array.isArray(d?.businessHours)) setBusinessHours(d.businessHours)
+    }).catch(() => {})
 
     // regras de precificação — idem
     const precCache = getCache("precificacao")
@@ -589,8 +584,8 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
     } else {
       setCarregando(true)
       Promise.all([
-        fetch("/api/equipe").then(r => r.json()),
-        fetch("/api/clientes?modo=simples").then(r => r.json()),
+        fetchCached("equipe", "/api/equipe"),
+        fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000),
         fetch("/api/servicos").then(r => r.json()),
       ]).then(([profs, cls, svcs]) => {
         setProfissionais(Array.isArray(profs) ? profs : [])
@@ -605,18 +600,22 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   // para o dia de hoje) e revalida em segundo plano
   useEffect(() => {
     if (!aberto) return
-    const cacheKey = `agendamentos:${dataSelecionada}`
+    const data = dataSelecionada
+    const cacheKey = `agendamentos:${data}`
     const cached = getCache(cacheKey, 30_000)
-    if (cached) setAgendamentos(cached)
+    if (cached) setAgendaDoDia({ data, lista: cached })
 
-    fetch(`/api/agendamentos?data=${dataSelecionada}`)
+    // Ao trocar de data, a resposta do dia anterior é descartada
+    const ac = new AbortController()
+    fetch(`/api/agendamentos?data=${data}`, { signal: ac.signal })
       .then(r => r.json())
       .then(appts => {
         if (!Array.isArray(appts)) return
         setCache(cacheKey, appts)
-        setAgendamentos(appts)
+        setAgendaDoDia({ data, lista: appts })
       })
-      .catch(console.error)
+      .catch(e => { if (e?.name !== "AbortError") console.error(e) })
+    return () => ac.abort()
   }, [dataSelecionada, aberto])
 
   useEffect(() => {
@@ -659,7 +658,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   // Busca cliente por telefone
   async function handleTelefone(valor: string) {
-    const fmt = formatarTelefone(valor)
+    const fmt = mascaraTelefone(valor)
     setTelefone(fmt)
     setClienteId("")
     setClienteNome("")
@@ -702,6 +701,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
   }
 
   function handleClienteCadastrado(novoCliente: any) {
+    invalidateCache("clientes:")
     setClientes(prev => [novoCliente, ...prev])
     setClienteId(novoCliente.id)
     setClienteNome(novoCliente.name)
@@ -745,6 +745,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   async function handleSalvar(e: { preventDefault: () => void }) {
     e.preventDefault()
+    // Duplo clique / Enter no mesmo quadro: o estado ainda não re-renderizou,
+    // então a trava é um ref
+    if (salvandoRef.current) return
+    salvandoRef.current = true
     setSalvando(true)
     try {
       const scheduledAt = new Date(`${dataSelecionada}T${hora}:00-03:00`)
@@ -763,7 +767,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       })
       const result = await response.json()
       if (!response.ok) {
-        alert(result.error || "Erro ao criar agendamento")
+        avisar(result.error || "Erro ao criar agendamento", "erro")
         return
       }
 
@@ -800,8 +804,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
       onFechar()
     } catch (e) {
       console.error(e)
-      alert("Erro inesperado ao criar agendamento")
+      avisar("Erro inesperado ao criar agendamento", "erro")
     } finally {
+      salvandoRef.current = false
       setSalvando(false)
     }
   }
@@ -810,17 +815,26 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-            <h2 className="text-white font-bold">Novo Agendamento</h2>
-            <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-          </div>
-
+      <Modal
+        aberto
+        onFechar={onFechar}
+        fecharNoFundo={false}
+        titulo="Novo Agendamento"
+        // Carregando nao tem formulario, entao tambem nao tem botoes
+        rodape={carregando ? undefined : (
+          <>
+            <Button variant="ghost" onClick={onFechar}>Cancelar</Button>
+            <Button variant="accent" type="submit" form="form-agenda"
+              disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId || (tipoAtendimento === "domicilio" && !clienteTemEndereco)}>
+              {salvando ? "Salvando..." : "Confirmar"}
+            </Button>
+          </>
+        )}
+      >
           {carregando ? (
-            <div className="p-8 text-center text-zinc-500 text-sm">Carregando...</div>
+            <div className="p-4 text-center text-zinc-500 text-sm">Carregando...</div>
           ) : (
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+            <form id="form-agenda" onSubmit={handleSalvar} className="space-y-3">
 
               {/* Tipo de atendimento */}
               <div>
@@ -898,7 +912,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   <option value="">{profId ? "Selecionar serviço..." : "Selecione um profissional primeiro"}</option>
                   {servicosFiltrados.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — R$ {precoAjustado(s.price).toFixed(2)} · {s.durationMin}min
+                      {s.name} — {fmtMoeda(precoAjustado(s.price))} · {s.durationMin}min
                     </option>
                   ))}
                 </select>
@@ -1008,7 +1022,7 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                         className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors disabled:opacity-50">
                         <option value="">{acompProfId ? "Selecionar serviço..." : "Selecione o barbeiro primeiro"}</option>
                         {acompServicosDisponiveis.map(s => (
-                          <option key={s.id} value={s.id}>{s.name} — R$ {Number(s.price).toFixed(2)} · {s.durationMin}min</option>
+                          <option key={s.id} value={s.id}>{s.name} — {fmtMoeda(Number(s.price))} · {s.durationMin}min</option>
                         ))}
                       </select>
                     </div>
@@ -1036,6 +1050,10 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   {!profAtendeDia ? (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
                       Prof. não atende neste dia.
+                    </div>
+                  ) : !agendaCarregada ? (
+                    <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-2 py-2 text-zinc-400 text-xs">
+                      Carregando horários…
                     </div>
                   ) : horariosDisponiveis.length === 0 ? (
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-2 text-red-400 text-xs">
@@ -1075,22 +1093,9 @@ export default function AgendaModal({ aberto, onFechar, dadosPreCarregados }: Pr
                   </button>
                 </div>
               )}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onFechar}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit"
-                  disabled={salvando || horariosDisponiveis.length === 0 || !profAtendeDia || !clienteId || (tipoAtendimento === "domicilio" && !clienteTemEndereco)}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Confirmar"}
-                </button>
-              </div>
             </form>
           )}
-        </div>
-      </div>
+      </Modal>
 
       {/* Modal de cadastro rápido */}
       {mostrarCadastro && (

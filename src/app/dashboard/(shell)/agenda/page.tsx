@@ -2,29 +2,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { getCache, setCache } from "@/lib/prefetch-cache"
-
-const statusLabel: Record<string, string> = {
-  SCHEDULED: "Pendente",
-  CONFIRMED: "Confirmado",
-  IN_QUEUE: "Aguardando",
-  IN_PROGRESS: "Em andamento",
-  DONE: "Concluído",
-  CANCELLED: "Cancelado",
-  NO_SHOW: "Não compareceu",
-  WITHDRAWN: "Desistência",
-}
-
-const statusCor: Record<string, string> = {
-  SCHEDULED: "text-amber-400",
-  CONFIRMED: "text-green-400",
-  IN_QUEUE: "text-purple-400",
-  IN_PROGRESS: "text-blue-400",
-  DONE: "text-zinc-400",
-  CANCELLED: "text-red-400",
-  NO_SHOW: "text-zinc-500",
-  WITHDRAWN: "text-orange-400",
-}
+import { getCache, setCache, invalidateCache, fetchCached } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, corTextoStatus, ORDEM_STATUS } from "@/lib/status"
+import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const corAppt: Record<string, string> = {
   presencial: "bg-amber-500/15 border-l-2 border-amber-500 text-amber-200",
@@ -68,6 +51,7 @@ function formatarDataCurta(dataISO: string) {
 }
 
 export default function AgendaPage() {
+  const avisar = useAviso()
   const router = useRouter()
   const hojeISO = getDataSaoPaulo(new Date())
 
@@ -76,7 +60,10 @@ export default function AgendaPage() {
   const [profissionais, setProfissionais] = useState<any[]>([])
   const [loadingProfs, setLoadingProfs] = useState(true)
   const [loadingAppts, setLoadingAppts] = useState(true)
-  const cacheAppts = useRef<Record<string, any[]>>({})
+  // O que está na tela agora. Uma resposta só é aplicada se ainda for da
+  // data/visão atual — ao trocar de dia rápido, a resposta do dia anterior
+  // podia chegar por último e sobrescrever a lista.
+  const vistaRef = useRef({ data: hojeISO, semanal: false })
 
   const [modalDetalhe, setModalDetalhe] = useState(false)
   const [apptSelecionado, setApptSelecionado] = useState<any | null>(null)
@@ -164,23 +151,18 @@ export default function AgendaPage() {
   const [businessHours, setBusinessHours] = useState<any[]>([])
 
   useEffect(() => {
-    const cfgCache = getCache("configuracoes")
-    if (cfgCache && Array.isArray(cfgCache.businessHours)) setBusinessHours(cfgCache.businessHours)
-
     Promise.all([
-      fetch("/api/equipe").then(r => r.json()),
-      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
+      fetchCached("equipe", "/api/equipe"),
+      fetchCached("configuracoes", "/api/configuracoes"),
     ]).then(([profs, cfg]) => {
       setProfissionais(Array.isArray(profs) ? profs : [])
-      if (!cfgCache && Array.isArray(cfg?.businessHours)) {
-        setBusinessHours(cfg.businessHours)
-        setCache("configuracoes", cfg)
-      }
+      if (Array.isArray(cfg?.businessHours)) setBusinessHours(cfg.businessHours)
       setLoadingProfs(false)
     }).catch(console.error)
   }, [])
 
   useEffect(() => {
+    vistaRef.current = { data: dataSelecionada, semanal: !!profFiltro }
     if (profFiltro) {
       // Visão semanal: busca os 6 dias
       janela6Dias.forEach(data => buscarAgendamentos(data))
@@ -193,11 +175,11 @@ export default function AgendaPage() {
     function handleSalvo() {
       if (profFiltro) {
         janela6Dias.forEach(data => {
-          delete cacheAppts.current[data]
+          invalidateCache(`agendamentos:${data}`)
           buscarAgendamentos(data)
         })
       } else {
-        delete cacheAppts.current[dataSelecionada]
+        invalidateCache(`agendamentos:${dataSelecionada}`)
         buscarAgendamentos(dataSelecionada)
       }
     }
@@ -205,29 +187,34 @@ export default function AgendaPage() {
     return () => window.removeEventListener("agendamentoSalvo", handleSalvo)
   }, [dataSelecionada, profFiltro, iniciJanela])
 
+  // Cache compartilhado (60s) — o mesmo que o shell pré-carrega para hoje
+  // e que o AgendaModal invalida ao salvar.
+  function aplicarAgendamentos(data: string, lista: any[]) {
+    const vista = vistaRef.current
+    if (vista.semanal) {
+      setAgendamentosSemana(prev => ({ ...prev, [data]: lista }))
+    } else if (data === vista.data) {
+      setAgendamentos(lista)
+    } else {
+      return false
+    }
+    return true
+  }
+
   async function buscarAgendamentos(data: string) {
-    if (cacheAppts.current[data]) {
-      if (profFiltro) {
-        setAgendamentosSemana(prev => ({ ...prev, [data]: cacheAppts.current[data] }))
-      } else {
-        setAgendamentos(cacheAppts.current[data])
-        setLoadingAppts(false)
-      }
+    const cache = getCache(`agendamentos:${data}`)
+    if (cache) {
+      if (aplicarAgendamentos(data, cache)) setLoadingAppts(false)
       return
     }
     setLoadingAppts(true)
     try {
       const appts = await fetch(`/api/agendamentos?data=${data}`).then(r => r.json())
       const lista = Array.isArray(appts) ? appts : []
-      cacheAppts.current[data] = lista
-      if (profFiltro) {
-        setAgendamentosSemana(prev => ({ ...prev, [data]: lista }))
-      } else {
-        setAgendamentos(lista)
-      }
+      if (Array.isArray(appts)) setCache(`agendamentos:${data}`, lista)
+      if (aplicarAgendamentos(data, lista)) setLoadingAppts(false)
     } catch (e) {
       console.error(e)
-    } finally {
       setLoadingAppts(false)
     }
   }
@@ -237,7 +224,7 @@ export default function AgendaPage() {
     setBuscaProduto("")
     setModalDetalhe(true)
     if (produtosEstoque.length === 0) {
-      fetch("/api/estoque").then(r => r.json()).then(d => setProdutosEstoque(Array.isArray(d) ? d.filter((p: any) => p.isActive && p.stock > 0) : [])).catch(() => {})
+      fetch("/api/estoque?modo=simples").then(r => r.json()).then(d => setProdutosEstoque(Array.isArray(d) ? d.filter((p: any) => p.isActive && p.stock > 0) : [])).catch(() => {})
     }
   }
 
@@ -273,9 +260,9 @@ export default function AgendaPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: apptSelecionado.id, status: "CANCELLED" }),
     })
-    if (!res.ok) { alert("Erro ao cancelar agendamento"); return }
+    if (!res.ok) { avisar("Erro ao cancelar agendamento", "erro"); return }
     // Limpa todo o cache e recarrega
-    cacheAppts.current = {}
+    invalidateCache("agendamentos:")
     if (profFiltro) {
       janela6Dias.forEach(d => buscarAgendamentos(d))
     } else {
@@ -315,7 +302,7 @@ export default function AgendaPage() {
         }),
       })
       setStatusOverride(prev => ({ ...prev, [apptSelecionado.id]: "SCHEDULED" }))
-      cacheAppts.current = {}
+      invalidateCache("agendamentos:")
       if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
       else buscarAgendamentos(remarcarData)
       if (remarcarData !== dataSelecionada) buscarAgendamentos(dataSelecionada)
@@ -406,8 +393,8 @@ export default function AgendaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: dragAppt.id, professionalId: profId, scheduledAt: novaHora.toISOString() }),
       })
-      delete cacheAppts.current[dataOriginal]
-      delete cacheAppts.current[data]
+      invalidateCache(`agendamentos:${dataOriginal}`)
+      invalidateCache(`agendamentos:${data}`)
       await buscarAgendamentos(data)
       if (data !== dataOriginal) await buscarAgendamentos(dataOriginal)
     } catch (e) { console.error(e) }
@@ -693,8 +680,8 @@ export default function AgendaPage() {
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <span className="text-zinc-300 text-sm font-mono">{inicio}</span>
                           <span className="text-zinc-600 text-xs">{fim}</span>
-                          <span className={`text-[10px] font-medium ${statusCor[status] ?? "text-zinc-500"}`}>
-                            {statusLabel[status] ?? status}
+                          <span className={`text-[10px] font-medium ${corTextoStatus(status)}`}>
+                            {rotuloStatus(status)}
                           </span>
                         </div>
                       </div>
@@ -872,7 +859,7 @@ export default function AgendaPage() {
             body: JSON.stringify({ id: apptId, status: novoStatus }),
           }).then(() => {
             // Recarrega em background para sincronizar (auto-complete de barbeiro, etc)
-            cacheAppts.current = {}
+            invalidateCache("agendamentos:")
             if (profFiltro) janela6Dias.forEach(d => buscarAgendamentos(d))
             else buscarAgendamentos(dataSelecionada)
           })
@@ -913,14 +900,21 @@ export default function AgendaPage() {
         }
 
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                <h2 className="text-white font-bold">Detalhes do Agendamento</h2>
-                <button onClick={() => setModalDetalhe(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-              </div>
-
-              <div className="p-5 space-y-4">
+          <Modal
+            aberto
+            onFechar={() => setModalDetalhe(false)}
+            fecharNoFundo={false}
+            titulo="Detalhes do Agendamento"
+            rodape={!cancelado && statusAtual !== "DONE" && statusAtual !== "WITHDRAWN" ? (
+              <>
+                <Button variant="neutral" size="lg" onClick={() => setModalDetalhe(false)}>Salvar</Button>
+                <Button variant="accent" size="lg" className="flex-1" onClick={handleFinalizarComanda} disabled={finalizando}>
+                  {finalizando ? "Aguarde..." : `Finalizar cobrança · ${fmtMoeda(totalComanda)}`}
+                </Button>
+              </>
+            ) : undefined}
+          >
+              <div className="space-y-4">
                 {/* Cabeçalho do agendamento */}
                 <div>
                   <div className="text-white font-bold text-lg">{apptSelecionado.client?.name}</div>
@@ -934,20 +928,15 @@ export default function AgendaPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Valor do corte</div>
-                    <div className="text-amber-400 font-bold">R$ {Number(precoCorte).toFixed(2)}</div>
+                    <div className="text-amber-400 font-bold">{fmtMoeda(Number(precoCorte))}</div>
                   </div>
                   <div className="bg-zinc-800 rounded-lg p-3">
                     <div className="text-zinc-500 text-xs mb-1">Status</div>
                     <select value={statusAtual} onChange={(e) => mudarStatus(e.target.value)}
-                      className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${statusCor[statusAtual] ?? "text-zinc-400"}`}>
-                      <option value="SCHEDULED" className="bg-zinc-800 text-white">Pendente</option>
-                      <option value="CONFIRMED" className="bg-zinc-800 text-white">Confirmado</option>
-                      <option value="IN_QUEUE" className="bg-zinc-800 text-white">Aguardando</option>
-                      <option value="IN_PROGRESS" className="bg-zinc-800 text-white">Em andamento</option>
-                      <option value="DONE" className="bg-zinc-800 text-white">Concluído</option>
-                      <option value="CANCELLED" className="bg-zinc-800 text-white">Cancelado</option>
-                      <option value="NO_SHOW" className="bg-zinc-800 text-white">Não compareceu</option>
-                      <option value="WITHDRAWN" className="bg-zinc-800 text-orange-300">Desistência</option>
+                      className={`w-full bg-transparent border-0 outline-none text-sm font-medium cursor-pointer ${corTextoStatus(statusAtual)}`}>
+                      {ORDEM_STATUS.map(s => (
+                        <option key={s} value={s} className={`bg-zinc-800 ${s === "WITHDRAWN" ? "text-orange-300" : "text-white"}`}>{rotuloStatus(s)}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -972,7 +961,7 @@ export default function AgendaPage() {
                                 className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
                                 <div className="flex justify-between">
                                   <span className="text-white text-sm">{p.name}</span>
-                                  <span className="text-amber-400 text-sm font-mono">R$ {p.salePrice?.toFixed(2)}</span>
+                                  <span className="text-amber-400 text-sm font-mono">{fmtMoeda(p.salePrice)}</span>
                                 </div>
                                 <div className="text-zinc-500 text-xs">Estoque: {p.stock}</div>
                               </button>
@@ -995,7 +984,7 @@ export default function AgendaPage() {
                       <div key={idx} className="bg-zinc-800 rounded-lg p-3 flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="text-white text-sm font-medium truncate">{item.produto.name}</div>
-                          <div className="text-zinc-500 text-xs">R$ {item.produto.salePrice?.toFixed(2)}</div>
+                          <div className="text-zinc-500 text-xs">{fmtMoeda(item.produto.salePrice)}</div>
                         </div>
                         {/* Wheel scroll de quantidade */}
                         <div className="flex items-center gap-2">
@@ -1006,7 +995,7 @@ export default function AgendaPage() {
                             className="w-7 h-7 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white text-sm flex items-center justify-center transition-colors">+</button>
                         </div>
                         <div className="text-amber-400 text-sm font-bold w-16 text-right">
-                          R$ {(item.produto.salePrice * item.qty).toFixed(2)}
+                          {fmtMoeda((item.produto.salePrice * item.qty))}
                         </div>
                         <button type="button" onClick={() => removeItem(idx)}
                           className="text-zinc-600 hover:text-red-400 transition-colors">✕</button>
@@ -1020,17 +1009,17 @@ export default function AgendaPage() {
                   <div className="text-zinc-400 text-xs uppercase tracking-wider mb-3">Comanda</div>
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-400">✂️ {apptSelecionado.service?.name}</span>
-                    <span className="text-white font-medium">R$ {Number(precoCorte).toFixed(2)}</span>
+                    <span className="text-white font-medium">{fmtMoeda(Number(precoCorte))}</span>
                   </div>
                   {itensComanda.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span className="text-zinc-400">{item.qty}× {item.produto.name}</span>
-                      <span className="text-white font-medium">R$ {(item.produto.salePrice * item.qty).toFixed(2)}</span>
+                      <span className="text-white font-medium">{fmtMoeda((item.produto.salePrice * item.qty))}</span>
                     </div>
                   ))}
                   <div className="border-t border-zinc-700 pt-2 flex justify-between">
                     <span className="text-white font-bold">Total</span>
-                    <span className="text-amber-400 font-bold text-lg">R$ {totalComanda.toFixed(2)}</span>
+                    <span className="text-amber-400 font-bold text-lg">{fmtMoeda(totalComanda)}</span>
                   </div>
                 </div>
 
@@ -1041,40 +1030,29 @@ export default function AgendaPage() {
                     Remarcar agendamento
                   </button>
                 )}
-
-                {/* Finalizar cobrança — só quando pendente */}
-                {!cancelado && statusAtual !== "DONE" && statusAtual !== "WITHDRAWN" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => setModalDetalhe(false)}
-                      className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold px-5 py-3.5 rounded-xl text-sm border border-zinc-700 transition-colors">
-                      Salvar
-                    </button>
-                    <button onClick={handleFinalizarComanda} disabled={finalizando}
-                      className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold py-3.5 rounded-xl text-base transition-colors">
-                      {finalizando ? "Aguarde..." : `Finalizar cobrança · R$ ${totalComanda.toFixed(2)}`}
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 
       {/* Modal Remarcar */}
       {modalRemarcar && apptSelecionado && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4"
-          onClick={() => setModalRemarcar(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold">Remarcar Agendamento</h2>
-                <p className="text-zinc-500 text-xs mt-0.5">{apptSelecionado.client?.name} · {apptSelecionado.service?.name}</p>
-              </div>
-              <button onClick={() => setModalRemarcar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModalRemarcar(false)}
+          tamanho="sm"
+          titulo="Remarcar Agendamento"
+          subtitulo={`${apptSelecionado.client?.name ?? ""} · ${apptSelecionado.service?.name ?? ""}`}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalRemarcar(false)}>Cancelar</Button>
+              <Button className="bg-blue-500 hover:bg-blue-400 text-white border-transparent" onClick={handleRemarcar} disabled={salvandoRemarcar}>
+                {salvandoRemarcar ? "Salvando..." : "Confirmar remarcação"}
+              </Button>
+            </>
+          }
+        >
+            <div className="space-y-4">
               {/* Tipo */}
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo</label>
@@ -1113,19 +1091,8 @@ export default function AgendaPage() {
                   {profissionais.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setModalRemarcar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="button" onClick={handleRemarcar} disabled={salvandoRemarcar}
-                  className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">
-                  {salvandoRemarcar ? "Salvando..." : "Confirmar remarcação"}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

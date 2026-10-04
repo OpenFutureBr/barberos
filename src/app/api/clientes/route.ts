@@ -46,6 +46,15 @@ export async function GET(request: Request) {
         orderBy: { name: "asc" },
         skip: (page - 1) * perPage,
         take: perPage,
+        // Campos que a lista e a busca do modal de agendamento usam (o modal lê
+        // o endereço para o atendimento a domicílio). Fica de fora o que é
+        // pesado e só a ficha usa: sugestões de IA, análise facial, coordenadas.
+        select: {
+          id: true, name: true, phone: true, email: true, segment: true, createdAt: true,
+          favoritoCorte: true, favoritoProduto: true, photoUrl: true, lastVisitAt: true,
+          cashbackBalance: true, loyaltyLevel: true, totalSpent: true,
+          homeAddress: true, homeNumber: true, homeNeighborhood: true, homeCity: true, homeZipCode: true,
+        },
       }),
     ])
 

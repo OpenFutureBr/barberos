@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { fmtMoeda } from "@/lib/formatadores"
+import { useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
@@ -39,9 +43,6 @@ const regraVazia: Omit<Regra, "id"> = {
   endTime: "",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtHorario(start: string | null, end: string | null) {
   if (!start || !end) return "Dia todo"
@@ -54,6 +55,7 @@ function descricaoDias(dias: number[]) {
 }
 
 export default function PrecificacaoPage() {
+  const confirmar = useConfirmar()
   const [regras, setRegras] = useState<Regra[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
   const [loading, setLoading] = useState(true)
@@ -157,7 +159,7 @@ export default function PrecificacaoPage() {
   }
 
   async function handleExcluir(id: string) {
-    if (!confirm("Excluir esta regra?")) return
+    if (!(await confirmar({ titulo: "Excluir esta regra?", confirmar: "Excluir", perigo: true }))) return
     setRegras(prev => prev.filter(r => r.id !== id))
     await fetch(`/api/precificacao/${id}`, { method: "DELETE" })
   }
@@ -432,13 +434,21 @@ export default function PrecificacaoPage() {
 
       {/* Modal criar/editar */}
       {modal.aberto && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">{modal.editando ? "Editar regra" : "Nova regra"}</h2>
-              <button onClick={() => setModal({ aberto: false, editando: null })} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModal({ aberto: false, editando: null })}
+          fecharNoFundo={false}
+          titulo={modal.editando ? "Editar regra" : "Nova regra"}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModal({ aberto: false, editando: null })}>Cancelar</Button>
+              <Button variant="accent" onClick={handleSalvar} disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
+          }
+        >
+            <div className="space-y-4">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome da regra *</label>
                 <input
@@ -523,26 +533,8 @@ export default function PrecificacaoPage() {
               {erroMsg && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroMsg}</div>
               )}
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setModal({ aberto: false, editando: null })}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSalvar}
-                  disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  {salvando ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   )

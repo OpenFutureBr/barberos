@@ -6,10 +6,15 @@ import { BucketPeriodo, CoresGrafico, lerCoresGrafico, salvarCoresGrafico, expor
 import { IconLista, IconGrid, IconGrafico, IconDownload } from "@/components/caixa/icons"
 import PeriodoGrid from "@/components/caixa/PeriodoGrid"
 import PeriodoGrafico from "@/components/caixa/PeriodoGrafico"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
+import { diaISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda } from "@/lib/formatadores"
 
+// Dia no fuso de Brasília (toISOString é UTC: depois das 21h virava amanhã)
 function fmtDataISO(d: Date) {
-  return d.toISOString().slice(0, 10)
+  return diaISOemBRT(d)
 }
 
 // Visão máxima permitida: M-3 em relação à data atual
@@ -98,9 +103,6 @@ const tipoSinal: Record<string, string> = {
   SANGRIA: "−",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
@@ -115,12 +117,12 @@ function DetalhesLancamento({ l }: { l: Lancamento }) {
       {l.detalhes.map((d, di) => (
         <div key={di} className={`flex justify-between px-3 py-1.5 text-sm ${di < l.detalhes!.length - 1 ? "border-b border-zinc-700/50" : ""}`}>
           <span className="text-zinc-400">{d.label}</span>
-          <span className="text-zinc-200 font-mono">R$ {d.valor.toFixed(2)}</span>
+          <span className="text-zinc-200 font-mono">{fmtMoeda(d.valor)}</span>
         </div>
       ))}
       <div className="flex justify-between px-3 py-1.5 border-t border-zinc-700 bg-zinc-800/80">
         <span className="text-zinc-400 text-sm font-medium">Total · {metodoLabel(l.method) || "—"}</span>
-        <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>R$ {l.valor.toFixed(2)}</span>
+        <span className={`font-bold font-mono text-sm ${tipoStyle[l.tipo] ?? "text-white"}`}>{fmtMoeda(l.valor)}</span>
       </div>
     </div>
   )
@@ -342,13 +344,16 @@ export default function CaixaPage() {
   // Fluxo de caixa — busca só quando a aba é aberta ou o período muda
   useEffect(() => {
     if (abaCaixa !== "fluxo" || !fluxoFrom || !fluxoTo) return
+    // Período trocado antes de a resposta voltar: a antiga é descartada
+    let vigente = true
     setLoadingFluxo(true)
     fetchJsonSafe<typeof fluxo>(
       `/api/financeiro/fluxo?from=${fluxoFrom}&to=${fluxoTo}`,
       `financeiro:fluxo:${fluxoFrom}:${fluxoTo}`,
     )
-      .then(d => { if (d?.days) setFluxo(d) })
-      .finally(() => setLoadingFluxo(false))
+      .then(d => { if (vigente && d?.days) setFluxo(d) })
+      .finally(() => { if (vigente) setLoadingFluxo(false) })
+    return () => { vigente = false }
   }, [abaCaixa, fluxoFrom, fluxoTo])
 
   const receitas = lancamentos.filter(l => l.tipo === "RECEITA").reduce((s, l) => s + l.valor, 0)
@@ -516,29 +521,15 @@ export default function CaixaPage() {
 
         {/* KPIs — refletem o bucket selecionado no drill-down, se houver — carrossel no mobile, grid no desktop */}
         {(() => {
-          const kpisHoje = [
-            <div key="receitas" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
-                Receitas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
-              </div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.entradas : receitas)}</div>}
-            </div>,
-            <div key="despesas" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">
-                Despesas {bucketHojeAtivo && <span className="text-amber-400">· {bucketHojeAtivo.label}</span>}
-              </div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.saidas : despesas)}</div>}
-            </div>,
-            <div key="sangrias" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-              <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Sangrias</div>
-              {loading ? <div className="h-6 bg-zinc-800 rounded animate-pulse" /> : <div className="text-amber-400 text-xl font-bold">{fmtMoeda(sangrias)}</div>}
-            </div>,
-          ]
+          const sufixo = bucketHojeAtivo && <span className="text-accent">· {bucketHojeAtivo.label}</span>
           return (
-            <>
-              <CardCarousel cards={kpisHoje} />
-              <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisHoje}</div>
-            </>
+            <KpiGrid colunas={3}>{[
+              <Stat key="receitas" tone="success" carregando={loading}
+                rotulo={<>Receitas {sufixo}</>} valor={fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.entradas : receitas)} />,
+              <Stat key="despesas" tone="danger" carregando={loading}
+                rotulo={<>Despesas {sufixo}</>} valor={fmtMoeda(bucketHojeAtivo ? bucketHojeAtivo.saidas : despesas)} />,
+              <Stat key="sangrias" tone="accent" carregando={loading} rotulo="Sangrias" valor={fmtMoeda(sangrias)} />,
+            ]}</KpiGrid>
           )
         })()}
       </div>
@@ -601,7 +592,7 @@ export default function CaixaPage() {
                       )}
                     </div>
                     <div className={`font-bold font-mono text-sm flex-shrink-0 ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
-                      {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                      {tipoSinal[l.tipo] ?? ""}{fmtMoeda(l.valor)}
                     </div>
                   </button>
                   {expandido && <div className="px-4 pb-3"><DetalhesLancamento l={l} /></div>}
@@ -646,7 +637,7 @@ export default function CaixaPage() {
                         )}
                       </td>
                       <td className={`px-4 py-3 text-right font-bold font-mono ${tipoStyle[l.tipo] ?? "text-zinc-400"}`}>
-                        {tipoSinal[l.tipo] ?? ""}R$ {l.valor.toFixed(2)}
+                        {tipoSinal[l.tipo] ?? ""}{fmtMoeda(l.valor)}
                       </td>
                     </tr>
                     {expandido && l.detalhes && (
@@ -674,55 +665,24 @@ export default function CaixaPage() {
           <div className="sticky top-[var(--h-topbar)] z-10 bg-zinc-950 pb-3 space-y-3">
             {/* Resumo do período — reflete o bucket selecionado no drill-down, se houver — carrossel no mobile, grid no desktop */}
             {(() => {
-              const kpisFluxo = [
-                <div key="entradas" className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 h-full">
-                  <div className="text-green-400 text-xs font-mono uppercase tracking-widest mb-1">
-                    Entradas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
-                  </div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-green-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-green-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.entradas : fluxo?.totalEntradas ?? 0)}</div>
-                  )}
-                </div>,
-                <div key="saidas" className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 h-full">
-                  <div className="text-red-400 text-xs font-mono uppercase tracking-widest mb-1">
-                    Saídas {bucketFluxoAtivo && <span className="text-amber-400 normal-case">· {bucketFluxoAtivo.label}</span>}
-                  </div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-red-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-red-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.saidas : fluxo?.totalSaidas ?? 0)}</div>
-                  )}
-                </div>,
-                (() => {
-                  const saldoExibido = bucketFluxoAtivo ? bucketFluxoAtivo.entradas - bucketFluxoAtivo.saidas : fluxo?.saldoFinal ?? 0
-                  return (
-                    <div key="saldo" className={`border rounded-xl p-4 h-full ${saldoExibido >= 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-red-500/5 border-red-500/20"}`}>
-                      <div className={`text-xs font-mono uppercase tracking-widest mb-1 ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>Saldo</div>
-                      {loadingFluxo ? (
-                        <div className="h-7 bg-amber-500/10 rounded animate-pulse" />
-                      ) : (
-                        <div className={`text-xl font-bold ${saldoExibido >= 0 ? "text-amber-400" : "text-red-400"}`}>{fmtMoeda(saldoExibido)}</div>
-                      )}
-                    </div>
-                  )
-                })(),
-                <div key="projecao" className="bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl p-4 h-full">
-                  <div className="text-purple-400 text-xs font-mono uppercase tracking-widest mb-1">Projeção de receita</div>
-                  {loadingFluxo ? (
-                    <div className="h-7 bg-purple-500/10 rounded animate-pulse" />
-                  ) : (
-                    <div className="text-purple-400 text-xl font-bold">{fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.projecao ?? 0 : fluxo?.totalProjetado ?? 0)}</div>
-                  )}
-                  <div className="text-purple-600/60 text-xs mt-1">pendentes + agendamentos futuros</div>
-                </div>,
-              ]
+              const sufixo = bucketFluxoAtivo && <span className="text-accent normal-case">· {bucketFluxoAtivo.label}</span>
+              const saldoExibido = bucketFluxoAtivo ? bucketFluxoAtivo.entradas - bucketFluxoAtivo.saidas : fluxo?.saldoFinal ?? 0
               return (
-                <>
-                  <CardCarousel cards={kpisFluxo} />
-                  <div className="hidden md:grid md:grid-cols-4 gap-3">{kpisFluxo}</div>
-                </>
+                <KpiGrid colunas={4}>{[
+                  <Stat key="entradas" destaque tone="success" carregando={loadingFluxo}
+                    rotulo={<>Entradas {sufixo}</>}
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.entradas : fluxo?.totalEntradas ?? 0)} />,
+                  <Stat key="saidas" destaque tone="danger" carregando={loadingFluxo}
+                    rotulo={<>Saídas {sufixo}</>}
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.saidas : fluxo?.totalSaidas ?? 0)} />,
+                  <Stat key="saldo" destaque tone={saldoExibido >= 0 ? "accent" : "danger"} carregando={loadingFluxo}
+                    rotulo="Saldo" valor={fmtMoeda(saldoExibido)} />,
+                  // Tracejado: e projecao, nao dinheiro que ja entrou
+                  <Stat key="projecao" destaque tone="purple" carregando={loadingFluxo} className="border-dashed"
+                    rotulo="Projeção de receita"
+                    valor={fmtMoeda(bucketFluxoAtivo ? bucketFluxoAtivo.projecao ?? 0 : fluxo?.totalProjetado ?? 0)}
+                    apoio="pendentes + agendamentos futuros" />,
+                ]}</KpiGrid>
               )
             })()}
 
@@ -901,13 +861,21 @@ export default function CaixaPage() {
 
       {/* Modal — novo lançamento */}
       {modalLancamento && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Novo Lançamento</h2>
-              <button onClick={() => setModalLancamento(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleLancamento} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalLancamento(false)}
+          fecharNoFundo={false}
+          titulo="Novo Lançamento"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalLancamento(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-lancamento" disabled={salvando}>
+                {salvando ? "Registrando..." : "Registrar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-lancamento" onSubmit={handleLancamento} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-2 block">Tipo *</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -946,19 +914,8 @@ export default function CaixaPage() {
                   ))}
                 </div>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalLancamento(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Registrando..." : "Registrar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal — fechar caixa */}
@@ -984,25 +941,31 @@ export default function CaixaPage() {
         ]
 
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-                {detalheTipo ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setDetalheTipo(null)} className="text-zinc-500 hover:text-white transition-colors text-sm">← Voltar</button>
-                    <h2 className="text-white font-bold">
-                      {detalheTipo === "SALDO" ? "Saldo esperado" : linhas.find(l => l.tipo === detalheTipo)?.label}
-                    </h2>
-                  </div>
-                ) : (
-                  <h2 className="text-white font-bold">Fechar Caixa</h2>
-                )}
-                <button onClick={() => { setModalFechar(false); setDetalheTipo(null) }} className="text-zinc-500 hover:text-white text-xl">✕</button>
+          <Modal
+            aberto
+            onFechar={() => { setModalFechar(false); setDetalheTipo(null) }}
+            fecharNoFundo={false}
+            tamanho="sm"
+            titulo={detalheTipo ? (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setDetalheTipo(null)} className="text-fg-3 hover:text-fg transition-colors text-sm">← Voltar</button>
+                <h2 className="text-fg text-sm font-semibold">
+                  {detalheTipo === "SALDO" ? "Saldo esperado" : linhas.find(l => l.tipo === detalheTipo)?.label}
+                </h2>
               </div>
-
+            ) : "Fechar Caixa"}
+            rodape={detalheTipo ? undefined : (
+              <>
+                <Button variant="ghost" onClick={() => setModalFechar(false)}>Cancelar</Button>
+                <Button variant="danger" type="submit" form="form-fechar-caixa" disabled={salvando}>
+                  {salvando ? "Fechando..." : "Fechar caixa"}
+                </Button>
+              </>
+            )}
+          >
               {detalheTipo ? (
                 /* Visão analítica */
-                <div className="p-5 space-y-3">
+                <div className="space-y-3">
                   <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-2">Por método de pagamento</div>
 
                   {detalheTipo === "SALDO" ? (
@@ -1047,7 +1010,7 @@ export default function CaixaPage() {
                 </div>
               ) : (
                 /* Visão sintética + fechamento */
-                <form onSubmit={handleFecharCaixa} className="p-5 space-y-4">
+                <form id="form-fechar-caixa" onSubmit={handleFecharCaixa} className="space-y-4">
                   <div className="bg-zinc-800 rounded-xl overflow-hidden">
                     {linhas.map(({ tipo: t, label, cor, total }) => (
                       <button key={t} type="button"
@@ -1083,20 +1046,9 @@ export default function CaixaPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => setModalFechar(false)}
-                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                      Cancelar
-                    </button>
-                    <button type="submit" disabled={salvando}
-                      className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 text-red-400 font-semibold px-4 py-2.5 rounded-lg text-sm border border-red-500/20 transition-colors">
-                      {salvando ? "Fechando..." : "Fechar caixa"}
-                    </button>
-                  </div>
                 </form>
               )}
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 

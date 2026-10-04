@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { useAviso, useConfirmar } from "@/components/ui/Avisos"
+import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 type Fatura = {
   id: string
@@ -36,9 +40,6 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   REFUNDED:  { label: "Reembolsada", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtData(d: string | null) {
   if (!d) return "—"
@@ -46,6 +47,8 @@ function fmtData(d: string | null) {
 }
 
 export default function AdminFaturamentoPage() {
+  const confirmar = useConfirmar()
+  const avisar = useAviso()
   const [dados, setDados] = useState<DadosFaturamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<"todas" | "pendentes" | "vencidas" | "pagas">("todas")
@@ -57,11 +60,24 @@ export default function AdminFaturamentoPage() {
   const [processando, setProcessando] = useState(false)
 
   async function processarCobrancas() {
-    if (!confirm("Processar inadimplência agora?\n\nIsso irá:\n• Marcar faturas vencidas como OVERDUE\n• Atualizar status das organizações\n• Suspender empresas com +7 dias de atraso")) return
+    const ok = await confirmar({
+      titulo: "Processar inadimplência agora?",
+      mensagem: "Isso irá:\n• Marcar faturas vencidas como OVERDUE\n• Atualizar status das organizações\n• Suspender empresas com +7 dias de atraso",
+      confirmar: "Processar",
+      perigo: true,
+    })
+    if (!ok) return
     setProcessando(true)
-    const res = await fetch("/api/admin/cobranca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
-    const d = await res.json()
-    alert(`Processado:\n• ${d.trialsConvertidos} trials convertidos\n• ${d.faturasGeradas} faturas geradas\n• ${d.faturasVencidas} faturas marcadas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`)
+    const res = await fetch("/api/admin/cobranca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }).catch(() => null)
+    const d = await res?.json().catch(() => ({})) ?? {}
+    // Antes um erro da rota virava "undefined trials convertidos..." e o
+    // botao ficava travado em "processando".
+    if (!res?.ok) {
+      avisar(d.error || "Erro ao processar cobranças.", "erro")
+      setProcessando(false)
+      return
+    }
+    avisar(`Processado:\n• ${d.trialsConvertidos} trials convertidos\n• ${d.faturasGeradas} faturas geradas\n• ${d.faturasVencidas} faturas marcadas vencidas\n• ${d.orgsAtualizadasOverdue} org. em atraso\n• ${d.orgsSuspensas} org. suspensas\n• ${d.orgsReativadas} org. reativadas`, "sucesso")
     setProcessando(false)
     buscar()
   }
@@ -88,7 +104,7 @@ export default function AdminFaturamentoPage() {
   }
 
   async function marcarPaga(id: string) {
-    if (!confirm("Marcar esta fatura como paga?")) return
+    if (!(await confirmar({ titulo: "Marcar esta fatura como paga?", confirmar: "Marcar como paga" }))) return
     setAcao(id)
     await fetch(`/api/admin/empresas/${faturaById(id)?.organizacaoId}`, {
       method: "PATCH",
@@ -244,13 +260,21 @@ export default function AdminFaturamentoPage() {
 
       {/* Modal nova fatura */}
       {modalNova && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Nova Fatura</h2>
-              <button onClick={() => setModalNova(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={criarFatura} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalNova(false)}
+          fecharNoFundo={false}
+          titulo="Nova Fatura"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalNova(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-nova-fatura" disabled={criandoFatura}>
+                {criandoFatura ? "Criando..." : "Criar fatura"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-nova-fatura" onSubmit={criarFatura} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Empresa *</label>
                 <select value={fOrg} onChange={e => setFOrg(e.target.value)} required
@@ -281,19 +305,8 @@ export default function AdminFaturamentoPage() {
                 <input value={fNota} onChange={e => setFNota(e.target.value)} placeholder="Ex: Mensalidade Junho"
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500" />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalNova(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={criandoFatura}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {criandoFatura ? "Criando..." : "Criar fatura"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </AdminLayout>
   )

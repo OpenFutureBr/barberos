@@ -1,7 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
 import Link from "next/link"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda as fmtMoedaBase } from "@/lib/formatadores"
 
 // Cache de módulo — persiste entre navegações na mesma sessão do browser
 const _cache: {
@@ -9,18 +12,18 @@ const _cache: {
   appts: Appt[]
   caixaData: CaixaData | null
   evolucao: { mes: number; label: string; valor: number }[]
+  evolucaoAno: number
   periodKey: string
   ts: number
-} = { dashData: null, appts: [], caixaData: null, evolucao: [], periodKey: "", ts: 0 }
+} = { dashData: null, appts: [], caixaData: null, evolucao: [], evolucaoAno: 0, periodKey: "", ts: 0 }
 const CACHE_TTL = 3 * 60 * 1000 // 3 minutos
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
+// Alias: o componente principal define o próprio fmtMoeda (com ocultar valores)
+const fmtMoeda = (v: number) => fmtMoedaBase(v)
 function fmtPct(v: number) {
   return (v >= 0 ? "+" : "") + v.toFixed(1) + "%"
 }
-function hojeStr() { return new Date().toISOString().split("T")[0] }
+function hojeStr() { return hojeISOemBRT() }
 
 function navDia(iso: string, delta: number) {
   const d = new Date(iso + "T12:00:00")
@@ -32,7 +35,7 @@ type Periodo = "hoje" | "ontem" | "semana" | "mes" | "custom"
 
 function calcRange(p: Periodo): { from: string; to: string } {
   const n = new Date()
-  const hoje = n.toISOString().split("T")[0]
+  const hoje = hojeISOemBRT()
   if (p === "hoje") return { from: hoje, to: hoje }
   if (p === "ontem") { const d = navDia(hoje, -1); return { from: d, to: d } }
   if (p === "semana") {
@@ -142,13 +145,16 @@ export default function DashboardPage() {
   // Sombreia o fmtMoeda do módulo — todas as chamadas neste componente usam
   // esta versão, que mostra •••• em vez do valor quando ocultarValores.
   function fmtMoeda(v: number) {
-    if (ocultarValores) return "R$ ••••"
-    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    return fmtMoedaBase(v, { ocultar: ocultarValores })
   }
 
   const range = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
 
+  // Trocando de período rápido, só a última busca atualiza a tela
+  const ultimaBusca = useRef(0)
+
   const fetchDados = useCallback(async (forceRefresh = false) => {
+    const id = ++ultimaBusca.current
     const { from, to } = periodo === "custom" ? { from: customFrom, to: customTo } : calcRange(periodo)
     const key = `${from}|${to}`
 
@@ -164,11 +170,18 @@ export default function DashboardPage() {
 
     setLoading(true)
     try {
+      // A evolução é do ano inteiro: não muda com o período escolhido, só
+      // precisa ser buscada de novo se o ano virar ou num refresh forçado.
+      const ano = new Date().getFullYear()
+      const evoValida = !forceRefresh && _cache.evolucaoAno === ano && _cache.evolucao.length > 0
       const [dashRes, caixaRes, evoRes] = await Promise.all([
         fetch(`/api/dashboard?from=${from}&to=${to}`).then(r => r.json()).catch(() => ({})),
         fetch("/api/caixa?resumo=true").then(r => r.json()).catch(() => ({})),
-        fetch(`/api/financeiro/evolucao?ano=${new Date().getFullYear()}`).then(r => r.json()).catch(() => []),
+        evoValida
+          ? Promise.resolve(_cache.evolucao)
+          : fetch(`/api/financeiro/evolucao?ano=${ano}`).then(r => r.json()).catch(() => []),
       ])
+      if (id !== ultimaBusca.current) return
 
       const apptsList = Array.isArray(dashRes?.agendamentosHoje) ? dashRes.agendamentosHoje : []
       const evo = Array.isArray(evoRes) ? evoRes : []
@@ -182,10 +195,11 @@ export default function DashboardPage() {
       _cache.appts = apptsList
       _cache.caixaData = caixaRes && !caixaRes.error ? caixaRes : _cache.caixaData
       _cache.evolucao = evo.length ? evo : _cache.evolucao
+      if (evo.length) _cache.evolucaoAno = ano
       _cache.periodKey = key
       _cache.ts = Date.now()
     } catch (e) { console.error("[dashboard]", e) }
-    finally { setLoading(false) }
+    finally { if (id === ultimaBusca.current) setLoading(false) }
   }, [periodo, customFrom, customTo])
 
   useEffect(() => { fetchDados() }, [fetchDados])
@@ -239,68 +253,26 @@ export default function DashboardPage() {
   }
   function isPast(iso: string) { return new Date(iso) < agora }
 
-  // KPI carousel mobile
-  const kpiRef = useRef<HTMLDivElement>(null)
-  const [activeKPI, setActiveKPI] = useState(0)
-  function handleKPIScroll() {
-    const el = kpiRef.current
-    if (!el) return
-    const maxScroll = el.scrollWidth - el.clientWidth
-    if (maxScroll <= 0) return
-    setActiveKPI(Math.max(0, Math.min(4, Math.round((el.scrollLeft / maxScroll) * 4))))
-  }
 
   const kpiCards = [
-    // 0 — Faturamento
-    <div key="fat" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
-      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Faturamento</div>
-      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        : <div className="text-amber-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.faturamento ?? 0)}</div>}
-      <div className="text-zinc-600 text-xs mt-1">serviços + produtos</div>
-    </div>,
-    // 1 — A receber
-    <Link key="rec" href="/dashboard/pix"
-      className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden hover:border-orange-500/30 transition-colors block h-full">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
-      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">A receber</div>
-      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        : <div className="text-orange-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.valorPendente ?? 0)}</div>}
-      <div className="text-zinc-600 text-xs mt-1">
-        {(dados?.pagamentosPendentes ?? 0)} pagamento{(dados?.pagamentosPendentes ?? 0) !== 1 ? "s" : ""} pendente
-        {(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver cobranças" : ""}
-      </div>
-    </Link>,
-    // 2 — Atendimentos
-    <div key="atd" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-green-500/60 to-transparent" />
-      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Atendimentos</div>
-      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        : <div className="flex items-end gap-2">
-            <div className="text-green-400 text-2xl font-bold tabular-nums">{dados?.atendimentos ?? 0}</div>
-            {(dados?.pendentes ?? 0) > 0 && <div className="text-amber-400 text-sm font-medium mb-0.5">+{dados?.pendentes} fila</div>}
-          </div>}
-      <div className="flex items-center gap-2 mt-1">
-        <span className="text-zinc-600 text-xs">concluídos</span>
-        {(dados?.cancelados ?? 0) > 0 && <span className="text-red-400/60 text-xs">{dados?.cancelados} cancelado{dados?.cancelados !== 1 ? "s" : ""}</span>}
-      </div>
-    </div>,
-    // 3 — Ticket médio
-    <div key="tkt" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Ticket médio</div>
-      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        : <div className="text-blue-400 text-2xl font-bold tabular-nums">{fmtMoeda(dados?.ticketMedio ?? 0)}</div>}
-      <div className="text-zinc-600 text-xs mt-1">por atendimento</div>
-    </div>,
-    // 4 — Saldo caixa
-    <div key="cx" className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 relative overflow-hidden h-full">
-      <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${caixaAberto ? "via-green-500/60" : "via-zinc-600/40"} to-transparent`} />
-      <div className="text-zinc-500 text-xs uppercase tracking-widest font-mono mb-3">Saldo no caixa</div>
-      {loading ? <div className="h-8 bg-zinc-800 rounded-lg animate-pulse mb-2" />
-        : <div className={`text-2xl font-bold tabular-nums ${caixaAberto ? "text-white" : "text-zinc-600"}`}>{fmtMoeda(saldoCaixa)}</div>}
-      <div className="text-zinc-600 text-xs mt-1">saldo atual · {lancamentos.length} lançamentos</div>
-    </div>,
+    <Stat key="fat" tone="accent" carregando={loading} rotulo="Faturamento"
+      valor={fmtMoeda(dados?.faturamento ?? 0)} apoio="serviços + produtos" />,
+    <Stat key="rec" tone="warning" carregando={loading} href="/dashboard/pix" rotulo="A receber"
+      valor={fmtMoeda(dados?.valorPendente ?? 0)}
+      apoio={<>{(dados?.pagamentosPendentes ?? 0)} pagamento{(dados?.pagamentosPendentes ?? 0) !== 1 ? "s pendentes" : " pendente"}{(dados?.pagamentosPendentes ?? 0) > 0 ? " · ver cobranças" : ""}</>} />,
+    <Stat key="atd" tone="success" carregando={loading} rotulo="Atendimentos"
+      valor={<span className="flex items-end gap-2">
+        {dados?.atendimentos ?? 0}
+        {(dados?.pendentes ?? 0) > 0 && <span className="text-amber-400 text-sm font-medium mb-0.5">+{dados?.pendentes} fila</span>}
+      </span>}
+      apoio={<span className="flex items-center gap-2">
+        concluídos
+        {(dados?.cancelados ?? 0) > 0 && <span className="text-red-400/60">{dados?.cancelados} cancelado{dados?.cancelados !== 1 ? "s" : ""}</span>}
+      </span>} />,
+    <Stat key="tkt" tone="info" carregando={loading} rotulo="Ticket médio"
+      valor={fmtMoeda(dados?.ticketMedio ?? 0)} apoio="por atendimento" />,
+    <Stat key="cx" tone={caixaAberto ? "neutral" : "apagado"} carregando={loading} rotulo="Saldo no caixa"
+      valor={fmtMoeda(saldoCaixa)} apoio={`saldo atual · ${lancamentos.length} lançamentos`} />,
   ]
 
   return (
@@ -316,30 +288,8 @@ export default function DashboardPage() {
       {/* ── STICKY: KPIs + FILTRO + CAIXA ── */}
       <div className="sticky top-[var(--h-topbar)] z-20 bg-zinc-950 -mx-4 px-4 pt-4 pb-3 mb-2 border-b border-zinc-900">
 
-      {/* ── KPIs CAROUSEL MOBILE ── */}
-      <div className="md:hidden mb-3">
-        <div ref={kpiRef} onScroll={handleKPIScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-4"
-          style={{ paddingInline: "13vw", scrollPaddingInline: "13vw", gap: "10px" }}>
-          {kpiCards.map((card, i) => (
-            <div key={i}
-              className={`flex-shrink-0 snap-center transition-all duration-200 ${activeKPI === i ? "opacity-100 scale-100" : "opacity-40 scale-95"}`}
-              style={{ width: "74vw" }}>
-              {card}
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-center gap-1.5 mt-2">
-          {kpiCards.map((_, i) => (
-            <div key={i} className={`rounded-full transition-all duration-200 ${activeKPI === i ? "w-5 h-1.5 bg-amber-500" : "w-1.5 h-1.5 bg-zinc-700"}`} />
-          ))}
-        </div>
-      </div>
-
-      {/* ── KPIs DESKTOP GRID ── */}
-      <div className="hidden md:grid md:grid-cols-5 gap-3 mb-3">
-        {kpiCards}
-      </div>
+      {/* ── KPIs: carrossel no mobile, grade no desktop ── */}
+      <KpiGrid colunas={5} className="mb-3">{kpiCards}</KpiGrid>
 
       {/* ── FILTRO + STATUS CAIXA ── */}
       <div className="flex items-center gap-4 flex-wrap">

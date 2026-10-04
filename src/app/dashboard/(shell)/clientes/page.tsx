@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { getCache, setCache, invalidateCache } from "@/lib/prefetch-cache"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 function tempoComoCliente(createdAt: string): string {
   const dias = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000)
@@ -86,8 +88,16 @@ export default function ClientesPage() {
 
   useEffect(() => { buscarClientes() }, [page, perPage, busca])
 
+  // Só a busca mais recente pode atualizar a lista: digitando rápido, a
+  // resposta de "jo" podia chegar depois da de "joão" e sobrescrevê-la.
+  const ultimaBusca = useRef(0)
+
   async function buscarClientes() {
+    const id = ++ultimaBusca.current
+    const atual = () => id === ultimaBusca.current
     const cacheKey = `clientes:${page}:${perPage}:${busca}`
+    const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
+    if (busca) params.set("busca", busca)
 
     // Stale-while-revalidate: mostra cache imediatamente se existir
     const cached = getCache(cacheKey)
@@ -97,27 +107,26 @@ export default function ClientesPage() {
       setTotalPages(cached.totalPages ?? 1)
       setLoading(false)
       // Atualiza em background silenciosamente
-      fetch(`/api/clientes?page=${page}&perPage=${perPage}${busca ? `&busca=${busca}` : ""}`)
+      fetch(`/api/clientes?${params}`)
         .then(r => r.json())
-        .then(d => { if (!d.error) { setCache(cacheKey, d); setClientes(d.clientes ?? []); setTotal(d.total ?? 0) } })
+        .then(d => { if (!d.error) { setCache(cacheKey, d); if (atual()) { setClientes(d.clientes ?? []); setTotal(d.total ?? 0) } } })
         .catch(() => {})
       return
     }
 
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), perPage: String(perPage) })
-      if (busca) params.set("busca", busca)
       const res = await fetch(`/api/clientes?${params}`)
       const data = await res.json()
       if (!data.error) setCache(cacheKey, data)
+      if (!atual()) return
       setClientes(Array.isArray(data.clientes) ? data.clientes : [])
       setTotal(data.total ?? 0)
       setTotalPages(data.totalPages ?? 1)
     } catch {
-      setErro("Erro ao carregar clientes")
+      if (atual()) setErro("Erro ao carregar clientes")
     } finally {
-      setLoading(false)
+      if (atual()) setLoading(false)
     }
   }
 
@@ -273,6 +282,10 @@ export default function ClientesPage() {
               <div
                 key={cliente.id}
                 onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                // Pré-carrega o esqueleto da ficha (loading.tsx) ao encostar na
+                // linha: com router.push não há <Link> para fazer isso sozinho,
+                // e sem prefetch o clique esperava o servidor sem feedback.
+                onPointerEnter={() => router.prefetch(`/dashboard/clientes/${cliente.id}`)}
                 className="flex items-center gap-3 px-4 py-3 active:bg-zinc-800/50 cursor-pointer"
               >
                 <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -303,6 +316,10 @@ export default function ClientesPage() {
                 <tr
                   key={cliente.id}
                   onClick={() => router.push(`/dashboard/clientes/${cliente.id}`)}
+                // Pré-carrega o esqueleto da ficha (loading.tsx) ao encostar na
+                // linha: com router.push não há <Link> para fazer isso sozinho,
+                // e sem prefetch o clique esperava o servidor sem feedback.
+                onPointerEnter={() => router.prefetch(`/dashboard/clientes/${cliente.id}`)}
                   className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer ${i === clientes.length - 1 ? "border-0" : ""}`}
                 >
                   <td className="px-4 py-3">
@@ -375,13 +392,21 @@ export default function ClientesPage() {
       )}
 
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">Novo Cliente</h2>
-              <button onClick={fecharModal} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={fecharModal}
+          fecharNoFundo={false}
+          titulo="Novo Cliente"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-novo-cliente" disabled={salvando || telefoneExiste}>
+                {salvando ? "Salvando..." : "Cadastrar cliente"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-novo-cliente" onSubmit={handleSalvar} className="space-y-3">
 
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome completo *</label>
@@ -486,20 +511,8 @@ export default function ClientesPage() {
                   {erro}
                 </div>
               )}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={fecharModal}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando || telefoneExiste}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Cadastrar cliente"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

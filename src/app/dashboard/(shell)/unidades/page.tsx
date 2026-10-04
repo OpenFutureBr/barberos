@@ -3,6 +3,11 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { fetchJsonSafe } from "@/lib/safe-fetch"
+import { fmtMoeda } from "@/lib/formatadores"
+import { mascaraCep, mascaraCnpj, mascaraTelefone, mascaraWhatsapp } from "@/lib/mascaras"
+import { useAviso } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -57,34 +62,6 @@ type ConfigFull = {
 }
 
 // ---- formatters ----
-function fmtCnpj(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 14)
-  if (d.length <= 2) return d
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
-}
-function fmtTel(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11)
-  if (d.length <= 2) return `(${d}`
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-}
-function fmtWa(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 13)
-  if (d.length <= 2) return `+${d}`
-  if (d.length <= 4) return `+${d.slice(0, 2)} (${d.slice(2)}`
-  if (d.length <= 9) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`
-  if (d.length <= 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`
-  return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
-}
-function fmtCep(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 8)
-  if (d.length <= 5) return d
-  return `${d.slice(0, 5)}-${d.slice(5)}`
-}
 function toDateInput(iso: string | null | undefined) {
   if (!iso) return ""
   return new Date(iso).toISOString().split("T")[0]
@@ -124,6 +101,7 @@ function Secao({ titulo, id, colapsados, toggle, children }: {
 
 // ---- Modal de config por unidade ----
 function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClose: () => void; onSalvo: () => void }) {
+  const avisar = useAviso()
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
@@ -217,17 +195,17 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
         if (!d) return
         setNome(d.name ?? "")
         setSlug(d.slug ?? "")
-        setTelefone(fmtTel(d.phone ?? ""))
+        setTelefone(mascaraTelefone(d.phone ?? ""))
         setEmail(d.email ?? "")
         setEndereco(d.address ?? "")
         setCidade(d.city ?? "")
         setEstado(d.state ?? "")
-        setCep(fmtCep(d.zipCode ?? ""))
+        setCep(mascaraCep(d.zipCode ?? ""))
         setInauguratedAt(toDateInput(d.inauguratedAt))
         setPixKey(d.pixKey ?? "")
-        setWhatsapp(fmtWa(d.whatsapp ?? ""))
+        setWhatsapp(mascaraWhatsapp(d.whatsapp ?? ""))
         setInstagram(d.instagram ?? "")
-        setCnpj(fmtCnpj(d.cnpj ?? ""))
+        setCnpj(mascaraCnpj(d.cnpj ?? ""))
         setRazaoSocial(d.razaoSocial ?? "")
         setInscricaoMunicipal(d.inscricaoMunicipal ?? "")
         setRegimeTributario(d.regimeTributario ?? "Simples Nacional")
@@ -250,9 +228,9 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
       fd.append("logo", file)
       const res = await fetch(`/api/unidades/${unidadeId}/logo`, { method: "POST", body: fd })
       const data = await res.json()
-      if (!res.ok) { alert(data.error || "Erro ao enviar logo"); return }
+      if (!res.ok) { avisar(data.error || "Erro ao enviar logo", "erro"); return }
       setLogoUrl(data.url)
-    } catch (err) { alert(String(err)) }
+    } catch (err) { avisar(String(err), "erro") }
     finally { setUploadando(false) }
   }
 
@@ -302,21 +280,28 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
   const logoSrc = logoPreview || logoUrl
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
-      <div className="w-full max-w-xl bg-zinc-900 flex flex-col h-full overflow-hidden">
-        {/* header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
-          <div>
-            <h2 className="text-white font-bold">{nome || "Configurações da Unidade"}</h2>
-            <p className="text-zinc-500 text-xs mt-0.5">barberos.com/{slug}</p>
-          </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-        </div>
-
+    <Modal
+      aberto
+      onFechar={onClose}
+      fecharNoFundo={false}
+      tamanho="lg"
+      titulo={nome || "Configurações da Unidade"}
+      subtitulo={`barberos.com/${slug}`}
+      // Sem rodape enquanto carrega: o form ainda nao existe para o submit
+      rodape={loading ? undefined : (
+        <>
+          {salvo && <span className="text-green-400 text-sm mr-auto">✓ Salvo</span>}
+          <Button variant="ghost" onClick={onClose}>Fechar</Button>
+          <Button variant="accent" type="submit" form="form-config-unidade" disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </>
+      )}
+    >
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Carregando...</div>
+          <div className="py-10 flex items-center justify-center text-zinc-500 text-sm">Carregando...</div>
         ) : (
-          <form onSubmit={handleSalvar} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <form id="form-config-unidade" onSubmit={handleSalvar} className="space-y-3">
 
             {/* Logo */}
             <Secao titulo="Logo" id="logo" colapsados={colapsados} toggle={toggle}>
@@ -359,7 +344,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Telefone</label>
-                  <input value={telefone} onChange={e => setTelefone(fmtTel(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
+                  <input value={telefone} onChange={e => setTelefone(mascaraTelefone(e.target.value))} className={inputCls} placeholder="(11) 99999-9999" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Email</label>
@@ -379,7 +364,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
                   <label className="text-zinc-400 text-xs mb-1 block">WhatsApp</label>
                   <div className="flex items-center bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden focus-within:border-amber-500">
                     <span className="text-zinc-600 text-xs px-2 py-2">💬</span>
-                    <input value={whatsapp} onChange={e => setWhatsapp(fmtWa(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
+                    <input value={whatsapp} onChange={e => setWhatsapp(mascaraWhatsapp(e.target.value))} placeholder="+55 (11) 99999-9999" inputMode="numeric" className="flex-1 bg-transparent text-white px-2 py-2 text-sm outline-none" />
                   </div>
                   <p className="text-zinc-600 text-xs mt-0.5">Com código do país (+55)</p>
                 </div>
@@ -406,7 +391,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">CEP</label>
-                  <input value={cep} onChange={e => setCep(fmtCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
+                  <input value={cep} onChange={e => setCep(mascaraCep(e.target.value))} className={inputCls} placeholder="00000-000" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Cidade</label>
@@ -424,7 +409,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="grid grid-cols-2 gap-3 pt-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">CNPJ</label>
-                  <input value={cnpj} onChange={e => setCnpj(fmtCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
+                  <input value={cnpj} onChange={e => setCnpj(mascaraCnpj(e.target.value))} className={inputCls} placeholder="00.000.000/0001-00" inputMode="numeric" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">Inscrição Municipal</label>
@@ -516,7 +501,7 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
                               <div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${s.isEnabled ? "translate-x-4.5" : "translate-x-0.5"}`} />
                             </div>
                             <span className={`text-sm transition-colors ${s.isEnabled ? "text-white" : "text-zinc-500"}`}>{s.name}</span>
-                            <span className="text-zinc-600 text-xs ml-auto">R$ {s.price.toFixed(2)}</span>
+                            <span className="text-zinc-600 text-xs ml-auto">{fmtMoeda(s.price)}</span>
                           </label>
                         ))}
                       </div>
@@ -559,21 +544,9 @@ function ConfigModal({ unidadeId, onClose, onSalvo }: { unidadeId: string; onClo
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">{erro}</div>
             )}
 
-            <div className="flex items-center gap-3 pb-6">
-              <button type="submit" disabled={salvando}
-                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
-                {salvando ? "Salvando..." : "Salvar alterações"}
-              </button>
-              {salvo && <span className="text-green-400 text-sm">✓ Salvo</span>}
-              <button type="button" onClick={onClose} className="ml-auto text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-                Fechar
-              </button>
-            </div>
-
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -817,13 +790,21 @@ export default function UnidadesPage() {
 
       {/* Modal nova unidade */}
       {modalNova && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Nova Unidade</h2>
-              <button onClick={() => { setModalNova(false); setErroCriacao("") }} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={criarUnidade} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => { setModalNova(false); setErroCriacao("") }}
+          fecharNoFundo={false}
+          titulo="Nova Unidade"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => { setModalNova(false); setErroCriacao("") }}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-nova-unidade" disabled={criando || !novoNome.trim()}>
+                {criando ? "Criando..." : "Criar unidade"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-nova-unidade" onSubmit={criarUnidade} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome da unidade *</label>
                 <input
@@ -847,19 +828,8 @@ export default function UnidadesPage() {
               </div>
               <p className="text-zinc-600 text-xs">O slug e demais configurações podem ser ajustados após a criação.</p>
               {erroCriacao && <div className="text-red-400 text-sm">{erroCriacao}</div>}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => { setModalNova(false); setErroCriacao("") }}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={criando || !novoNome.trim()}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {criando ? "Criando..." : "Criar unidade"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Config drawer */}

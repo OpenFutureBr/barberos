@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { enviarWhatsApp } from "@/lib/whatsapp"
+import { usePolling } from "@/lib/usePolling"
+import Modal from "@/components/ui/Modal"
+import Button, { ButtonLink } from "@/components/ui/Button"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,32 +164,29 @@ function QrModal({ onClose, onConnected }: { onClose: () => void; onConnected: (
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm text-center">
-        <h2 className="text-white font-bold text-lg mb-1">Conectar WhatsApp</h2>
-        <p className="text-zinc-500 text-sm mb-5">
-          A sessão é criada e o QR Code é escaneado direto no painel do OpenWA, não aqui no sistema.
-        </p>
-
+    <Modal
+      aberto
+      onFechar={onClose}
+      fecharNoFundo={false}
+      tamanho="sm"
+      titulo="Conectar WhatsApp"
+      subtitulo="A sessão é criada e o QR Code é escaneado direto no painel do OpenWA, não aqui no sistema."
+      rodape={<Button variant="ghost" onClick={onClose}>Fechar</Button>}
+    >
+      <div className="text-center">
         {manageUrl ? (
-          <a href={manageUrl} target="_blank" rel="noopener noreferrer"
-            className="block w-full font-semibold px-4 py-2.5 rounded-lg text-sm border transition-colors bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/20">
+          <ButtonLink href={manageUrl} target="_blank" rel="noopener noreferrer" variant="success" full>
             Abrir painel do OpenWA →
-          </a>
+          </ButtonLink>
         ) : (
           <p className="text-zinc-600 text-sm">Painel do OpenWA não configurado.</p>
         )}
 
-        <button onClick={verificarAgora} disabled={verificando}
-          className="w-full mt-3 text-xs px-3 py-2 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 transition-colors disabled:opacity-50">
+        <Button onClick={verificarAgora} disabled={verificando} size="sm" full className="mt-3">
           {verificando ? "Verificando..." : "Já conectei, verificar novamente"}
-        </button>
-
-        <button onClick={onClose} className="mt-5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-          Fechar
-        </button>
+        </Button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -463,11 +463,7 @@ export default function WhatsAppPage() {
     }
   }, [])
 
-  useEffect(() => {
-    checkStatus()
-    const id = setInterval(checkStatus, 30_000)
-    return () => clearInterval(id)
-  }, [checkStatus])
+  usePolling(checkStatus, 30_000, { imediato: true })
 
   const connected = connState === "open"
 

@@ -1,10 +1,8 @@
 "use client"
 
 import { BucketPeriodo, CoresGrafico } from "@/lib/caixa-utils"
+import { fmtMoeda } from "@/lib/formatadores"
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 

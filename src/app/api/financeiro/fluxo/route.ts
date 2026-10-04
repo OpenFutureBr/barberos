@@ -103,10 +103,16 @@ export async function GET(request: Request) {
 
       // Projeção de receita — parte 1: pagamentos pendentes (ex.: "Pagar depois"),
       // projetados no vencimento (ou na data do agendamento, se não houver).
+      // Já filtrado pela mesma data de referência usada abaixo (vencimento, ou
+      // o agendamento se não houver) — antes trazia todo o histórico pendente.
       prisma.payment.findMany({
         where: {
           status: "PENDING",
           appointment: { establishmentId: ESTAB_ID },
+          OR: [
+            { dueDate: { gte: inicio, lte: fim } },
+            { dueDate: null, appointment: { scheduledAt: { gte: inicio, lte: fim } } },
+          ],
         },
         select: {
           amount: true,
@@ -121,8 +127,10 @@ export async function GET(request: Request) {
       prisma.appointment.findMany({
         where: {
           establishmentId: ESTAB_ID,
-          status: { notIn: STATUS_NAO_PROJETAVEL as any },
+          status: { notIn: [...STATUS_NAO_PROJETAVEL] },
           payment: null,
+          // Antes vinha o histórico inteiro e o período era filtrado em JS
+          scheduledAt: { gte: inicio, lte: fim },
         },
         select: {
           scheduledAt: true,

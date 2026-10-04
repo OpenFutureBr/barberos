@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react"
 import AdminLayout from "@/components/admin/AdminLayout"
+import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 type Plano = {
   id: string
@@ -31,9 +34,6 @@ const FEATURES_DISPONIVEIS = [
   { key: "api",          label: "API externa" },
 ]
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function limiteStr(v: number | null) {
   return v === null ? "Ilimitado" : v.toLocaleString("pt-BR")
@@ -197,14 +197,22 @@ export default function AdminPlanosPage() {
 
       {/* Modal criar/editar */}
       {modal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900">
-              <h2 className="text-white font-bold">{editando ? `Editar: ${editando.name}` : "Novo Plano"}</h2>
-              <button onClick={() => setModal(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-
-            <form onSubmit={salvar} className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModal(false)}
+          fecharNoFundo={false}
+          tamanho="lg"
+          titulo={editando ? `Editar: ${editando.name}` : "Novo Plano"}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModal(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-plano-admin" disabled={salvando}>
+                {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Criar plano"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-plano-admin" onSubmit={salvar} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-zinc-400 text-xs mb-1 block">ID do plano *</label>
@@ -269,20 +277,8 @@ export default function AdminPlanosPage() {
               </div>
 
               {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">{erro}</div>}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModal(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Criar plano"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </AdminLayout>
   )

@@ -10,6 +10,11 @@ const LARGURAS = {
   xl: "md:max-w-4xl",
 } as const
 
+// Modais abertos, do mais antigo ao mais novo. Com um aberto por cima de outro
+// (a confirmacao do useConfirmar nasce de dentro de modais), o Escape fecha so
+// o de cima — cada um escuta o document e, sem isso, fechavam os dois juntos.
+const pilha: object[] = []
+
 /**
  * Dialogo centralizado no desktop e folha de tela cheia no mobile — os modais
  * atuais do projeto usam a mesma caixa nos dois, o que no celular corta
@@ -17,7 +22,9 @@ const LARGURAS = {
  *
  * - rolagem interna no corpo, cabecalho e rodape fixos;
  * - rodape respeita a safe area (barra de gestos do iOS);
- * - fecha no Escape e no clique no fundo;
+ * - fecha no Escape e no clique no fundo (`fecharNoFundo={false}` desliga o
+ *   clique — para formularios longos, onde um clique fora perderia o que foi
+ *   digitado);
  * - trava a rolagem do body enquanto aberto.
  *
  * Nao implementa focus trap: para formularios longos isso exigiria varrer os
@@ -25,9 +32,10 @@ const LARGURAS = {
  * que o teclado continue na pagina de tras.
  */
 export default function Modal({
-  aberto, onFechar, titulo, subtitulo, rodape, tamanho = "md", className, children,
+  aberto, onFechar, titulo, subtitulo, rodape, tamanho = "md", fecharNoFundo = true, className, children,
 }: {
   aberto: boolean
+  fecharNoFundo?: boolean
   onFechar: () => void
   titulo?: React.ReactNode
   subtitulo?: React.ReactNode
@@ -37,24 +45,37 @@ export default function Modal({
   children: React.ReactNode
 }) {
   const painelRef = useRef<HTMLDivElement>(null)
+  // onFechar costuma vir inline (`onFechar={() => setX(null)}`): fora das
+  // dependencias, para o efeito nao rodar de novo a cada render — o que
+  // reempilharia este modal por cima de um aberto depois dele.
+  const onFecharRef = useRef(onFechar)
+  useEffect(() => { onFecharRef.current = onFechar })
 
   useEffect(() => {
     if (!aberto) return
 
+    const eu = {}
+    pilha.push(eu)
+
     function onTecla(e: KeyboardEvent) {
-      if (e.key === "Escape") onFechar()
+      // defaultPrevented: um campo de dentro ja usou o Esc (fechar a lista de
+      // um autocomplete, por ex.). stopPropagation nao serve para isso — no
+      // App Router o React escuta no proprio document, o mesmo no daqui.
+      if (e.key === "Escape" && !e.defaultPrevented && pilha[pilha.length - 1] === eu) onFecharRef.current()
     }
     document.addEventListener("keydown", onTecla)
 
     const overflowAnterior = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    painelRef.current?.focus()
+    // Respeita um autoFocus de dentro (este efeito roda depois dos filhos).
+    if (!painelRef.current?.contains(document.activeElement)) painelRef.current?.focus()
 
     return () => {
+      pilha.splice(pilha.indexOf(eu), 1)
       document.removeEventListener("keydown", onTecla)
       document.body.style.overflow = overflowAnterior
     }
-  }, [aberto, onFechar])
+  }, [aberto])
 
   if (!aberto) return null
 
@@ -62,7 +83,7 @@ export default function Modal({
     <div className="fixed inset-0 z-50 flex md:items-center md:justify-center">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-[1px]"
-        onClick={onFechar}
+        onClick={fecharNoFundo ? onFechar : undefined}
         aria-hidden
       />
 
@@ -85,7 +106,10 @@ export default function Modal({
             style={{ paddingTop: "max(0.75rem, var(--sa-top))" }}
           >
             <div className="min-w-0">
-              {titulo && <h2 className="text-fg text-sm font-semibold truncate">{titulo}</h2>}
+              {/* Texto vira <h2>; outro conteudo (abas, por ex.) vai como esta. */}
+              {typeof titulo === "string"
+                ? <h2 className="text-fg text-sm font-semibold truncate">{titulo}</h2>
+                : titulo}
               {subtitulo && <p className="text-fg-3 text-xs mt-0.5">{subtitulo}</p>}
             </div>
             <button

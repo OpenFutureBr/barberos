@@ -2,14 +2,10 @@
 
 import { useEffect, useState, lazy, Suspense } from "react"
 import { useParams } from "next/navigation"
+import { fmtMoeda } from "@/lib/formatadores"
+import { mascaraTelefone } from "@/lib/mascaras"
 const IaBiotipoModal = lazy(() => import("@/components/ia/IaBiotipoModal"))
 
-function formatarTelefone(v: string) {
-  const n = v.replace(/\D/g, "").slice(0, 11)
-  if (n.length <= 2) return n.length ? `(${n}` : ""
-  if (n.length <= 7) return `(${n.slice(0, 2)}) ${n.slice(2)}`
-  return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`
-}
 
 function getDiaSemana(dataISO: string) {
   return new Date(dataISO + "T12:00:00").getDay()
@@ -248,7 +244,7 @@ export default function AgendarPage() {
               <input
                 type="tel"
                 value={telefone}
-                onChange={e => setTelefone(formatarTelefone(e.target.value))}
+                onChange={e => setTelefone(mascaraTelefone(e.target.value))}
                 onKeyDown={e => e.key === "Enter" && handleTelefone()}
                 placeholder="(00) 00000-0000"
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-base outline-none focus:border-amber-500 transition-colors"
@@ -353,7 +349,7 @@ export default function AgendarPage() {
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
                     <div className={`text-sm font-semibold ${servicoId === s.id ? "text-amber-400" : "text-zinc-300"}`}>
-                      R$ {s.price.toFixed(2)}
+                      {fmtMoeda(s.price)}
                     </div>
                     <div className="text-zinc-500 text-xs">{s.durationMin}min</div>
                   </div>

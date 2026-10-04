@@ -25,13 +25,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const data = searchParams.get("data")
 
-    const where: any = { establishmentId: estabId }
+    // Sem data devolvia a unidade inteira (todo o histórico). Todas as telas
+    // pedem um dia específico.
+    if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return NextResponse.json({ error: "Informe a data (?data=AAAA-MM-DD)" }, { status: 400 })
+    }
 
-    if (data) {
-      where.scheduledAt = {
+    const where: any = {
+      establishmentId: estabId,
+      scheduledAt: {
         gte: new Date(`${data}T00:00:00-03:00`),
         lte: new Date(`${data}T23:59:59.999-03:00`),
-      }
+      },
     }
 
     // Barbeiro só vê os próprios atendimentos — recepção e gestores continuam
@@ -93,24 +98,30 @@ export async function POST(request: Request) {
     const normalizedServiceType =
       serviceType === ServiceType.HOME_VISIT ? ServiceType.HOME_VISIT : ServiceType.PRESENTIAL
 
-    // Busca serviço
-    const service = await prisma.service.findFirst({
-      where: { id: serviceId, establishmentId: estabId, isActive: true },
-      select: { id: true, name: true, durationMin: true },
-    })
+    // Serviço, profissional (domicílio e intervalo) e cliente: independentes
+    const [service, profissional, cliente] = await Promise.all([
+      prisma.service.findFirst({
+        where: { id: serviceId, establishmentId: estabId, isActive: true },
+        select: { id: true, name: true, durationMin: true },
+      }),
+      prisma.user.findFirst({
+        where: { id: professionalId, establishmentId: estabId },
+        select: { attendsHome: true, breakBetweenAppts: true },
+      }),
+      prisma.client.findFirst({
+        where: { id: clientId, establishmentId: estabId },
+        select: { id: true },
+      }),
+    ])
 
     if (!service) {
       return NextResponse.json({ error: "Serviço não encontrado ou inativo" }, { status: 404 })
     }
-
-    // Busca profissional — valida domicílio e pega intervalo
-    const profissional = await prisma.user.findUnique({
-      where: { id: professionalId },
-      select: { attendsHome: true, breakBetweenAppts: true },
-    })
-
     if (!profissional) {
       return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
+    }
+    if (!cliente) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
     }
 
     // Valida domicílio pelo profissional, não pelo serviço
@@ -126,57 +137,67 @@ export async function POST(request: Request) {
     const duracaoTotal = service.durationMin + descansoMin
     const endUtc = addMinutes(startUtc, duracaoTotal)
 
-    // Verifica conflito
-    const agendamentosExistentes = await prisma.appointment.findMany({
-      where: {
-        professionalId,
-        establishmentId: estabId,
-        status: { notIn: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW] },
-        scheduledAt: {
-          gte: addMinutes(startUtc, -24 * 60),
-          lte: addMinutes(endUtc, 24 * 60),
+    // Checagem de conflito + criação numa transação, com trava por
+    // profissional: duas marcações simultâneas no mesmo horário (duplo clique,
+    // duas recepções) passavam as duas pela checagem antes de qualquer uma
+    // gravar. A trava é liberada no fim da transação e só afeta o mesmo
+    // profissional.
+    const resultado = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"agendamento:" + professionalId}))`
+
+      const agendamentosExistentes = await tx.appointment.findMany({
+        where: {
+          professionalId,
+          establishmentId: estabId,
+          status: { notIn: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW] },
+          scheduledAt: {
+            gte: addMinutes(startUtc, -24 * 60),
+            lte: addMinutes(endUtc, 24 * 60),
+          },
         },
-      },
-      include: { service: { select: { durationMin: true } } },
-      orderBy: { scheduledAt: "asc" },
+        include: { service: { select: { durationMin: true } } },
+        orderBy: { scheduledAt: "asc" },
+      })
+
+      const conflito = agendamentosExistentes.find((a) => {
+        const inicioExistente = new Date(a.scheduledAt)
+        const fimExistente = adicionarMinutos(
+          inicioExistente,
+          (a.service?.durationMin || 30) + descansoMin
+        )
+        return datasSobrepoem(startUtc, endUtc, inicioExistente, fimExistente)
+      })
+
+      if (conflito) return null
+
+      return tx.appointment.create({
+        data: {
+          clientId,
+          professionalId,
+          serviceId,
+          scheduledAt: startUtc,
+          serviceType: normalizedServiceType,
+          status: AppointmentStatus.SCHEDULED,
+          establishmentId: estabId,
+          haircutId: haircutId || null,
+          notes: notes || null,
+        },
+        include: {
+          client: { select: { id: true, name: true, phone: true } },
+          professional: { select: { id: true, name: true } },
+          service: { select: { id: true, name: true, price: true, durationMin: true, availableHome: true } },
+        },
+      })
     })
 
-    const conflito = agendamentosExistentes.find((a) => {
-      const inicioExistente = new Date(a.scheduledAt)
-      const fimExistente = adicionarMinutos(
-        inicioExistente,
-        (a.service?.durationMin || 30) + descansoMin
-      )
-      return datasSobrepoem(startUtc, endUtc, inicioExistente, fimExistente)
-    })
-
-    if (conflito) {
+    if (!resultado) {
       return NextResponse.json(
         { error: "Profissional já possui agendamento nesse intervalo, considerando duração do serviço e descanso." },
         { status: 409 }
       )
     }
 
-    const agendamento = await prisma.appointment.create({
-      data: {
-        clientId,
-        professionalId,
-        serviceId,
-        scheduledAt: startUtc,
-        serviceType: normalizedServiceType,
-        status: AppointmentStatus.SCHEDULED,
-        establishmentId: estabId,
-        haircutId: haircutId || null,
-        notes: notes || null,
-      },
-      include: {
-        client: { select: { id: true, name: true, phone: true } },
-        professional: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, price: true, durationMin: true, availableHome: true } },
-      },
-    })
-
-    return NextResponse.json(agendamento)
+    return NextResponse.json(resultado)
   } catch (error) {
     console.error("Erro ao criar agendamento:", error)
     return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
@@ -185,10 +206,30 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const session = await auth()
+    const estabId = session?.user?.establishmentId
+    if (!estabId) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
     const body = await request.json()
 
     if (!body.id) {
       return NextResponse.json({ error: "ID é obrigatório" }, { status: 400 })
+    }
+
+    // Só altera agendamento da própria unidade
+    const current = await prisma.appointment.findFirst({
+      where: { id: body.id, establishmentId: estabId },
+      select: { professionalId: true },
+    })
+    if (!current) return NextResponse.json({ error: "Agendamento não encontrado" }, { status: 404 })
+
+    // Troca de profissional só para alguém da mesma unidade
+    if (body.professionalId !== undefined && body.professionalId !== current.professionalId) {
+      const prof = await prisma.user.findFirst({
+        where: { id: body.professionalId, establishmentId: estabId },
+        select: { id: true },
+      })
+      if (!prof) return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 })
     }
 
     const data: Record<string, unknown> = {}
@@ -201,20 +242,15 @@ export async function PUT(request: Request) {
 
     // Quando entra em andamento, conclui automaticamente o anterior do mesmo barbeiro
     if (body.status === "IN_PROGRESS") {
-      const current = await prisma.appointment.findUnique({
-        where: { id: body.id },
-        select: { professionalId: true },
+      await prisma.appointment.updateMany({
+        where: {
+          establishmentId: estabId,
+          professionalId: current.professionalId,
+          status: AppointmentStatus.IN_PROGRESS,
+          id: { not: body.id },
+        },
+        data: { status: AppointmentStatus.DONE, finishedAt: new Date() },
       })
-      if (current) {
-        await prisma.appointment.updateMany({
-          where: {
-            professionalId: current.professionalId,
-            status: AppointmentStatus.IN_PROGRESS,
-            id: { not: body.id },
-          },
-          data: { status: AppointmentStatus.DONE, finishedAt: new Date() },
-        })
-      }
     }
 
     const agendamento = await prisma.appointment.update({

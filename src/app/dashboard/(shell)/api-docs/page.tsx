@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useAviso } from "@/components/ui/Avisos"
+import PageHeader from "@/components/ui/PageHeader"
 
 const endpoints = [
   {
@@ -119,24 +121,35 @@ const metodoStyle: Record<string, string> = {
   DELETE: "bg-red-500/10 text-red-400 border border-red-500/20",
 }
 
+function curlDe(endpoint: { metodo: string; rota: string }, apiKey: string) {
+  return `curl -X ${endpoint.metodo} \\
+  https://api.barberos.com/v1${endpoint.rota} \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json"`
+}
+
 export default function ApiDocsPage() {
   const [endpointSel, setEndpointSel] = useState<string | null>("1")
   const [apiKey] = useState("bos_live_c9c99c36ff732e91ab6a3a475344ddfd")
+  const avisar = useAviso()
 
   const endpoint = endpoints.find(e => e.id === endpointSel)
+
+  // Copia de verdade — antes o botao do cURL so mostrava "copiado!".
+  function copiar(texto: string, rotulo: string) {
+    navigator.clipboard.writeText(texto)
+      .then(() => avisar(`${rotulo} copiado!`, "sucesso"))
+      .catch(() => avisar("Não foi possível copiar.", "erro"))
+  }
 
   return (
     <>
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">API Pública — Documentação</h1>
-          <p className="text-zinc-500 text-sm">REST API · v1 · Autenticação via Bearer Token</p>
-        </div>
+      <PageHeader titulo="API Pública — Documentação" subtitulo="REST API · v1 · Autenticação via Bearer Token">
         <span className="text-xs px-3 py-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
           ● API Online
         </span>
-      </div>
+      </PageHeader>
 
       {/* API Key */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
@@ -148,7 +161,7 @@ export default function ApiDocsPage() {
             {apiKey}
           </div>
           <button
-            onClick={() => navigator.clipboard.writeText(apiKey).then(() => alert("API Key copiada!"))}
+            onClick={() => copiar(apiKey, "API Key")}
             className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg text-sm border border-zinc-700 transition-colors"
           >
             Copiar
@@ -237,13 +250,10 @@ export default function ApiDocsPage() {
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                 <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">Exemplo — cURL</div>
                 <pre className="bg-zinc-800 rounded-lg p-3 text-xs text-zinc-300 font-mono overflow-x-auto leading-relaxed">
-{`curl -X ${endpoint.metodo} \\
-  https://api.barberos.com/v1${endpoint.rota} \\
-  -H "Authorization: Bearer ${apiKey}" \\
-  -H "Content-Type: application/json"`}
+{curlDe(endpoint, apiKey)}
                 </pre>
                 <button
-                  onClick={() => alert("cURL copiado!")}
+                  onClick={() => copiar(curlDe(endpoint, apiKey), "cURL")}
                   className="mt-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   📋 Copiar comando

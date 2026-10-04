@@ -3,45 +3,94 @@
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
+// Barra de progresso no topo.
+//
+// Antes ela só reagia à troca da URL — que acontece quando a tela nova JÁ
+// chegou. Durante a espera de verdade, logo depois do clique, não havia sinal
+// nenhum. Agora começa no clique de qualquer link interno, vai avançando
+// devagar até ~80% enquanto espera, e completa quando o pathname muda.
+//
+// Anima com transform (scaleX) em vez de width: width força recálculo de
+// layout a cada quadro.
+
+const LIMITE_MS = 8000 // se a navegação não acontecer, some sozinha
+
+function ehNavegacaoInterna(e: MouseEvent, pathnameAtual: string): boolean {
+  if (e.defaultPrevented || e.button !== 0) return false
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false
+  const a = (e.target as Element | null)?.closest?.("a")
+  if (!a || !a.href) return false
+  if (a.target && a.target !== "_self") return false
+  if (a.hasAttribute("download")) return false
+  const url = new URL(a.href, location.href)
+  if (url.origin !== location.origin) return false
+  return url.pathname !== pathnameAtual
+}
+
 export default function NavigationProgress() {
   const pathname = usePathname()
-  const [width, setWidth] = useState(0)
-  const [fading, setFading] = useState(false)
-  const prevRef = useRef(pathname)
+  const [progresso, setProgresso] = useState(0) // 0..1
+  const [visivel, setVisivel] = useState(false)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const ativo = useRef(false)
+  const pathnameRef = useRef(pathname)
 
-  function clearAll() { timers.current.forEach(clearTimeout); timers.current = [] }
-  function schedule(fn: () => void, ms: number) {
-    const t = setTimeout(fn, ms)
-    timers.current.push(t)
+  function limpar() { timers.current.forEach(clearTimeout); timers.current = [] }
+  function agendar(fn: () => void, ms: number) { timers.current.push(setTimeout(fn, ms)) }
+
+  function concluir() {
+    limpar()
+    ativo.current = false
+    setProgresso(1)
+    agendar(() => setVisivel(false), 200)
+    agendar(() => setProgresso(0), 450)
   }
 
+  // Início: clique num link interno
   useEffect(() => {
-    if (pathname === prevRef.current) return
-    prevRef.current = pathname
+    function aoClicar(e: MouseEvent) {
+      if (!ehNavegacaoInterna(e, pathnameRef.current)) return
+      limpar()
+      ativo.current = true
+      setVisivel(true)
+      setProgresso(0.15)
+      agendar(() => setProgresso(0.45), 150)
+      agendar(() => setProgresso(0.65), 600)
+      agendar(() => setProgresso(0.8), 1500)
+      agendar(concluir, LIMITE_MS)
+    }
+    // Captura: roda antes de o Link do Next tratar o clique
+    document.addEventListener("click", aoClicar, true)
+    return () => document.removeEventListener("click", aoClicar, true)
+    // limpar/agendar/concluir só mexem em refs e setters estáveis
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    clearAll()
-    setFading(false)
-    setWidth(0)
-    schedule(() => setWidth(20), 16)
-    schedule(() => setWidth(55), 120)
-    schedule(() => setWidth(80), 350)
-    schedule(() => setWidth(100), 650)
-    schedule(() => setFading(true), 800)
-    schedule(() => { setWidth(0); setFading(false) }, 1050)
-
-    return clearAll
+  // Fim: a tela trocou. Também cobre navegação sem clique (router.push,
+  // voltar do navegador), mostrando só o fechamento.
+  useEffect(() => {
+    if (pathname === pathnameRef.current) return
+    pathnameRef.current = pathname
+    if (!ativo.current) setVisivel(true)
+    concluir()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  const visible = width > 0
+  useEffect(() => limpar, [])
 
   return (
     <div
       className="fixed top-0 left-0 right-0 z-[9999] h-[3px] pointer-events-none"
-      style={{ opacity: visible ? (fading ? 0 : 1) : 0, transition: fading ? "opacity 250ms ease-out" : "none" }}>
+      style={{ opacity: visivel ? 1 : 0, transition: "opacity 250ms ease-out" }}
+      aria-hidden
+    >
       <div
-        className="h-full bg-amber-500 rounded-r-full"
-        style={{ width: `${width}%`, transition: width === 0 ? "none" : "width 300ms ease-out" }} />
+        className="h-full bg-amber-500 origin-left"
+        style={{
+          transform: `scaleX(${progresso})`,
+          transition: progresso === 0 ? "none" : "transform 300ms ease-out",
+        }}
+      />
     </div>
   )
 }

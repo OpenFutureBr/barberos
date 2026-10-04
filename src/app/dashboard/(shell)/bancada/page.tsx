@@ -40,7 +40,7 @@ export default function BancadaPage() {
     try {
       const [eqRes, estRes, movRes] = await Promise.all([
         fetch("/api/equipe"),
-        fetch("/api/estoque"),
+        fetch("/api/estoque?modo=simples"),
         fetch("/api/estoque/movimentos"),
       ])
       const eq = await eqRes.json()

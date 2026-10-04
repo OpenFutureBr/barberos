@@ -16,7 +16,7 @@ function int(v: unknown, fallback = 0): number {
   return isNaN(n) ? fallback : n
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth()
     const estabId = session?.user?.establishmentId
@@ -25,6 +25,17 @@ export async function GET() {
     // tiver "estoque" (gestão) ou só "agenda" (fechar comanda com produto).
     if (!temPermissao(session?.user, "estoque") && !temPermissao(session?.user, "agenda")) {
       return NextResponse.json({ error: "Sem permissão para este recurso." }, { status: 403 })
+    }
+
+    // Carrinho, comanda e bancada só precisam de nome, preço e saldo — sem o
+    // histórico de movimentos, que cresce a cada venda.
+    if (new URL(request.url).searchParams.get("modo") === "simples") {
+      const produtos = await prisma.product.findMany({
+        where: { establishmentId: estabId },
+        select: { id: true, name: true, salePrice: true, stock: true, isActive: true },
+        orderBy: { createdAt: "desc" },
+      })
+      return NextResponse.json(produtos)
     }
 
     const produtos = await prisma.product.findMany({

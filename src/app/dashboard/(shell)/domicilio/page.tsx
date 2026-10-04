@@ -1,7 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, pilulaStatus } from "@/lib/status"
+import PageHeader from "@/components/ui/PageHeader"
 
 // ---- types ----
 type ApptStatus = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "NO_SHOW"
@@ -37,20 +40,6 @@ type KitItem = {
 }
 
 // ---- helpers ----
-const STATUS_LABEL: Record<string, string> = {
-  SCHEDULED: "Agendado",
-  CONFIRMED: "Confirmado",
-  IN_PROGRESS: "Em rota",
-  DONE: "Concluído",
-}
-
-const STATUS_CLS: Record<string, string> = {
-  SCHEDULED: "bg-zinc-700 text-zinc-400 border-zinc-600",
-  CONFIRMED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  IN_PROGRESS: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  DONE: "bg-green-500/10 text-green-400 border-green-500/20",
-}
-
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
 }
@@ -237,54 +226,24 @@ export default function DomicilioPage() {
     <>
 
       {/* header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Atendimento a Domicílio</h1>
-          <p className="text-zinc-500 text-sm">Rota do dia · Kit pessoal · Zona de atendimento</p>
-        </div>
+      <PageHeader titulo="Atendimento a Domicílio" subtitulo="Rota do dia · Kit pessoal · Zona de atendimento">
         {zone?.name && (
           <span className="text-xs px-3 py-1.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
             {zone.name}
           </span>
         )}
-      </div>
+      </PageHeader>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="rota" className="bg-teal-500/5 border border-teal-500/20 rounded-xl p-4 h-full">
-            <div className="text-teal-400 text-xs font-mono uppercase tracking-widest mb-1">Rota de hoje</div>
-            <div className="text-teal-400 text-2xl font-bold">{concluidos}/{appointments.length}</div>
-            <div className="text-zinc-500 text-xs mt-1">
-              {emRota > 0 ? `${emRota} em rota agora` : "atendimentos concluídos"}
-            </div>
-          </div>,
-          <div key="distancia" className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Distância total</div>
-            <div className="text-white text-2xl font-bold">
-              {totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—"}
-            </div>
-            <div className="text-zinc-600 text-xs mt-1">percurso do dia</div>
-          </div>,
-          <div key="kit" className={`rounded-xl p-4 border h-full ${kitCritico > 0 ? "bg-red-500/5 border-red-500/20" : "bg-zinc-900 border-zinc-800"}`}>
-            <div className={`text-xs uppercase tracking-wide mb-1 ${kitCritico > 0 ? "text-red-400" : "text-zinc-500"}`}>
-              {kitCritico > 0 ? "⚠ Kit crítico" : "Kit pessoal"}
-            </div>
-            <div className={`text-2xl font-bold ${kitCritico > 0 ? "text-red-400" : "text-green-400"}`}>
-              {kitLoaded ? (kitCritico > 0 ? `${kitCritico} itens` : "OK") : "—"}
-            </div>
-            <div className="text-zinc-600 text-xs mt-1">
-              {kitLoaded ? (kitCritico > 0 ? "abaixo do mínimo" : "todos os itens OK") : "carregue a aba Kit"}
-            </div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-3 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={3} className="mb-4">{[
+        <Stat key="rota" destaque tone="teal" rotulo="Rota de hoje" valor={`${concluidos}/${appointments.length}`}
+          apoio={emRota > 0 ? `${emRota} em rota agora` : "atendimentos concluídos"} />,
+        <Stat key="distancia" rotulo="Distância total" valor={totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—"} apoio="percurso do dia" />,
+        <Stat key="kit" destaque={kitCritico > 0} tone={!kitLoaded ? "neutral" : kitCritico > 0 ? "danger" : "success"}
+          rotulo={kitCritico > 0 ? "⚠ Kit crítico" : "Kit pessoal"}
+          valor={kitLoaded ? (kitCritico > 0 ? `${kitCritico} itens` : "OK") : "—"}
+          apoio={kitLoaded ? (kitCritico > 0 ? "abaixo do mínimo" : "todos os itens OK") : "carregue a aba Kit"} />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -346,8 +305,8 @@ export default function DomicilioPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-white text-sm font-medium">{appt.client.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_CLS[appt.status] ?? STATUS_CLS.SCHEDULED}`}>
-                      {STATUS_LABEL[appt.status] ?? appt.status}
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${pilulaStatus(appt.status)}`}>
+                      {rotuloStatus(appt.status, "domicilio")}
                     </span>
                     {appt.professional && (
                       <span className="text-zinc-600 text-xs">{appt.professional.name}</span>
@@ -357,7 +316,7 @@ export default function DomicilioPage() {
                   <div className="text-teal-400 text-xs truncate">{enderecoCompleto(appt)}</div>
                   {appt.distanceKm != null && (
                     <div className="text-zinc-600 text-xs mt-0.5">{appt.distanceKm.toFixed(1)} km
-                      {appt.travelFee != null && appt.travelFee > 0 && ` · taxa R$ ${appt.travelFee.toFixed(2)}`}
+                      {appt.travelFee != null && appt.travelFee > 0 && ` · taxa ${fmtMoeda(appt.travelFee)}`}
                     </div>
                   )}
                 </div>

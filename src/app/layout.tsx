@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
 import { SCRIPT_TEMA_BOOT } from "@/lib/tema"
+import RegistrarSW from "@/components/RegistrarSW"
+import { AvisosProvider } from "@/components/ui/Avisos"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -71,14 +73,18 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_BOOT }} />
         <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('contextmenu',function(e){e.preventDefault()});document.addEventListener('keydown',function(e){if(e.key==='F12'){e.preventDefault();e.stopPropagation();}});` }} />
         <script dangerouslySetInnerHTML={{ __html: `try{var _f=localStorage.getItem("fonte");if(_f){var _fd=JSON.parse(_f);document.documentElement.style.setProperty("--font-override",_fd.family);if(_fd.url){var _fl=document.createElement("link");_fl.rel="stylesheet";_fl.href=_fd.url;document.head.appendChild(_fl);}}}catch(e){}` }} />
-        <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="BarberOS" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SessionProvider>{children}</SessionProvider>
+        {/* A sessão é um JWT de 7 dias: rebuscar /api/auth/session a cada volta
+            à aba não traz nada novo (o padrão do next-auth é refazer). */}
+        <SessionProvider refetchOnWindowFocus={false}>
+          <AvisosProvider>{children}</AvisosProvider>
+        </SessionProvider>
+        <RegistrarSW />
       </body>
     </html>
   )

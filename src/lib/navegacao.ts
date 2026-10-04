@@ -29,6 +29,17 @@ export const ROTA_INICIAL = "/dashboard"
    tela principal. Por isso a regra vale so nos componentes de menu, e nao num
    interceptador global de historico.
    --------------------------------------------------------------------------- */
+/**
+ * Regra única de "tela atual" para Sidebar, gaveta e barra de baixo.
+ * O Dashboard só por igualdade (todo /dashboard/* começa com ele); as demais
+ * incluem as subtelas — ficha do cliente acende "Clientes", comanda acende
+ * "Agenda".
+ */
+export function rotaAtiva(pathname: string, href: string): boolean {
+  if (href === ROTA_INICIAL) return pathname === href
+  return pathname === href || pathname.startsWith(href + "/")
+}
+
 export function useSubstituirHistorico(): boolean {
   return usePathname() !== ROTA_INICIAL
 }

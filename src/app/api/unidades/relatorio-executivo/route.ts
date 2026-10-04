@@ -38,18 +38,29 @@ export async function GET(request: Request) {
       },
     })
 
-    const unidades = await Promise.all(establishments.map(async (e) => {
-      const appointments = await prisma.appointment.findMany({
-        where: {
-          establishmentId: e.id,
-          status: "DONE" as any,
-          scheduledAt: { gte: inicio, lte: fim },
-        },
-        select: {
-          service: { select: { name: true, price: true } },
-          payment: { select: { amount: true } },
-        },
-      })
+    // Uma consulta para todas as unidades (antes era uma por unidade, todas
+    // em paralelo, disputando o pool de conexões).
+    const todos = await prisma.appointment.findMany({
+      where: {
+        establishmentId: { in: establishments.map(e => e.id) },
+        status: "DONE",
+        scheduledAt: { gte: inicio, lte: fim },
+      },
+      select: {
+        establishmentId: true,
+        service: { select: { name: true, price: true } },
+        payment: { select: { amount: true } },
+      },
+    })
+    const porUnidade = new Map<string, typeof todos>()
+    for (const a of todos) {
+      const lista = porUnidade.get(a.establishmentId)
+      if (lista) lista.push(a)
+      else porUnidade.set(a.establishmentId, [a])
+    }
+
+    const unidades = establishments.map((e) => {
+      const appointments = porUnidade.get(e.id) ?? []
 
       const faturamento = appointments.reduce((s, a) => s + (a.payment?.amount ?? a.service.price), 0)
 
@@ -72,7 +83,7 @@ export async function GET(request: Request) {
         ticketMedio: appointments.length > 0 ? Math.round((faturamento / appointments.length) * 100) / 100 : 0,
         topServico,
       }
-    }))
+    })
 
     const totais = unidades.reduce((s, u) => ({
       atendimentos: s.atendimentos + u.atendimentos,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useSyncExternalStore } from "react"
 import { hojeISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type UnidadeRel = {
   id: string
@@ -24,9 +25,6 @@ type Relatorio = {
   totais: { atendimentos: number; faturamento: number; equipe: number; clientes: number }
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 // O periodo padrao vai pelo fuso de Brasilia, igual ao que a API usa pra
 // fatiar os registros. toISOString() e os getters locais respondem em UTC /

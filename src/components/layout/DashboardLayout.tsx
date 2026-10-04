@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { getCache, setCache, setCacheScope } from "@/lib/prefetch-cache"
+import { getCache, setCache, setCacheScope, fetchCached } from "@/lib/prefetch-cache"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 import AgendaModal from "./AgendaModal"
@@ -15,7 +15,7 @@ import AplicadorMarca from "./AplicadorMarca"
 import PaletaComandos from "./PaletaComandos"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false)
   const [modalVendaAberto, setModalVendaAberto] = useState(false)
   const [dadosPagamento, setDadosPagamento] = useState<DadosPagamento | null>(null)
@@ -26,7 +26,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   //
   // O escopo do cache (organização+unidade) é fixado antes de qualquer
   // leitura/escrita abaixo, pra nunca servir dado de outra unidade.
+  // Espera a sessão: antes rodava uma vez com escopo vazio e outra depois,
+  // e a segunda limpava o cache da primeira (8 requisições em vez de 4).
   useEffect(() => {
+    if (status !== "authenticated") return
     setCacheScope(session?.user?.establishmentId, session?.user?.organizationId)
 
     // Clientes (primeira página) — maior gargalo atual
@@ -37,12 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .catch(() => {})
     }
     // Configurações (usada em muitos modais)
-    if (!getCache("configuracoes")) {
-      fetch("/api/configuracoes")
-        .then(r => r.json())
-        .then(d => { if (!d.error) setCache("configuracoes", d) })
-        .catch(() => {})
-    }
+    fetchCached("configuracoes", "/api/configuracoes").catch(() => {})
     // Precificação (usada no modal de agendamento)
     if (!getCache("precificacao")) {
       fetch("/api/precificacao")
@@ -58,7 +56,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .then(d => { if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d) })
         .catch(() => {})
     }
-  }, [session?.user?.establishmentId, session?.user?.organizationId])
+  }, [status, session?.user?.establishmentId, session?.user?.organizationId])
 
   // Carrinho persistente — não some ao fechar o modal
   const [cartItens, setCartItens] = useState<CartItem[]>([])
@@ -76,8 +74,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (carregadoRef.current) return
     carregadoRef.current = true
     Promise.all([
-      fetch("/api/equipe").then(r => r.json()),
-      fetch("/api/clientes?modo=simples").then(r => r.json()), // só id, name, phone
+      fetchCached("equipe", "/api/equipe"),
+      fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000), // só id, name, phone
       fetch("/api/servicos").then(r => r.json()),
     ]).then(([profs, cls, svcs]) => {
       setDadosModal({
@@ -85,7 +83,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         clientes: Array.isArray(cls) ? cls : [],
         servicos: Array.isArray(svcs) ? svcs : [],
       })
-    }).catch(console.error)
+    }).catch((e) => {
+      // Libera nova tentativa na próxima abertura do modal
+      carregadoRef.current = false
+      console.error(e)
+    })
   }
 
   useEffect(() => {

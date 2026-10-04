@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import AdminLayout from "@/components/admin/AdminLayout"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
+import { fmtMoeda } from "@/lib/formatadores"
 
 type Empresa = {
   id: string
@@ -66,12 +69,6 @@ type NovaEmpresaForm = {
   ownerPassword: string
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  })
-}
 
 function fmtData(iso?: string | null) {
   if (!iso) return "—"
@@ -491,25 +488,23 @@ export default function AdminEmpresasPage() {
       </div>
 
       {modalNovaEmpresa && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <div>
-                <h2 className="text-white font-bold text-lg">Nova empresa</h2>
-                <p className="text-zinc-500 text-sm">
-                  Cadastre a organização, primeira unidade e usuário dono.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setModalNovaEmpresa(false)}
-                className="text-zinc-500 hover:text-white text-xl transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-5">
+        <Modal
+          aberto
+          onFechar={() => setModalNovaEmpresa(false)}
+          fecharNoFundo={false}
+          tamanho="xl"
+          titulo="Nova empresa"
+          subtitulo="Cadastre a organização, primeira unidade e usuário dono."
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalNovaEmpresa(false)}>Cancelar</Button>
+              <Button variant="accent" onClick={criarEmpresa} disabled={criando}>
+                {criando ? "Criando..." : "Criar empresa"}
+              </Button>
+            </>
+          }
+        >
+            <div className="space-y-5">
               <div>
                 <div className="text-zinc-400 text-xs uppercase tracking-widest font-mono mb-3">
                   Empresa contratante
@@ -709,28 +704,8 @@ export default function AdminEmpresasPage() {
                   {erroCriacao}
                 </div>
               )}
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalNovaEmpresa(false)}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={criarEmpresa}
-                  disabled={criando}
-                  className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
-                >
-                  {criando ? "Criando..." : "Criar empresa"}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </AdminLayout>
   )

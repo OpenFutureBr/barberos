@@ -3,7 +3,12 @@
 import { useState, useEffect, useRef } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
-import CardCarousel from "@/components/ui/CardCarousel"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import { hojeISOemBRT } from "@/lib/data-brt"
+import { fmtMoeda } from "@/lib/formatadores"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 type Plano = {
   id: string; name: string; description: string | null
@@ -32,9 +37,6 @@ const statusLabel: Record<string, string> = {
   ACTIVE: "Ativo", PAUSED: "Pausado", CANCELLED: "Cancelado", OVERDUE: "Em atraso",
 }
 
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR")
@@ -59,7 +61,7 @@ export default function AssinaturasPage() {
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteSimples | null>(null)
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const [planoSelecionado, setPlanoSelecionado] = useState("")
-  const [dataInicio, setDataInicio] = useState(new Date().toISOString().split("T")[0])
+  const [dataInicio, setDataInicio] = useState(hojeISOemBRT())
   const [erroAssinante, setErroAssinante] = useState("")
   const dropRef = useRef<HTMLDivElement>(null)
 
@@ -197,7 +199,7 @@ export default function AssinaturasPage() {
       if (!res.ok) { setErroAssinante(data.error || "Erro ao adicionar"); return }
       setAssinantes(prev => [data, ...prev])
       setPainelAberto(false)
-      setBuscaCliente(""); setClienteSelecionado(null); setPlanoSelecionado(""); setDataInicio(new Date().toISOString().split("T")[0])
+      setBuscaCliente(""); setClienteSelecionado(null); setPlanoSelecionado(""); setDataInicio(hojeISOemBRT())
       setAba("assinantes")
     } catch (err) { setErroAssinante(String(err)) }
     finally { setSalvando(false) }
@@ -205,11 +207,7 @@ export default function AssinaturasPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">Assinaturas</h1>
-          <p className="text-zinc-500 text-sm">Planos mensais com cotas de cortes</p>
-        </div>
+      <PageHeader titulo="Assinaturas" subtitulo="Planos mensais com cotas de cortes">
         <div className="flex items-center gap-2">
           {aba === "planos" && (
             <button onClick={() => abrirModalPlano()}
@@ -224,28 +222,15 @@ export default function AssinaturasPage() {
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          { label: "Planos ativos", val: planosAtivos.length, cor: "text-amber-400" },
-          { label: "Assinantes", val: totalAssinantes, cor: "text-white" },
-          { label: "Receita mensal", val: fmtMoeda(totalReceita), cor: "text-green-400" },
-          { label: "Em atraso", val: atrasados, cor: atrasados > 0 ? "text-red-400" : "text-zinc-600" },
-        ].map(k => (
-          <div key={k.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">{k.label}</div>
-            {loading ? <div className="h-7 bg-zinc-800 rounded animate-pulse" /> : <div className={`text-xl font-bold ${k.cor}`}>{k.val}</div>}
-          </div>
-        ))
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={4} className="mb-4">{[
+        <Stat key="planos" tone="accent" carregando={loading} rotulo="Planos ativos" valor={planosAtivos.length} />,
+        <Stat key="assinantes" carregando={loading} rotulo="Assinantes" valor={totalAssinantes} />,
+        <Stat key="receita" tone="success" carregando={loading} rotulo="Receita mensal" valor={fmtMoeda(totalReceita)} />,
+        <Stat key="atraso" tone={atrasados > 0 ? "danger" : "apagado"} carregando={loading} rotulo="Em atraso" valor={atrasados} />,
+      ]}</KpiGrid>
 
       {/* Abas */}
       <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -521,13 +506,21 @@ export default function AssinaturasPage() {
 
       {/* Modal criar/editar plano */}
       {modalPlano && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">{editandoPlano ? "Editar plano" : "Novo plano"}</h2>
-              <button onClick={() => setModalPlano(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvarPlano} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalPlano(false)}
+          fecharNoFundo={false}
+          titulo={editandoPlano ? "Editar plano" : "Novo plano"}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalPlano(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-plano-assinatura" disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar plano"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-plano-assinatura" onSubmit={handleSalvarPlano} className="space-y-3">
               <div>
                 <label className="text-zinc-400 text-xs mb-1 block">Nome do plano *</label>
                 <input value={nomePlano} onChange={e => setNomePlano(e.target.value)} required placeholder="Ex: Plano Full"
@@ -584,19 +577,8 @@ export default function AssinaturasPage() {
               {erroPlano && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erroPlano}</div>
               )}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalPlano(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {salvando ? "Salvando..." : "Salvar plano"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
       <PagamentoModal
         dados={dadosRenovacao}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { salvarTemplates } from "@/lib/permissoes-templates"
 
 // Org-scoped role permission templates
 // ORG_OWNER can read/write for their org; ORG_MANAGER can read only
@@ -79,25 +80,9 @@ export async function PUT(request: Request) {
     // Block ORG_OWNER from setting permissions for ORG_OWNER or ADMIN roles
     const filtered = body.filter(t => t.role !== "ADMIN" && t.role !== "ORG_OWNER")
 
-    const results = await Promise.all(
-      filtered.map(async ({ role: r, resource, canView, canCreate, canEdit, canDelete }) => {
-        const existing = await prisma.rolePermissionTemplate.findFirst({
-          where: { role: r, resource, organizationId: orgId },
-          select: { id: true },
-        })
-        if (existing) {
-          return prisma.rolePermissionTemplate.update({
-            where: { id: existing.id },
-            data: { canView, canCreate, canEdit, canDelete },
-          })
-        }
-        return prisma.rolePermissionTemplate.create({
-          data: { role: r, resource, canView, canCreate, canEdit, canDelete, organizationId: orgId },
-        })
-      })
-    )
+    const updated = await salvarTemplates(orgId, filtered)
 
-    return NextResponse.json({ updated: results.length })
+    return NextResponse.json({ updated })
   } catch (error) {
     return NextResponse.json({ error: "Erro interno. Tente novamente." }, { status: 500 })
   }

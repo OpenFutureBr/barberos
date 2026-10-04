@@ -3,8 +3,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import PagamentoModal from "@/components/layout/PagamentoModal"
 import type { DadosPagamento } from "@/components/layout/PagamentoModal"
-import { getCache, setCache } from "@/lib/prefetch-cache"
-import CardCarousel from "@/components/ui/CardCarousel"
+import { fetchCached } from "@/lib/prefetch-cache"
+import Stat, { KpiGrid } from "@/components/ui/Stat"
+import { fmtMoeda } from "@/lib/formatadores"
+import { rotuloStatus, pilulaStatus } from "@/lib/status"
+import Modal from "@/components/ui/Modal"
+import Button, { ButtonLink } from "@/components/ui/Button"
+import PageHeader from "@/components/ui/PageHeader"
 
 // ── PIX avulso (apenas para modal de geração manual) ────────────────────────
 
@@ -65,11 +70,12 @@ type Config = { pixKey: string | null; name: string; city: string | null; whatsa
 function resolverStatus(c: Cobranca): { chave: string; label: string; cor: string } {
   if (c.payment) return { chave: "PAGO", label: "Pago", cor: "bg-green-500/10 text-green-400 border-green-500/20" }
   if (c.status === "DONE") return { chave: "A_COBRAR", label: "A cobrar", cor: "bg-amber-500/10 text-amber-400 border-amber-500/20" }
-  if (c.status === "CANCELLED") return { chave: "CANCELADO", label: "Cancelado", cor: "bg-red-500/10 text-red-400 border-red-500/20" }
-  if (c.status === "NO_SHOW") return { chave: "NAO_COMPARECEU", label: "Não compareceu", cor: "bg-red-500/10 text-red-400 border-red-500/20" }
-  if (c.status === "IN_PROGRESS") return { chave: "EM_ATENDIMENTO", label: "Em atendimento", cor: "bg-blue-500/10 text-blue-400 border-blue-500/20" }
-  if (c.status === "IN_QUEUE") return { chave: "PENDENTE", label: "Na fila", cor: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" }
-  return { chave: "PENDENTE", label: "Agendado", cor: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" }
+  // Os demais seguem o status do agendamento (rótulo e cor únicos, lib/status)
+  const doAgendamento = (chave: string) => ({ chave, label: rotuloStatus(c.status), cor: pilulaStatus(c.status) })
+  if (c.status === "CANCELLED") return doAgendamento("CANCELADO")
+  if (c.status === "NO_SHOW") return doAgendamento("NAO_COMPARECEU")
+  if (c.status === "IN_PROGRESS") return doAgendamento("EM_ATENDIMENTO")
+  return doAgendamento("PENDENTE")
 }
 
 const FILTROS = [
@@ -83,9 +89,6 @@ const FILTROS = [
 
 function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-}
-function fmtMoeda(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
 // ── Componente ──────────────────────────────────────────────────────────────
@@ -126,16 +129,14 @@ export default function PixPage() {
 
   const fetchDados = useCallback(() => {
     setLoading(true)
-    const cfgCache = getCache("configuracoes")
     Promise.all([
       fetch("/api/pix/cobrancas").then(r => r.json()),
-      cfgCache ? Promise.resolve(cfgCache) : fetch("/api/configuracoes").then(r => r.json()),
+      fetchCached("configuracoes", "/api/configuracoes"),
       fetch("/api/financeiro/pendentes").then(r => r.json()),
     ]).then(([lista, cfg, pends]) => {
       if (Array.isArray(lista)) setCobrancas(lista)
       if (cfg && !cfg.error) {
         setConfig({ pixKey: cfg.pixKey ?? null, name: cfg.name ?? "", city: cfg.city ?? null, whatsapp: cfg.whatsapp ?? null })
-        if (!cfgCache) setCache("configuracoes", cfg)
       }
       if (Array.isArray(pends)) setPendentes(pends)
     }).catch(console.error).finally(() => setLoading(false))
@@ -187,16 +188,12 @@ export default function PixPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-white text-xl font-bold">PIX & Cobranças</h1>
-          <p className="text-zinc-500 text-sm">Atendimentos do dia · Pagamentos · Geração de PIX</p>
-        </div>
+      <PageHeader titulo="PIX & Cobranças" subtitulo="Atendimentos do dia · Pagamentos · Geração de PIX">
         <button onClick={() => setModalGerar(true)} disabled={semChave}
           className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
           + Gerar PIX avulso
         </button>
-      </div>
+      </PageHeader>
 
       {semChave && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-4 text-amber-400 text-sm">
@@ -205,36 +202,15 @@ export default function PixPage() {
       )}
 
       {/* KPIs — carrossel no mobile, grid no desktop (mesmo padrão do Dashboard) */}
-      {(() => {
-        const kpis = [
-          <div key="recebido" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-green-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Recebido hoje</div>
-            <div className="text-green-400 text-xl font-bold">{fmtMoeda(totalPago)}</div>
-          </div>,
-          <button key="acobrar" onClick={() => setFiltro("A_COBRAR")}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-amber-500 text-left hover:bg-zinc-800/60 transition-colors h-full w-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">A cobrar</div>
-            <div className="text-amber-400 text-xl font-bold">{fmtMoeda(totalACobrar)}</div>
-            {pendentes.length > 0 && (
-              <div className="text-zinc-600 text-xs mt-0.5">{pendentes.length} pendência{pendentes.length !== 1 ? "s" : ""} anterior{pendentes.length !== 1 ? "es" : ""}</div>
-            )}
-          </button>,
-          <div key="atendimentos" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 border-t-2 border-t-blue-500 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Atendimentos</div>
-            <div className="text-blue-400 text-xl font-bold">{cobrancas.filter(c => !["CANCELLED","NO_SHOW"].includes(c.status)).length}</div>
-          </div>,
-          <div key="chave" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-            <div className="text-zinc-500 text-xs uppercase tracking-wide mb-1">Chave PIX</div>
-            <div className="text-white text-xs font-mono truncate">{config?.pixKey ?? "—"}</div>
-          </div>,
-        ]
-        return (
-          <div className="mb-4">
-            <CardCarousel cards={kpis} />
-            <div className="hidden md:grid md:grid-cols-4 gap-3">{kpis}</div>
-          </div>
-        )
-      })()}
+      <KpiGrid colunas={4} className="mb-4">{[
+        <Stat key="recebido" tone="success" rotulo="Recebido hoje" valor={fmtMoeda(totalPago)} />,
+        <Stat key="acobrar" tone="accent" onClick={() => setFiltro("A_COBRAR")} rotulo="A cobrar" valor={fmtMoeda(totalACobrar)}
+          apoio={pendentes.length > 0 ? `${pendentes.length} ${pendentes.length !== 1 ? "pendências anteriores" : "pendência anterior"}` : undefined} />,
+        <Stat key="atendimentos" tone="info" rotulo="Atendimentos" valor={cobrancas.filter(c => !["CANCELLED","NO_SHOW"].includes(c.status)).length} />,
+        // A chave e texto longo, nao numero: fonte pequena no lugar do valor grande
+        <Stat key="chave" rotulo="Chave PIX"
+          valor={<span className="text-xs font-mono font-normal" title={config?.pixKey ?? undefined}>{config?.pixKey ?? "—"}</span>} />,
+      ]}</KpiGrid>
 
       {/* Filtros */}
       <div className="flex gap-1 mb-3 flex-wrap">
@@ -344,31 +320,11 @@ export default function PixPage() {
             </div>
 
             {/* KPIs — carrossel no mobile, grid no desktop */}
-            {(() => {
-              const kpisPend = [
-                <div key="total" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-                  <div className="text-zinc-500 text-xs mb-1">Total pendente</div>
-                  <div className="text-amber-400 font-bold text-lg font-mono">{fmtMoeda(totalPend)}</div>
-                  <div className="text-zinc-600 text-xs">{pendentes.length} cobrança{pendentes.length !== 1 ? "s" : ""}</div>
-                </div>,
-                <div key="vencido" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-                  <div className="text-zinc-500 text-xs mb-1">Vencido</div>
-                  <div className="text-red-400 font-bold text-lg font-mono">{fmtMoeda(totalVenc)}</div>
-                  <div className="text-zinc-600 text-xs">{vencidos.length} cobrança{vencidos.length !== 1 ? "s" : ""}</div>
-                </div>,
-                <div key="avencer" className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 h-full">
-                  <div className="text-zinc-500 text-xs mb-1">A vencer</div>
-                  <div className="text-green-400 font-bold text-lg font-mono">{fmtMoeda(totalAVenc)}</div>
-                  <div className="text-zinc-600 text-xs">{aVencer.length} cobrança{aVencer.length !== 1 ? "s" : ""}</div>
-                </div>,
-              ]
-              return (
-                <div className="mb-4">
-                  <CardCarousel cards={kpisPend} />
-                  <div className="hidden md:grid md:grid-cols-3 gap-3">{kpisPend}</div>
-                </div>
-              )
-            })()}
+            <KpiGrid colunas={3} className="mb-4">{[
+              <Stat key="total" tone="accent" rotulo="Total pendente" valor={fmtMoeda(totalPend)} apoio={`${pendentes.length} ${pendentes.length !== 1 ? "cobranças" : "cobrança"}`} />,
+              <Stat key="vencido" tone="danger" rotulo="Vencido" valor={fmtMoeda(totalVenc)} apoio={`${vencidos.length} ${vencidos.length !== 1 ? "cobranças" : "cobrança"}`} />,
+              <Stat key="avencer" tone="success" rotulo="A vencer" valor={fmtMoeda(totalAVenc)} apoio={`${aVencer.length} ${aVencer.length !== 1 ? "cobranças" : "cobrança"}`} />,
+            ]}</KpiGrid>
 
             {/* Lista */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
@@ -485,13 +441,19 @@ export default function PixPage() {
 
       {/* Modal — PIX avulso */}
       {modalGerar && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">Gerar PIX avulso</h2>
-              <button onClick={() => setModalGerar(false)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <form onSubmit={gerarAvulso} className="p-5 space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setModalGerar(false)}
+          fecharNoFundo={false}
+          titulo="Gerar PIX avulso"
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalGerar(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-pix-avulso">Gerar código</Button>
+            </>
+          }
+        >
+            <form id="form-pix-avulso" onSubmit={gerarAvulso} className="space-y-4">
               <div className="bg-zinc-800 rounded-lg px-3 py-2 flex items-center gap-2">
                 <span className="text-zinc-500 text-xs">Chave PIX:</span>
                 <span className="text-white text-xs font-mono">{config?.pixKey}</span>
@@ -508,26 +470,34 @@ export default function PixPage() {
                   placeholder="0,00"
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 placeholder:text-zinc-600" />
               </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setModalGerar(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm">Cancelar</button>
-                <button type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm">Gerar código</button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal — exibir PIX avulso gerado */}
       {pixAvulso && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-white font-bold">PIX gerado</h2>
-              <button onClick={() => setPixAvulso(null)} className="text-zinc-500 hover:text-white text-xl">✕</button>
-            </div>
-            <div className="p-5 text-center space-y-4">
+        <Modal
+          aberto
+          onFechar={() => setPixAvulso(null)}
+          fecharNoFundo={false}
+          tamanho="sm"
+          titulo="PIX gerado"
+          rodape={
+            <>
+              <Button variant={copiado ? "success" : "neutral"} onClick={() => copiar(pixAvulso.payload)}>
+                {copiado ? "✓ Copiado!" : "Copiar código"}
+              </Button>
+              {config?.whatsapp && (
+                <ButtonLink variant="success"
+                  href={`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(`Segue o código PIX:\n\n${pixAvulso.payload}`)}`}
+                  target="_blank" rel="noopener noreferrer">
+                  WhatsApp
+                </ButtonLink>
+              )}
+            </>
+          }
+        >
+            <div className="text-center space-y-4">
               {pixAvulso.desc && <div className="text-zinc-400 text-sm">{pixAvulso.desc}</div>}
               <div className="text-green-400 text-3xl font-bold">{fmtMoeda(pixAvulso.valor)}</div>
               <div className="flex justify-center">
@@ -541,22 +511,8 @@ export default function PixPage() {
                 <div className="text-zinc-500 text-xs mb-1 font-mono uppercase tracking-wider">Copia e Cola</div>
                 <div className="text-zinc-300 text-xs font-mono break-all select-all leading-relaxed">{pixAvulso.payload}</div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => copiar(pixAvulso.payload)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${copiado ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"}`}>
-                  {copiado ? "✓ Copiado!" : "Copiar código"}
-                </button>
-                {config?.whatsapp && (
-                  <a href={`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(`Segue o código PIX:\n\n${pixAvulso.payload}`)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center bg-green-500/15 hover:bg-green-500/25 text-green-400 font-medium py-2.5 rounded-lg text-sm border border-green-500/20 transition-colors">
-                    WhatsApp
-                  </a>
-                )}
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </>

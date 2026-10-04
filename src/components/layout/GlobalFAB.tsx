@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { fetchCached } from "@/lib/prefetch-cache"
 import { GRUPOS_DESPESA, GRUPOS_RECEITA, TIPO_BADGE, TIPO_LABEL, type Categoria, type TipoCaixa } from "@/lib/categorias-caixa"
 
 const CHAVE_POSICAO_FAB = "fab:posicao"
@@ -54,14 +55,16 @@ function ModalCaixa({
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
+  // Trava síncrona: Enter repetido ou duplo clique antes do re-render, e o
+  // intervalo de 1,2s depois do sucesso, não lançam de novo
+  const travaRef = useRef(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (etapa === "form") inputRef.current?.focus() }, [etapa])
 
   useEffect(() => {
     if (modoInicial === "SAIDA" && profissionais.length === 0) {
-      fetch("/api/equipe")
-        .then(r => r.json())
+      fetchCached("equipe", "/api/equipe")
         .then((data: Profissional[]) => { if (Array.isArray(data)) setProfissionais(data) })
         .catch(() => {})
     }
@@ -85,6 +88,9 @@ function ModalCaixa({
     const profNome = profissionais.find(p => p.id === colaboradorId)?.name
     const descricaoFinal = profNome ? `${descricao.trim()} — ${profNome}` : descricao.trim()
 
+    if (travaRef.current) return
+    travaRef.current = true
+    let lancou = false
     setSalvando(true); setErro(null)
     try {
       const res = await fetch("/api/caixa", {
@@ -100,12 +106,14 @@ function ModalCaixa({
       })
       const data = await res.json()
       if (!res.ok) { setErro(data.error ?? "Erro ao lançar"); return }
+      lancou = true
       setOk(true)
       window.dispatchEvent(new CustomEvent("caixaAtualizado"))
       setTimeout(onClose, 1200)
     } catch (e) {
       setErro(String(e))
     } finally {
+      if (!lancou) travaRef.current = false
       setSalvando(false)
     }
   }
@@ -372,12 +380,17 @@ export default function GlobalFAB() {
     }
   }, [moverArrasto, finalizarArrasto])
 
+  // Categorias só são usadas no modal de lançamento: busca na primeira vez que
+  // o menu abre (antes do modal), não a cada montagem do painel.
+  const categoriasCarregadas = useRef(false)
   useEffect(() => {
+    if (!aberto || categoriasCarregadas.current) return
+    categoriasCarregadas.current = true
     fetch("/api/caixa/categorias")
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.categorias)) setCategoriasCustom(d.categorias) })
-      .catch(() => {})
-  }, [])
+      .catch(() => { categoriasCarregadas.current = false })
+  }, [aberto])
 
   useEffect(() => {
     function handler(e: MouseEvent) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { usePolling } from "@/lib/usePolling"
 
 // ── YouTube IFrame API types
 declare global {
@@ -400,7 +401,6 @@ export default function PainelTVPage() {
 
   useEffect(() => {
     fetchConfig()
-    const t = setInterval(fetchConfig, 30000)
     function onLogo(e: Event) { setEstab(prev => prev ? { ...prev, logoUrl: (e as CustomEvent).detail } : prev) }
     function onEstab(e: Event) {
       const d = (e as CustomEvent).detail
@@ -409,7 +409,6 @@ export default function PainelTVPage() {
     window.addEventListener("logoAtualizada", onLogo)
     window.addEventListener("estabelecimentoAtualizado", onEstab)
     return () => {
-      clearInterval(t)
       window.removeEventListener("logoAtualizada", onLogo)
       window.removeEventListener("estabelecimentoAtualizado", onEstab)
     }
@@ -438,11 +437,10 @@ export default function PainelTVPage() {
   }, [])
 
   useEffect(() => { fetchAgora(); fetchFila() }, [fetchAgora, fetchFila])
-  useEffect(() => {
-    const t1 = setInterval(fetchAgora, 10000)
-    const t2 = setInterval(fetchFila, 15000)
-    return () => { clearInterval(t1); clearInterval(t2) }
-  }, [fetchAgora, fetchFila])
+  // Param com a aba escondida e retomam (buscando na hora) quando ela volta
+  usePolling(fetchConfig, 30000)
+  usePolling(fetchAgora, 10000)
+  usePolling(fetchFila, 15000)
 
   const ytInfo = extractYouTubeInfo(youtubeUrl)
 

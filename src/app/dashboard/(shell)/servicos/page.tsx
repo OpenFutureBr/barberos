@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react"
 import CardCarousel from "@/components/ui/CardCarousel"
+import { invalidateCache } from "@/lib/prefetch-cache"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const categoriaGradient: Record<string, string> = {
   Corte: "from-blue-700 to-blue-950",
@@ -207,6 +210,8 @@ export default function ServicosPage() {
     const nova = { ...categoriaCores, [cat]: cor }
     setCategoriaCores(nova)
     if (!configEstab) return
+    // Modais e menu leem configurações do cache compartilhado
+    invalidateCache("configuracoes")
     await fetch("/api/configuracoes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -417,13 +422,21 @@ export default function ServicosPage() {
 
       {/* Modal */}
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-              <h2 className="text-white font-bold">{servicoEditando ? "Editar Serviço" : "Novo Serviço"}</h2>
-              <button onClick={() => setModalAberto(false)} className="text-zinc-500 hover:text-white text-xl transition-colors">✕</button>
-            </div>
-            <form onSubmit={handleSalvar} className="p-5 space-y-3">
+        <Modal
+          aberto
+          onFechar={() => setModalAberto(false)}
+          fecharNoFundo={false}
+          titulo={servicoEditando ? "Editar Serviço" : "Novo Serviço"}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => setModalAberto(false)}>Cancelar</Button>
+              <Button variant="accent" type="submit" form="form-servico" disabled={salvando || uploadandoFoto}>
+                {uploadandoFoto ? "Enviando foto..." : salvando ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
+          }
+        >
+            <form id="form-servico" onSubmit={handleSalvar} className="space-y-3">
 
               {/* Foto */}
               <div>
@@ -523,20 +536,8 @@ export default function ServicosPage() {
               </div>
 
               {erro && <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-xs">{erro}</div>}
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModalAberto(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando || uploadandoFoto}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-                  {uploadandoFoto ? "Enviando foto..." : salvando ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Lightbox */}

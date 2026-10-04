@@ -1,6 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getCache, setCache, fetchCached } from "@/lib/prefetch-cache"
+import { fmtMoeda } from "@/lib/formatadores"
+import { useConfirmar } from "@/components/ui/Avisos"
+import Modal from "@/components/ui/Modal"
+import Button from "@/components/ui/Button"
 
 const inputCls = "w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 transition-colors placeholder:text-zinc-600"
 
@@ -18,6 +23,7 @@ function getHojeISO() {
 }
 
 export default function VendaModal({ aberto, onFechar, itens, setItens }: Props) {
+  const confirmar = useConfirmar()
   const [produtos, setProdutos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [clientesHojeIds, setClientesHojeIds] = useState<Set<string>>(new Set())
@@ -43,10 +49,16 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
   useEffect(() => {
     if (!aberto) return
     const hoje = getHojeISO()
+    // Estoque sempre fresco (saldo muda a cada venda), mas só id/nome/preço/saldo.
+    // Agendamentos de hoje vêm do cache que o shell já pré-carregou.
+    const apptsCache = getCache(`agendamentos:${hoje}`)
     Promise.all([
-      fetch("/api/estoque").then(r => r.json()),
-      fetch("/api/clientes?modo=simples").then(r => r.json()),
-      fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()),
+      fetch("/api/estoque?modo=simples").then(r => r.json()),
+      fetchCached("clientes:simples", "/api/clientes?modo=simples", 30_000),
+      apptsCache ? Promise.resolve(apptsCache) : fetch(`/api/agendamentos?data=${hoje}`).then(r => r.json()).then(d => {
+        if (Array.isArray(d)) setCache(`agendamentos:${hoje}`, d)
+        return d
+      }),
     ]).then(([prods, cls, appts]) => {
       setProdutos(Array.isArray(prods) ? prods : [])
       setClientes(Array.isArray(cls) ? cls : [])
@@ -100,8 +112,8 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
     onFechar()
   }
 
-  function limparCarrinho() {
-    if (itens.length > 0 && !confirm("Limpar o carrinho?")) return
+  async function limparCarrinho() {
+    if (itens.length > 0 && !(await confirmar({ titulo: "Limpar o carrinho?", mensagem: `${itens.length} ${itens.length === 1 ? "item será removido" : "itens serão removidos"}.`, confirmar: "Limpar", perigo: true }))) return
     setItens(() => [])
     setBuscaCliente(""); setClienteVenda("")
   }
@@ -127,9 +139,12 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
   ).slice(0, 6)
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+    <Modal
+      aberto
+      onFechar={onFechar}
+      fecharNoFundo={false}
+      titulo={
+        <div className="flex items-center gap-3">
           {/* Tabs */}
           <div className="flex bg-zinc-800 rounded-lg overflow-hidden">
             <button type="button" onClick={() => setAbaVenda("nova")}
@@ -141,20 +156,30 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               Fechar comanda
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            {abaVenda === "nova" && itens.length > 0 && (
-              <button type="button" onClick={limparCarrinho}
-                className="text-zinc-600 hover:text-red-400 text-xs transition-colors">
-                Limpar
-              </button>
-            )}
-            <button onClick={onFechar} className="text-zinc-500 hover:text-white text-xl">✕</button>
-          </div>
+          {abaVenda === "nova" && itens.length > 0 && (
+            <button type="button" onClick={limparCarrinho}
+              className="text-zinc-600 hover:text-red-400 text-xs transition-colors">
+              Limpar
+            </button>
+          )}
         </div>
+      }
+      // A aba "Fechar comanda" cobra direto em cada card, sem rodape
+      rodape={abaVenda === "nova" ? (
+        <>
+          <Button variant="ghost" onClick={onFechar}>
+            {itens.length > 0 ? "Fechar (manter carrinho)" : "Cancelar"}
+          </Button>
+          <Button variant="accent" type="submit" form="form-venda" disabled={!itens.length}>
+            {itens.length ? `Finalizar cobrança · ${fmtMoeda(itens.reduce((s, i) => s + i.qty * i.unitPrice, 0))}` : "Adicione produtos"}
+          </Button>
+        </>
+      ) : undefined}
+    >
 
         {/* Aba Fechar Comanda */}
         {abaVenda === "fechar" && (
-          <div className="p-4 space-y-2">
+          <div className="space-y-2">
             {loadingComandas ? (
               <div className="text-center py-8 text-zinc-600 text-sm">Carregando...</div>
             ) : comandasAbertas.length === 0 ? (
@@ -172,7 +197,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                       <div className="text-zinc-500 text-xs">{c.service?.name} · {c.professional?.name?.split(" ")[0]}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-amber-400 text-sm font-mono">R$ {(totalServico + totalProdutos).toFixed(2)}</div>
+                      <div className="text-amber-400 text-sm font-mono">{fmtMoeda((totalServico + totalProdutos))}</div>
                       {c.vencida && <div className="text-red-400 text-xs">+24h</div>}
                     </div>
                     <span className={`text-zinc-600 text-xs flex-shrink-0 transition-transform ${expandido ? "rotate-90" : ""}`}
@@ -182,12 +207,12 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                     <div className="border-t border-zinc-700 px-4 pb-3 pt-2 space-y-1.5">
                       <div className="flex justify-between text-sm">
                         <span className="text-zinc-400">{c.service?.name}</span>
-                        <span className="text-zinc-200 font-mono">R$ {totalServico.toFixed(2)}</span>
+                        <span className="text-zinc-200 font-mono">{fmtMoeda(totalServico)}</span>
                       </div>
                       {(c.produtos ?? []).map((m: any, i: number) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-zinc-400">{m.product?.name} ×{m.quantity}</span>
-                          <span className="text-zinc-200 font-mono">R$ {(m.quantity * (m.unitPrice ?? 0)).toFixed(2)}</span>
+                          <span className="text-zinc-200 font-mono">{fmtMoeda((m.quantity * (m.unitPrice ?? 0)))}</span>
                         </div>
                       ))}
                       <button type="button"
@@ -211,7 +236,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                           onFechar()
                         }}
                         className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold py-2 rounded-lg text-sm transition-colors">
-                        Finalizar cobrança · R$ {(totalServico + totalProdutos).toFixed(2)}
+                        Finalizar cobrança · {fmtMoeda((totalServico + totalProdutos))}
                       </button>
                     </div>
                   )}
@@ -223,7 +248,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
 
         {/* Aba Nova Venda */}
         {abaVenda === "nova" && (
-        <form onSubmit={handleFinalizar} className="p-5 space-y-4">
+        <form id="form-venda" onSubmit={handleFinalizar} className="space-y-4">
 
           {/* Cliente */}
           <div className="relative">
@@ -237,7 +262,9 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               onChange={(e) => { setBuscaCliente(e.target.value); setClienteVenda(e.target.value); setDropdownCliente(true) }}
               onFocus={() => setDropdownCliente(true)}
               onBlur={() => setTimeout(() => setDropdownCliente(false), 150)}
-              onKeyDown={(e) => { if (e.key === "Escape") setDropdownCliente(false) }}
+              // Com a lista aberta, o Escape so fecha a lista (o Modal ignora
+              // Esc com defaultPrevented) — senao fecharia a venda inteira
+              onKeyDown={(e) => { if (e.key === "Escape") { if (dropdownCliente) e.preventDefault(); setDropdownCliente(false) } }}
               placeholder={clientesHojeIds.size > 0 ? "Buscar ou selecionar cliente de hoje..." : "Buscar ou digitar nome..."}
               className={inputCls} />
 
@@ -283,7 +310,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                         className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-0 transition-colors">
                         <div className="flex justify-between">
                           <span className="text-white text-sm">{p.name}</span>
-                          <span className="text-amber-400 text-sm font-mono">R$ {p.salePrice?.toFixed(2)}</span>
+                          <span className="text-amber-400 text-sm font-mono">{fmtMoeda(p.salePrice)}</span>
                         </div>
                         <div className="text-zinc-500 text-xs">
                           Estoque disponível: <span className={disp <= 3 ? "text-red-400" : "text-zinc-400"}>{disp}</span>
@@ -335,7 +362,7 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
                   <div className="text-zinc-400 text-sm">Total</div>
                   <div className="text-zinc-600 text-xs">{totalItens} {totalItens === 1 ? "item" : "itens"}</div>
                 </div>
-                <span className="text-green-400 font-bold text-xl">R$ {total.toFixed(2)}</span>
+                <span className="text-green-400 font-bold text-xl">{fmtMoeda(total)}</span>
               </div>
             </div>
           )}
@@ -345,20 +372,8 @@ export default function VendaModal({ aberto, onFechar, itens, setItens }: Props)
               Adicione produtos ao carrinho para registrar a venda
             </div>
           )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onFechar}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {itens.length > 0 ? "Fechar (manter carrinho)" : "Cancelar"}
-            </button>
-            <button type="submit" disabled={!itens.length}
-              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
-              {itens.length ? `Finalizar cobrança · R$ ${itens.reduce((s, i) => s + i.qty * i.unitPrice, 0).toFixed(2)}` : "Adicione produtos"}
-            </button>
-          </div>
         </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

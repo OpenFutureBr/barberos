@@ -88,6 +88,7 @@ export async function GET(request: Request) {
           gte: inicio,
           lte: fim,
         },
+        appointment: { establishmentId: ESTAB },
       },
       include: {
         appointment: {
@@ -122,6 +123,7 @@ export async function GET(request: Request) {
         unitPrice: {
           not: null,
         },
+        product: { establishmentId: ESTAB },
       },
       include: {
         product: {
