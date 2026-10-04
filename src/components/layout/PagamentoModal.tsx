@@ -127,8 +127,14 @@ export default function PagamentoModal({
     city: string | null
   } | null>(null)
 
+  // Reinicia o formulário só quando abre OUTRA cobrança. As telas montam
+  // `dados` inline (objeto novo a cada render); depender do objeto fazia o
+  // recarregamento pós-pagamento apagar o recibo e voltar ao formulário —
+  // parecia que nada tinha acontecido e um novo clique lançava de novo.
+  const chaveDados = dados ? dados.appointmentId : null
+
   useEffect(() => {
-    if (!dados) return
+    if (chaveDados === null) return
 
     setMetodo("PIX")
     setDueDate("")
@@ -144,7 +150,7 @@ export default function PagamentoModal({
       })
 
     fetchCached("configuracoes", "/api/configuracoes").then(aplicar).catch(() => {})
-  }, [dados])
+  }, [chaveDados])
 
   if (!dados) return null
 
